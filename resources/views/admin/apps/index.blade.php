@@ -34,6 +34,7 @@
         <span class="grow"><b style="font-size:16px">{{ $a->name }}</b><br><span class="small muted mono">{{ $a->key }}</span></span>
         <span class="chip {{ ['live' => 'ok', 'paused' => 'warn'][$a->status] ?? '' }}">{{ ['live' => 'Live', 'paused' => 'Paused', 'not_connected' => 'Not connected'][$a->status] }}</span></span>
       <span class="small muted">{{ $a->grants_count }} people · {{ $a->clients->count() }} client(s) · {{ $a->organizations->pluck('name')->implode(', ') ?: 'no organizations' }}</span>
+      <span class="small"><span class="chip {{ $a->bar_seen_at && $a->bar_seen_at->gt(now()->subDays(2)) ? 'ok' : 'warn' }}">Clauth bar: {{ $a->bar_seen_at ? 'seen '.$a->bar_seen_at->diffForHumans() : 'not installed yet' }}</span></span>
     </a>
   @empty<div class="card empty">No apps yet. Register the first one.</div>@endforelse
 </section>

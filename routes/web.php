@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin;
+use App\Http\Controllers\Api\BarController;
 use App\Http\Controllers\Api\UserController as ApiUserController;
 use App\Http\Controllers\Auth\InviteController;
 use App\Http\Controllers\Auth\LoginController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\OAuth\AuthorizeController;
 use App\Http\Controllers\OAuth\OidcController;
 use App\Http\Controllers\OAuth\TokenController;
+use App\Http\Controllers\SignOutEverywhereController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +26,7 @@ Route::withoutMiddleware([ValidateCsrfToken::class])->group(function () {
     Route::post('/oauth/revoke', [OidcController::class, 'revoke'])->middleware('throttle:token');
     Route::match(['get', 'post'], '/userinfo', [OidcController::class, 'userinfo']);
     Route::get('/api/v1/users/{sub}', [ApiUserController::class, 'show'])->middleware('throttle:120,1');
+    Route::get('/api/v1/bar', BarController::class)->middleware('throttle:240,1');
 });
 
 // ---- Hosted pages ----
@@ -49,6 +52,8 @@ Route::get('/invite/{token}', [InviteController::class, 'show'])->name('invite.s
 Route::post('/invite/{token}', [InviteController::class, 'store'])->middleware('throttle:10,1');
 
 Route::get('/apps/{app}/logo', [Admin\AppController::class, 'logo'])->name('app-logo');
+Route::get('/signout-everywhere', [SignOutEverywhereController::class, 'show'])->name('signout-everywhere');
+Route::post('/signout-everywhere', [SignOutEverywhereController::class, 'store']);
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/help', 'pages.help')->name('help');

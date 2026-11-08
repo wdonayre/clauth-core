@@ -25,6 +25,7 @@ class Application extends Model
             'manifest_diff' => 'array',
             'manifest_synced_at' => 'datetime',
             'last_token_at' => 'datetime',
+            'bar_seen_at' => 'datetime',
         ];
     }
 

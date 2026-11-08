@@ -192,6 +192,9 @@ CLAUTH_REDIRECT_URI={{ $app->clients->first()?->redirect_uris[0] ?? '' }}
 CLAUTH_AUDIENCE={{ $app->key }}
 CLAUTH_SCOPES="openid profile email clauth offline_access"</pre>
       <button class="btn sm" type="button" data-copy="#envsnip" style="margin-top:8px">Copy</button>
+      <h2 style="margin:20px 0 8px">Clauth bar (required)</h2>
+      <p class="small" style="margin:0;color:#C4CDD8">{{ $app->bar_seen_at ? 'Last seen '.$app->bar_seen_at->diffForHumans().'.' : 'Not seen yet: the app hasn’t loaded the bar.' }}
+        Laravel apps: <code>@clauthBar</code> in the staff layout. Others: <code>&lt;script src="{{ $iss }}/bar/v1" defer&gt;&lt;/script&gt;</code> + <code>&lt;clauth-bar src="/your/bar/endpoint"&gt;&lt;/clauth-bar&gt;</code>.</p>
       <h2 style="margin:20px 0 8px">Rules for the app</h2>
       <ul class="small" style="margin:0;padding-left:18px;color:#C4CDD8;line-height:1.7">
         <li>Use Authorization Code + PKCE (S256) — required for every client.</li>
