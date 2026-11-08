@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\Api\BarController;
+use App\Http\Controllers\Api\ReleaseNoteController;
 use App\Http\Controllers\Api\UserController as ApiUserController;
 use App\Http\Controllers\Auth\InviteController;
 use App\Http\Controllers\Auth\LoginController;
@@ -27,6 +28,8 @@ Route::withoutMiddleware([ValidateCsrfToken::class])->group(function () {
     Route::match(['get', 'post'], '/userinfo', [OidcController::class, 'userinfo']);
     Route::get('/api/v1/users/{sub}', [ApiUserController::class, 'show'])->middleware('throttle:120,1');
     Route::get('/api/v1/bar', BarController::class)->middleware('throttle:240,1');
+    Route::post('/api/v1/bar/read', [BarController::class, 'read'])->middleware('throttle:120,1');
+    Route::post('/api/v1/release-notes', [ReleaseNoteController::class, 'store'])->middleware('throttle:30,1');
 });
 
 // ---- Hosted pages ----
@@ -110,6 +113,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::put('/apps/{app}/clients/{client}', [Admin\AppController::class, 'updateClient'])->name('apps.clients.update');
         Route::post('/apps/{app}/clients/{client}/rotate', [Admin\AppController::class, 'rotateSecret'])->name('apps.clients.rotate');
         Route::post('/apps/{app}/clients/{client}/revoke', [Admin\AppController::class, 'revokeClient'])->name('apps.clients.revoke');
+
+        Route::get('/updates', [Admin\UpdatesController::class, 'index'])->name('updates');
+        Route::post('/updates', [Admin\UpdatesController::class, 'store'])->name('updates.store');
+        Route::put('/updates/{note}', [Admin\UpdatesController::class, 'update'])->name('updates.update');
+        Route::delete('/updates/{note}', [Admin\UpdatesController::class, 'destroy'])->name('updates.destroy');
 
         Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
         Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');

@@ -14,5 +14,6 @@ return [
         'clauth' => 'Your organizations and roles in this app',
         'offline_access' => 'Stay signed in',
         'users:read' => 'Look up users (machine-to-machine)',
+        'updates:write' => 'Post release notes for this app (machine-to-machine)',
     ],
 ];

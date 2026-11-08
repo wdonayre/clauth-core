@@ -8,6 +8,8 @@
  *         (the clauth-laravel kit provides /auth/clauth/bar). Not signed in → 401 → the bar hides itself.
  * logout  the app's sign-out URL (ends the app session, then Clauth's).
  * org     the organization slug the page is showing (optional).
+ * read    same-origin URL the bar POSTs to when the person opens "What's new" (default: src + "/read");
+ *         the app forwards it to Clauth's /api/v1/bar/read. Sends Laravel's X-XSRF-TOKEN when the cookie exists.
  *
  * Picking another organization fires a cancelable `clauth-org-change` event ({detail: {org}}) on the element.
  * If nobody calls preventDefault(), the bar stores the choice in the `clauth_org` cookie and reloads the page.
@@ -63,11 +65,23 @@
     .wm .cl{color:transparent;-webkit-text-stroke:1px #E8EDF2}
     .wm .au{color:#22D3EE}
     .check{margin-left:auto;color:#22D3EE;font-weight:800}
+    .bell{position:relative}
+    .badge{position:absolute;top:5px;right:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#EF4444;color:#fff;font:700 10.5px/17px Inter,sans-serif;text-align:center;border:2px solid #0D1014}
+    .news{max-height:min(420px,70vh);overflow:auto;margin:0 -6px;padding:0 6px}
+    .note{display:block;padding:10px;border-radius:10px;color:#E8EDF2;text-decoration:none}
+    .note + .note{border-top:1px solid #1E252E;border-radius:0}
+    a.note:hover{background:#1A2029}
+    .note .t{font-weight:600;font-size:14px}
+    .note .m{font-size:12px;color:#8B96A5;margin-top:2px}
+    .note .b{font-size:13px;color:#C4CDD8;margin-top:6px;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+    .new{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#EF4444;color:#fff;font-size:10.5px;font-weight:700;vertical-align:1px}
+    .ver{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#1A2029;border:1px solid #2A323D;color:#C4CDD8;font:600 11px ui-monospace,Menlo,monospace}
+    .empty{padding:18px 6px;text-align:center;color:#8B96A5;font-size:13px}
     @media (max-width:520px){.name{max-width:110px}.org{max-width:130px}.orgname{display:none}}
   `;
 
   class ClauthBar extends HTMLElement {
-    static get observedAttributes() { return ['src', 'org', 'logout']; }
+    static get observedAttributes() { return ['src', 'org', 'logout', 'read']; }
 
     constructor() {
       super();
@@ -137,6 +151,10 @@
       const logout = this.getAttribute('logout');
       const roleLine = org ? `${org.role} · ${org.name}` : '';
       const o = this.open;
+      const up = d.updates;
+      const unread = up?.unread || 0;
+      const fresh = this.freshIds || [];
+      const date = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return ''; } };
 
       this.root.innerHTML = `<style>${CSS}</style>
         <nav class="bar" aria-label="Clauth">
@@ -149,6 +167,10 @@
                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
                </button>`
             : (org ? `<span class="orgname">${esc(org.name)}</span>` : '')}
+          ${up ? `<button type="button" class="round bell" data-menu="news" aria-label="What's new${unread ? `: ${unread} unread` : ''}" aria-haspopup="true" aria-expanded="${o === 'news'}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/></svg>
+            ${unread ? `<span class="badge" aria-hidden="true">${unread > 9 ? '9+' : unread}</span>` : ''}
+          </button>` : ''}
           <button type="button" class="round" data-menu="apps" aria-label="Your apps" aria-haspopup="true" aria-expanded="${o === 'apps'}">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${[5, 12, 19].map((y) => [5, 12, 19].map((x) => `<circle cx="${x}" cy="${y}" r="2"/>`).join('')).join('')}</svg>
           </button>
@@ -160,6 +182,17 @@
           ${orgs.map((x) => `<button type="button" class="item" role="menuitemradio" aria-checked="${x.slug === org?.slug}" data-org="${esc(x.slug)}">
               <span><b style="font-weight:600">${esc(x.name)}</b><br><span class="muted">${esc(x.role)}</span></span>${x.slug === org?.slug ? '<span class="check">✓</span>' : ''}</button>`).join('')}
         </div>
+
+        ${up ? `<div class="panel" role="menu" aria-label="What's new" ${o === 'news' ? '' : 'hidden'} style="width:360px">
+          <p class="lbl">What's new</p>
+          <div class="news">
+            ${(up.items || []).length ? up.items.map((n) => {
+              const inner = `<div class="t">${esc(n.title)}${n.version ? `<span class="ver">${esc(n.version)}</span>` : ''}${fresh.includes(n.id) ? '<span class="new">New</span>' : ''}</div>
+                <div class="m">${esc(n.app)} · ${esc(date(n.at))}</div>${n.body ? `<div class="b">${esc(n.body)}</div>` : ''}`;
+              return n.link ? `<a class="note" role="menuitem" href="${esc(safeUrl(n.link))}" target="_blank" rel="noopener">${inner}</a>` : `<div class="note" role="menuitem" tabindex="-1">${inner}</div>`;
+            }).join('') : '<div class="empty">No updates yet.</div>'}
+          </div>
+        </div>` : ''}
 
         <div class="panel" role="menu" aria-label="Your apps" ${o === 'apps' ? '' : 'hidden'}>
           <div class="grid">
@@ -183,7 +216,26 @@
 
     toggle(menu) {
       this.open = this.open === menu ? null : menu;
+      if (this.open === 'news') this.markRead(); else this.freshIds = [];
       this.render();
+    }
+
+    markRead() {
+      const up = this.data?.updates;
+      const ids = (up?.items || []).filter((n) => n.unread).map((n) => n.id);
+      if (!ids.length) return;
+      this.freshIds = ids;                       // keep the "New" tags while the panel is open
+      up.items.forEach((n) => { n.unread = false; });
+      up.unread = 0;
+      try { sessionStorage.setItem(this.cacheKey, JSON.stringify({ at: Date.now(), data: this.data })); } catch {}
+      const xsrf = cookie('XSRF-TOKEN');
+      fetch(this.getAttribute('read') || (this.getAttribute('src') || '/auth/clauth/bar') + '/read', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: Object.assign({ 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          xsrf ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrf) } : {}),
+        body: JSON.stringify({ ids }),
+      }).catch((e) => console.warn('[clauth-bar]', e.message));
     }
 
     pickOrg(slug) {

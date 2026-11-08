@@ -7,5 +7,6 @@
 @case('gear')<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>@break
 @case('user')<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6"/>@break
 @case('out')<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>@break
+@case('bell')<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/>@break
 @case('plus')<path d="M12 5v14M5 12h14"/>@break
 @endswitch</svg>

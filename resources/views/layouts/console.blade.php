@@ -22,6 +22,7 @@
       @if($me->isOwner())<a class="{{ $nav('admin.apps.*') }}" href="{{ route('admin.apps.index') }}">@include('partials.icon', ['i' => 'box'])Apps</a>@endif
       <a class="{{ $nav('admin.orgs.*') }}" href="{{ route('admin.orgs.index') }}">@include('partials.icon', ['i' => 'org'])Organizations</a>
       <a class="{{ $nav('admin.audit*') }}" href="{{ route('admin.audit') }}">@include('partials.icon', ['i' => 'list'])Audit log</a>
+      @if($me->isOwner())<a class="{{ $nav('admin.updates*') }}" href="{{ route('admin.updates') }}">@include('partials.icon', ['i' => 'bell'])Updates</a>@endif
       @if($me->isOwner())<a class="{{ $nav('admin.settings*') }}" href="{{ route('admin.settings') }}">@include('partials.icon', ['i' => 'gear'])Settings</a>@endif
     @endif
     <a class="{{ $nav('account') }}" href="{{ route('account') }}">@include('partials.icon', ['i' => 'user'])My account</a>

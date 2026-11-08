@@ -77,6 +77,7 @@ class Audit
             'app.manifest_synced' => 'Manifest synced',
             'app.role_changed' => 'Role permissions changed',
             'app.branding_changed' => 'Sign-in page changed',
+            'app.release_note' => 'Release note posted or changed',
             'org.created' => 'Organization created',
             'org.updated' => 'Organization updated',
             'settings.updated' => 'Settings updated',
