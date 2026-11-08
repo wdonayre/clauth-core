@@ -175,4 +175,15 @@ class OidcFlowTest extends ClauthTestCase
         $this->post('/oauth/revoke', ['client_id' => $this->client->id, 'client_secret' => $this->secret, 'token' => $tok['refresh_token']])->assertOk();
         $this->assertSame(0, DB::table('oauth_refresh_tokens')->where('revoked', false)->count());
     }
+
+    public function test_first_sign_in_marks_a_not_connected_app_live(): void
+    {
+        $this->xp->update(['status' => 'not_connected']);
+        $user = $this->makeUser();
+        $this->grant($user, $this->cbg, 'member');
+        [$code, , $verifier] = $this->authorizeCode($user);
+        $this->exchange($code, $verifier)->assertOk();
+        $this->assertSame('live', $this->xp->fresh()->status);
+        $this->assertTrue(AuditEvent::where('event', 'app.connected')->exists());
+    }
 }

@@ -78,6 +78,7 @@ class Audit
             'app.role_changed' => 'Role permissions changed',
             'app.branding_changed' => 'Sign-in page changed',
             'app.release_note' => 'Release note posted or changed',
+            'app.connected' => 'App connected (first sign-in through Clauth)',
             'org.created' => 'Organization created',
             'org.updated' => 'Organization updated',
             'settings.updated' => 'Settings updated',

@@ -5,6 +5,7 @@ namespace App\OAuth;
 use App\Models\Application;
 use App\Models\OAuthClient;
 use App\Models\User;
+use App\Services\Audit;
 use App\Services\Claims;
 use App\Services\SigningKeys;
 use DateTimeImmutable;
@@ -64,6 +65,11 @@ class ClauthAccessToken extends AccessToken
 
         if ($app) {
             Application::whereKey($app->id)->update(['last_token_at' => now()]);
+            // First real sign-in through Clauth: the app is connected. ("paused" stays a manual choice.)
+            if ($userId !== null && $app->status === 'not_connected') {
+                Application::whereKey($app->id)->where('status', 'not_connected')->update(['status' => 'live']);
+                Audit::log('app.connected', 'app', $app, ['status' => 'not_connected'], ['status' => 'live'], $app->id, actorType: 'system');
+            }
         }
 
         return $builder->getToken($config->signer(), $config->signingKey())->toString();
