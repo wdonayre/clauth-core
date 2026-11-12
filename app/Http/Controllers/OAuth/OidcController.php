@@ -61,6 +61,9 @@ class OidcController
             return response()->json(['error' => 'invalid_token'], 401);
         }
         $client = OAuthClient::with('app')->find($claims->get('client_id'));
+        if ($client?->app?->isSuspended()) {
+            return response()->json(['error' => 'invalid_token'], 401);
+        }
         $scopes = explode(' ', (string) $claims->get('scope'));
         $out = ['sub' => $user->sub()];
         if (in_array('email', $scopes)) {

@@ -19,7 +19,23 @@ class Organization extends Model
 
     protected function casts(): array
     {
-        return ['is_platform' => 'boolean', 'verified_at' => 'datetime'];
+        return ['is_platform' => 'boolean', 'verified_at' => 'datetime', 'suspended_at' => 'datetime', 'limits' => 'array'];
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
+    }
+
+    /** Effective limits (SPEC-organizations §10.1); null = no limit (platform organizations). */
+    public function limit(string $key): ?int
+    {
+        if ($this->is_platform) {
+            return null;
+        }
+        $over = $this->limits[$key] ?? null;
+
+        return $over !== null ? (int) $over : (int) config('clauth.limits.'.($this->verified_at ? 'verified' : 'unverified').'.'.$key);
     }
 
     public function users(): BelongsToMany

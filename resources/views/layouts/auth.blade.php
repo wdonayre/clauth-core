@@ -30,7 +30,7 @@
   </main>
   <footer>
     <span class="powered">Powered by <span class="wordmark" aria-label="Clauth"><span class="cl">CL</span><span class="au">AUTH</span></span></span>
-    <nav aria-label="Legal"><a href="{{ route('privacy') }}">Privacy</a><a href="{{ route('terms') }}">Terms</a><a href="{{ route('help') }}">Help</a></nav>
+    <nav aria-label="Legal"><a href="{{ route('privacy') }}">Privacy</a><a href="{{ route('terms') }}">Terms</a><a href="{{ route('help') }}">Help</a><a href="{{ route('report') }}">Report this page</a></nav>
   </footer>
 </div>
 </body>

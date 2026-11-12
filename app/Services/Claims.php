@@ -12,7 +12,7 @@ class Claims
     /** Grants for this app in orgs that the app is enabled for. */
     public static function grants(User $user, Application $app)
     {
-        $allowedOrgs = $app->organizations()->where('organizations.status', 'active')->pluck('organizations.id');
+        $allowedOrgs = $app->organizations()->where('organizations.status', 'active')->whereNull('organizations.suspended_at')->pluck('organizations.id');
 
         return Grant::with(['organization', 'role.permissions'])
             ->where('user_id', $user->id)
@@ -23,7 +23,7 @@ class Claims
 
     public static function canUse(User $user, Application $app): bool
     {
-        return $user->status === 'active' && $app->status !== 'paused' && self::grants($user, $app)->isNotEmpty();
+        return $user->status === 'active' && $app->status !== 'paused' && ! $app->isSuspended() && self::grants($user, $app)->isNotEmpty();
     }
 
     /** ['cakesbygrace' => ['roles' => ['finance'], 'permissions' => [...]], ...] */

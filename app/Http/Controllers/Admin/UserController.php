@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Audit;
 use App\Services\Claims;
 use App\Services\Invites;
+use App\Services\Limits;
 use App\Services\Sessions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
@@ -74,6 +75,11 @@ class UserController
         $existing = User::where('email', mb_strtolower($data['email']))->first();
         if ($existing && $existing->status === 'disabled') {
             return back()->withErrors(['email' => 'That person’s account is disabled. Turn it back on first.'])->withInput();
+        }
+        $org = Organization::find($data['organization_id']);
+        $isMember = $existing && $existing->organizations()->where('organizations.id', $org->id)->exists();
+        if ($msg = Limits::exceeded($org, 'invites_per_day') ?? ($isMember ? null : Limits::exceeded($org, 'people'))) {
+            return back()->withErrors(['email' => $msg])->withInput();
         }
         $grants = [];
         foreach ($data['roles'] ?? [] as $appId => $roleId) {
@@ -167,6 +173,9 @@ class UserController
         $user = $this->visibleUser($id);
         $orgId = $request->input('organization_id');
         abort_unless($orgId && $this->canManageOrg($orgId), 404);
+        if (! $user->organizations()->where('organizations.id', $orgId)->exists() && ($msg = Limits::exceeded(Organization::find($orgId), 'people'))) {
+            return back()->withErrors(['organization_id' => $msg]);
+        }
         $user->organizations()->syncWithoutDetaching([$orgId => ['joined_at' => now()]]);
         Audit::log('user.updated', 'admin', $user, after: ['joined_org' => $orgId], orgId: $orgId);
 

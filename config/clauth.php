@@ -17,6 +17,26 @@ return [
     'reserved_name_words' => ['clauth', 'google', 'apple', 'microsoft', 'facebook', 'gcash', 'paymaya', 'paypal', 'bdo', 'bpi',
         'metrobank', 'landbank', 'unionbank', 'xpenses', 'cebpos', 'cakepricer', 'alab', 'cake labs', 'cakesbygrace'],
 
+    // Per-organization limits (SPEC-organizations §10.1). Platform organizations (William's) have none. Per-org
+    // overrides live in organizations.limits.
+    'limits' => [
+        'unverified' => ['apps' => 2, 'people' => 50, 'invites_per_day' => 50, 'domains' => 0, 'installs' => 0, 'token_per_minute' => 30],
+        'verified' => ['apps' => 20, 'people' => 5000, 'invites_per_day' => 1000, 'domains' => 5, 'installs' => 50, 'token_per_minute' => 120],
+    ],
+    // Hosts under these parent domains can only be claimed by platform organizations (SPEC-organizations §7.2).
+    'reserved_parent_domains' => array_filter(explode(',', env('CLAUTH_RESERVED_PARENT_DOMAINS',
+        'thecakelabs.com,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
+    // Custom-domain certificates: "san" = one certificate shared with the main domain (CloudPanel on h1, today);
+    // "per-host" = one certificate per custom domain (deploy/domains-perhost.sh, the dedicated server).
+    'cert_mode' => env('CLAUTH_CERT_MODE', 'san'),
+    // per-host mode: where the generated nginx server blocks point (see deploy/domains-perhost.sh).
+    'perhost' => [
+        'public_root' => env('CLAUTH_PUBLIC_ROOT', base_path('public')),
+        'php_fpm' => env('CLAUTH_PHP_FPM', 'unix:/run/php/php8.5-fpm.sock'),
+        'acme_root' => env('CLAUTH_ACME_ROOT', '/var/www/clauth-acme'),
+        'cert_dir' => env('CLAUTH_CERT_DIR', '/etc/letsencrypt/live'),
+    ],
+
     'server_ips' => array_filter(explode(',', env('CLAUTH_SERVER_IPS', '209.74.81.192'))),
     'scopes' => [
         'openid' => 'Sign you in',

@@ -287,7 +287,7 @@ class CustomDomainTest extends ClauthTestCase
     public function test_another_organizations_domain_cannot_be_used_unless_the_claim_is_stale(): void
     {
         $d = $this->activeDomain();
-        $other = Organization::create(['slug' => 'other', 'name' => 'Other Co']);
+        $other = Organization::create(['slug' => 'other', 'name' => 'Other Co', 'verified_at' => now()]);
         [$erp] = $this->secondApp([$other]);
         $owner = $this->owner();
         $admin = fn () => $this->actingAs($owner)->withSession(['auth.mfa' => true]);

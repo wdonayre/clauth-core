@@ -21,10 +21,12 @@
       <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
         <div><h2>{{ $o->name }}</h2><p class="small muted mono" style="margin:4px 0 0">{{ $o->slug }} · {{ $o->users_count }} people</p></div>
         <div class="pills">
-          @if($o->is_platform)<span class="chip info" title="One of William's own businesses">Own business</span>@endif
+          @if($o->is_platform)<span class="chip info" title="One of William's own businesses">Own business</span>@elseif($o->verified_at)<span class="chip ok">Verified</span>@else<span class="chip warn">Unverified</span>@endif
+          @if($o->suspended_at)<span class="chip bad" title="{{ $o->suspend_reason }}">Suspended</span>@endif
           <span class="chip {{ $o->status === 'active' ? 'ok' : 'bad' }}">{{ ucfirst($o->status) }}</span>
         </div>
       </div>
+      @if($o->suspended_at)<div class="flash bad" style="margin-top:12px">Suspended {{ $o->suspended_at->diffForHumans() }}: {{ $o->suspend_reason }}</div>@endif
 
       @if($o->installRequests->isNotEmpty())
         <p class="lbl" style="margin:16px 0 6px">Waiting for your approval</p>
@@ -70,8 +72,27 @@
           <div class="f"><label for="n{{ $o->id }}">Name</label><input class="in" id="n{{ $o->id }}" name="name" value="{{ $o->name }}" required></div>
           <div class="f"><label for="s{{ $o->id }}">Status</label><select class="in" id="s{{ $o->id }}" name="status"><option value="active" @selected($o->status === 'active')>Active</option><option value="disabled" @selected($o->status === 'disabled')>Disabled (no app access)</option></select></div>
           <input type="hidden" name="is_platform" value="0"><label class="cb"><input type="checkbox" name="is_platform" value="1" @checked($o->is_platform)> One of my own businesses</label>
+          @unless($o->is_platform)
+            <input type="hidden" name="verified" value="0"><label class="cb"><input type="checkbox" name="verified" value="1" @checked($o->verified_at)> Verified (domain checked and reviewed: higher limits, Verified badge)</label>
+            <details><summary class="small">Limits ({{ $o->verified_at ? 'verified' : 'unverified' }} defaults; leave blank to use them)</summary>
+              <div class="grid2" style="margin-top:8px">
+                @foreach(config('clauth.limits.'.($o->verified_at ? 'verified' : 'unverified')) as $k => $def)
+                  <div class="f"><label for="l{{ $o->id }}{{ $k }}">{{ str_replace('_', ' ', ucfirst($k)) }} <span class="small muted">(used {{ \App\Services\Limits::used($o, $k) }})</span></label>
+                    <input class="in" id="l{{ $o->id }}{{ $k }}" name="limits[{{ $k }}]" type="number" min="0" placeholder="{{ $def }}" value="{{ $o->limits[$k] ?? '' }}"></div>
+                @endforeach
+              </div></details>
+          @endunless
           <div class="actions"><button class="btn">Save</button></div>
         </form>
+        @unless($o->is_platform)
+          @if($o->suspended_at)
+            <form method="post" action="{{ route('admin.orgs.restore', $o->id) }}" style="margin-top:10px">@csrf @method('delete')<button class="btn sm">Restore organization</button></form>
+          @else
+            <form class="actions" method="post" action="{{ route('admin.orgs.suspend', $o->id) }}" style="margin-top:10px" data-confirm="Suspend {{ $o->name }}? Its apps stop signing anyone in right away.">@csrf
+              <label class="sr-only" for="sr{{ $o->id }}">Reason</label><input class="in" id="sr{{ $o->id }}" name="reason" placeholder="Reason (shown to its staff)" style="max-width:280px" required>
+              <button class="btn sm danger">Suspend</button></form>
+          @endif
+        @endunless
       @endif
     </section>
   @empty<div class="card empty">No organizations yet.</div>@endforelse

@@ -29,6 +29,11 @@ class TokenController
     {
         $grant = $request->input('grant_type');
         $key = Passport::tokenEncryptionKey(app('encrypter'));
+        // A suspended app (or one whose organization is suspended) gets no tokens at all (SPEC-organizations §10.4).
+        $requester = OAuthClient::with('app.publisher')->find($request->input('client_id') ?: $request->getUser());
+        if ($requester?->app?->isSuspended()) {
+            return $this->error('unauthorized_client', 'This app is suspended.');
+        }
 
         if ($grant === 'authorization_code' && $request->filled('code')) {
             try {

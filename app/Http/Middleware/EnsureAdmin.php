@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Application;
+use App\Models\Organization;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -34,6 +35,14 @@ class EnsureAdmin
         };
         if ($level === 'apps' && ($app = $request->route('app')) instanceof Application) {
             abort_unless($user->canManageApp($app), 404);
+        }
+        // Suspended (SPEC-organizations §10.4): the console is read-only for the organization's staff.
+        if (! $user->isOwner() && ! $request->isMethod('GET') && ! $request->isMethod('HEAD')) {
+            $app = $request->route('app');
+            $org = $request->route('org');
+            $suspended = ($app instanceof Application && $app->isSuspended()) || ($org instanceof Organization && $org->isSuspended())
+                || Organization::whereIn('id', $user->devOrgIds())->whereNull('suspended_at')->doesntExist();
+            abort_if($suspended, 403, 'This organization or app is suspended. The console is read-only until Clauth restores it.');
         }
 
         return $next($request);

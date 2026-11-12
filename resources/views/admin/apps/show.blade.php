@@ -3,7 +3,7 @@
 @section('content')
 <header class="head">
   <div style="display:flex;gap:16px;align-items:center"><span class="ico lg" style="background:{{ $app->color }}">{{ $app->letter() }}</span>
-    <div><h1>{{ $app->name }}</h1><p class="mono">aud: {{ $app->key }} · by {{ $app->publisher?->name ?? 'no owning organization' }} · used in {{ $app->organizations->pluck('name')->implode(', ') ?: 'no organizations yet' }}</p></div></div>
+    <div><h1>{{ $app->name }}</h1>@if($app->isSuspended())<span class="chip bad">Suspended</span>@endif<p class="mono">aud: {{ $app->key }} · by {{ $app->publisher?->name ?? 'no owning organization' }} · used in {{ $app->organizations->pluck('name')->implode(', ') ?: 'no organizations yet' }}</p></div></div>
   <span class="chip {{ ['live' => 'ok', 'paused' => 'warn'][$app->status] ?? '' }}">{{ ['live' => 'Live', 'paused' => 'Paused', 'not_connected' => 'Not connected'][$app->status] }}</span>
 </header>
 
@@ -191,6 +191,20 @@
         @foreach($app->roles as $r)<label class="cb"><input type="checkbox" name="require_mfa_roles[]" value="{{ $r->key }}" @checked(in_array($r->key, $app->require_mfa_roles ?? []))> {{ $r->name }}</label>@endforeach</div>
       <div class="actions"><button class="btn pri">Save settings</button></div>
     </form>
+    @if(auth()->user()->isOwner())
+      <section class="card pad form">
+        <h2>Suspension</h2>
+        @if($app->suspended_at)
+          <div class="flash bad">Suspended {{ $app->suspended_at->diffForHumans() }}: {{ $app->suspend_reason }}</div>
+          <form method="post" action="{{ route('admin.apps.restore', $app->key) }}">@csrf @method('delete')<button class="btn">Restore app</button></form>
+        @else
+          <p class="small muted" style="margin:0">Stops every sign-in and token for {{ $app->name }} right away (use for abuse). Its organization sees the reason.</p>
+          <form class="actions" method="post" action="{{ route('admin.apps.suspend', $app->key) }}" data-confirm="Suspend {{ $app->name }}? Everyone is signed out of it.">@csrf
+            <label class="sr-only" for="asr">Reason</label><input class="in" id="asr" name="reason" placeholder="Reason" style="max-width:280px" required>
+            <button class="btn danger">Suspend app</button></form>
+        @endif
+      </section>
+    @endif
     @php($others = $app->installations->reject(fn ($o) => $orgs->contains('id', $o->id)))
     @if($others->isNotEmpty() || $app->visibility === 'installable')
     <section class="card pad form">

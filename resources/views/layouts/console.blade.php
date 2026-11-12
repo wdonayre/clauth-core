@@ -23,6 +23,7 @@
       <a class="{{ $nav('admin.apps.*') }}" href="{{ route('admin.apps.index') }}">@include('partials.icon', ['i' => 'box'])Apps</a>
       @if($people)<a class="{{ $nav('admin.orgs.*') }}" href="{{ route('admin.orgs.index') }}">@include('partials.icon', ['i' => 'org'])Organizations</a>
       <a class="{{ $nav('admin.audit*') }}" href="{{ route('admin.audit') }}">@include('partials.icon', ['i' => 'list'])Audit log</a>@endif
+      @if($me->isOwner())<a class="{{ $nav('admin.reports*') }}" href="{{ route('admin.reports') }}">@include('partials.icon', ['i' => 'list'])Reports</a>@endif
       @if($me->isOwner())<a class="{{ $nav('admin.updates*') }}" href="{{ route('admin.updates') }}">@include('partials.icon', ['i' => 'bell'])Updates</a>@endif
       @if($me->isOwner())<a class="{{ $nav('admin.settings*') }}" href="{{ route('admin.settings') }}">@include('partials.icon', ['i' => 'gear'])Settings</a>@endif
     @endif
@@ -35,6 +36,8 @@
     <form method="post" action="{{ route('logout') }}">@csrf<button class="nav" style="width:100%;background:none;border:0;cursor:pointer" type="submit">@include('partials.icon', ['i' => 'out'])Sign out</button></form>
   </nav>
   <main class="content" id="main">
+    @php($susp = $me->isOwner() ? collect() : \App\Models\Organization::whereIn('id', $me->devOrgIds())->whereNotNull('suspended_at')->get())
+    @foreach($susp as $so)<div class="flash bad" role="alert">{{ $so->name }} is suspended by Clauth: {{ $so->suspend_reason }}. Its apps can’t sign anyone in and this console is read-only. Contact Clauth support.</div>@endforeach
     @if (session('status'))<div class="flash" role="status">{{ session('status') }}</div>@endif
     @if ($errors->any())<div class="flash bad" role="alert">{{ $errors->first() }}</div>@endif
     @yield('content')

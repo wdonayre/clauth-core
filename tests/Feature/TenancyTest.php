@@ -31,7 +31,7 @@ class TenancyTest extends ClauthTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->other = Organization::create(['slug' => 'other-co', 'name' => 'Other Co']);
+        $this->other = Organization::create(['slug' => 'other-co', 'name' => 'Other Co', 'verified_at' => now()]);
         $this->bob = $this->staff('bob@other.test', 'Bob', $this->other, 'admin');
         $this->maria = $this->makeUser('maria@cakesbygrace.ph', ['name' => 'Maria Santos']);
         $this->grant($this->maria, $this->cbg, 'member');

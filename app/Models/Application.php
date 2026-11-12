@@ -27,6 +27,7 @@ class Application extends Model
             'manifest_synced_at' => 'datetime',
             'last_token_at' => 'datetime',
             'bar_seen_at' => 'datetime',
+            'suspended_at' => 'datetime',
         ];
     }
 
@@ -53,6 +54,12 @@ class Application extends Model
     public function publisher(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'owner_organization_id');
+    }
+
+    /** Suspended by a Clauth owner, itself or through its publisher (SPEC-organizations §10.4). */
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null || ($this->owner_organization_id && $this->publisher?->suspended_at !== null);
     }
 
     /** First-party for sign-in purposes: published by one of William's own (platform) organizations. */

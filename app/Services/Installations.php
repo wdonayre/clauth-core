@@ -46,6 +46,9 @@ class Installations
             return 'active';
         }
         abort_unless($app->visibility === 'installable', 422, 'This app can only be used by its own organization. Mark it “Other organizations can request it” first.');
+        if (! $current && $org->id !== $app->owner_organization_id && ($msg = Limits::exceeded($app->publisher, 'installs'))) {
+            abort(422, $msg);
+        }
         if (! $current) {
             DB::table('app_installations')->insert(['app_id' => $app->id, 'organization_id' => $org->id, 'status' => 'requested',
                 'requested_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);

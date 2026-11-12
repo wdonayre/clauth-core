@@ -29,7 +29,7 @@ class AppDomain extends Model
     protected function casts(): array
     {
         return [
-            'trusted' => 'boolean', 'verified_at' => 'datetime', 'reachable_at' => 'datetime', 'active_at' => 'datetime', 'last_checked_at' => 'datetime',
+            'trusted' => 'boolean', 'cert_issued_at' => 'datetime', 'verified_at' => 'datetime', 'reachable_at' => 'datetime', 'active_at' => 'datetime', 'last_checked_at' => 'datetime',
         ];
     }
 

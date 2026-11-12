@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Mail\DomainTakenOverMail;
 use App\Models\AppDomain;
 use App\Models\Application;
 use App\Models\AppPermission;
@@ -13,11 +14,14 @@ use App\Models\Organization;
 use App\Services\Audit;
 use App\Services\Domains;
 use App\Services\Installations;
+use App\Services\Limits;
 use App\Services\Manifest;
+use App\Services\Suspensions;
 use App\Services\Theme;
 use App\Support\Dns;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
 use Illuminate\Validation\Rule;
@@ -70,6 +74,10 @@ class AppController
         ] + $this->policyRules($request->input('publisher')), ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.', 'publisher.in' => 'Pick the organization that owns this app.',
             'privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
             'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
+
+        if ($msg = Limits::exceeded(Organization::find($data['publisher']), 'apps')) {
+            return back()->withInput()->withErrors(['name' => $msg]);
+        }
 
         $app = DB::transaction(function () use ($data, $request) {
             $app = Application::create([
@@ -329,6 +337,22 @@ class AppController
         return view('auth.login', ['theme' => $theme, 'app' => $draft, 'preview' => true]);
     }
 
+    /** Clauth owners: suspend an app (sign-ins and tokens stop at once) or restore it. */
+    public function suspend(Request $request, Application $app)
+    {
+        $data = $request->validate(['reason' => 'required|string|max:500']);
+        Suspensions::suspendApp($app, $data['reason']);
+
+        return back()->with('status', "{$app->name} is suspended.");
+    }
+
+    public function restore(Application $app)
+    {
+        Suspensions::restoreApp($app);
+
+        return back()->with('status', "{$app->name} is active again.");
+    }
+
     /** Keys/names only Clauth owners may use (William's apps, Clauth, trusted brands). */
     private function reservedRules(Request $request): array
     {
@@ -410,6 +434,11 @@ class AppController
         }
         // A sign-in domain belongs to the organization that publishes the app (SPEC-organizations §5.2).
         $orgs = $app->publisher ? collect([$app->publisher]) : collect();
+        // Hosts under William's own domains are for his organizations only (SPEC-organizations §7.2).
+        $parent = collect(config('clauth.reserved_parent_domains'))->first(fn ($p) => $data['host'] === $p || str_ends_with($data['host'], '.'.$p));
+        if ($parent && ! $app->publisher?->is_platform) {
+            return back()->withErrors(['host' => "Addresses under {$parent} are reserved. Use a domain your organization owns."]);
+        }
         if ($orgs->isEmpty()) {
             return back()->withErrors(['host' => "{$app->name} has no owning organization yet. Set one first: a sign-in domain belongs to an organization."]);
         }
@@ -419,7 +448,16 @@ class AppController
             if (! $this->claimIsStale($existing)) {
                 return back()->withErrors(['host' => "{$data['host']} is verified by another organization. It can only be used by that organization’s apps."]);
             }
-            Audit::log('app.domain_taken_over', 'app', $existing, before: ['host' => $existing->host, 'organization' => $existing->organization?->slug, 'status' => $existing->status], appId: $app->id);
+            $prevOrg = $existing->organization;
+            Audit::log('app.domain_taken_over', 'app', $existing, before: ['host' => $existing->host, 'organization' => $prevOrg?->slug, 'status' => $existing->status], after: ['organization' => $app->publisher?->slug], appId: $app->id, orgId: $app->owner_organization_id);
+            if ($prevOrg) {
+                Audit::log('app.domain_lost', 'app', $existing, before: ['host' => $existing->host], after: ['taken_by' => $app->publisher?->slug], orgId: $prevOrg->id);
+                $to = $prevOrg->users()->wherePivot('role', 'owner')->pluck('email');
+                $to = $to->isEmpty() ? $prevOrg->users()->wherePivot('role', 'admin')->pluck('email') : $to;
+                foreach ($to as $email) {
+                    rescue(fn () => Mail::to($email)->send(new DomainTakenOverMail($existing->host, $prevOrg->name, (string) $app->publisher?->name)), report: true);
+                }
+            }
             $existing->delete();
             Domains::flush($data['host']);
             $existing = null;
@@ -439,6 +477,9 @@ class AppController
         }
 
         $orgId = $orgs->first()->id;
+        if ($msg = Limits::exceeded($orgs->first(), 'domains')) {
+            return back()->withErrors(['host' => $msg]);
+        }
         $d = AppDomain::create(['host' => $data['host'], 'organization_id' => $orgId, 'trusted' => false,
             'verify_token' => Str::lower(Str::random(32)), 'status' => 'pending', 'created_by' => auth()->id()]);
         $d->apps()->attach($app->id, ['created_by' => auth()->id()]);

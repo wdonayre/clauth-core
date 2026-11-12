@@ -29,7 +29,9 @@ class Domains
     /** The active domain for a host (cached 60 s), or null. */
     public static function activeFor(string $host): ?AppDomain
     {
-        $id = Cache::remember('clauth.domain.'.strtolower($host), 60, fn () => AppDomain::where('host', strtolower($host))->where('status', 'active')->value('id') ?? 0);
+        // A suspended organization's domains aren't served: sign-in falls back to the main domain.
+        $id = Cache::remember('clauth.domain.'.strtolower($host), 60, fn () => AppDomain::where('host', strtolower($host))->where('status', 'active')
+            ->whereDoesntHave('organization', fn ($o) => $o->whereNotNull('suspended_at'))->value('id') ?? 0);
 
         return $id ? AppDomain::with(['apps', 'organization'])->find($id) : null;
     }
@@ -121,7 +123,9 @@ class Domains
             if (! $strict) {
                 $req = $req->withoutVerifying();
             }
-            $res = $req->get('https://'.$d->host.$d->proofPath());
+            // Before its certificate exists, a per-host domain only answers on plain HTTP (its own port-80 block).
+            $scheme = ! $strict && config('clauth.cert_mode') === 'per-host' ? 'http' : 'https';
+            $res = $req->get($scheme.'://'.$d->host.$d->proofPath());
 
             return $res->ok() && hash_equals($d->proofBody(), trim($res->body()));
         } catch (\Throwable) {

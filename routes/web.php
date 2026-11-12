@@ -14,6 +14,7 @@ use App\Http\Controllers\OAuth\AuthorizeController;
 use App\Http\Controllers\OAuth\ConsentController;
 use App\Http\Controllers\OAuth\OidcController;
 use App\Http\Controllers\OAuth\TokenController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SignOutEverywhereController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -69,6 +70,8 @@ Route::post('/signout-everywhere', [SignOutEverywhereController::class, 'store']
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/help', 'pages.help')->name('help');
+Route::get('/report', [ReportController::class, 'show'])->name('report');
+Route::post('/report', [ReportController::class, 'store'])->middleware('throttle:5,10')->name('report.store');
 
 // ---- My account ----
 Route::middleware('auth')->prefix('account')->name('account')->group(function () {
@@ -139,6 +142,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::middleware('admin:owner')->group(function () {
         Route::post('/orgs', [Admin\OrgController::class, 'store'])->name('orgs.store');
         Route::put('/orgs/{org}', [Admin\OrgController::class, 'update'])->name('orgs.update');
+        Route::post('/orgs/{org}/suspend', [Admin\OrgController::class, 'suspend'])->name('orgs.suspend');
+        Route::delete('/orgs/{org}/suspend', [Admin\OrgController::class, 'restore'])->name('orgs.restore');
+        Route::post('/apps/{app}/suspend', [Admin\AppController::class, 'suspend'])->name('apps.suspend');
+        Route::delete('/apps/{app}/suspend', [Admin\AppController::class, 'restore'])->name('apps.restore');
+
+        Route::get('/reports', [Admin\ReportController::class, 'index'])->name('reports');
+        Route::post('/reports/{report}/close', [Admin\ReportController::class, 'close'])->name('reports.close');
 
         Route::get('/updates', [Admin\UpdatesController::class, 'index'])->name('updates');
         Route::post('/updates', [Admin\UpdatesController::class, 'store'])->name('updates.store');

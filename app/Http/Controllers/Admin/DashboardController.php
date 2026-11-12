@@ -8,6 +8,7 @@ use App\Models\AuditEvent;
 use App\Models\Invite;
 use App\Models\OAuthClient;
 use App\Models\Organization;
+use App\Models\Report;
 use App\Models\User;
 use App\Services\Domains;
 
@@ -43,6 +44,9 @@ class DashboardController
                 } elseif (! $d->isServed() && $d->created_at->lt(now()->subDay())) {
                     $attention[] = ['tone' => 'warn', 'text' => "{$names}: sign-in domain {$d->host} isn’t live yet — {$d->label()}", 'href' => $href];
                 }
+            }
+            if ($n = Report::where('status', 'open')->count()) {
+                $attention[] = ['tone' => 'danger', 'text' => "$n sign-in page report(s) to review", 'href' => route('admin.reports')];
             }
             foreach (Application::whereNotNull('manifest_diff')->get() as $a) {
                 $attention[] = ['tone' => 'info', 'text' => "{$a->name}: manifest wants role changes you edited in Clauth", 'href' => route('admin.apps.show', $a->key)];

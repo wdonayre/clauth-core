@@ -54,6 +54,9 @@ class AuthorizeController
         if (! $authRequest->getCodeChallenge() || $authRequest->getCodeChallengeMethod() !== 'S256') {
             return $this->deny($server, $authRequest, $request, 'invalid_request', 'PKCE with S256 is required.');
         }
+        if ($app->isSuspended()) {
+            return response()->view('auth.error', ['title' => "{$app->name} is suspended", 'message' => 'Sign-in to this app has been stopped by Clauth. If you think this is a mistake, contact the app’s organization.', 'theme' => Theme::for(null)], 403);
+        }
         if ($app->status === 'paused') {
             return response()->view('auth.error', ['title' => "{$app->name} is paused", 'message' => 'Sign-in to this app is turned off for now. Ask your admin.', 'theme' => Theme::for($app)], 403);
         }

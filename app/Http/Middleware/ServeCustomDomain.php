@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\URL;
 class ServeCustomDomain
 {
     /** Paths an app's domain may serve. */
-    private const ALLOWED = '#^(login(/.*)?|logout|forgot-password|reset-password(/.*)?|invite/[^/]+|oauth/authorize|oauth/consent|oauth/logout|signout-everywhere|privacy|terms|help|sso/accept|apps/[^/]+/logo|up)$#';
+    private const ALLOWED = '#^(login(/.*)?|logout|forgot-password|reset-password(/.*)?|invite/[^/]+|oauth/authorize|oauth/consent|oauth/logout|signout-everywhere|privacy|terms|help|report|sso/accept|apps/[^/]+/logo|up)$#';
 
     public function handle(Request $request, Closure $next)
     {

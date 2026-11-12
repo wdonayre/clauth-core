@@ -62,7 +62,7 @@ class BarController
         Application::whereKey($app->id)->update(['bar_seen_at' => now()]);
 
         $grants = Grant::with(['app.organizations', 'organization', 'role'])->where('user_id', $user->id)->get()
-            ->filter(fn ($g) => $g->app && $g->app->status !== 'paused' && $g->organization?->status === 'active'
+            ->filter(fn ($g) => $g->app && $g->app->status !== 'paused' && ! $g->app->isSuspended() && $g->organization?->status === 'active' && ! $g->organization?->suspended_at
                 && $g->app->organizations->contains('id', $g->organization_id));
 
         $iss = config('clauth.issuer');

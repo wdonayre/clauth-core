@@ -23,7 +23,7 @@ class AccountController
     {
         $user = $request->user();
         $grants = Grant::with(['app', 'organization', 'role'])->where('user_id', $user->id)->get()
-            ->filter(fn ($g) => $g->app && $g->app->status !== 'paused' && $g->app->organizations->contains('id', $g->organization_id));
+            ->filter(fn ($g) => $g->app && $g->app->status !== 'paused' && ! $g->app->isSuspended() && $g->app->organizations->contains('id', $g->organization_id));
         $apps = $grants->groupBy('app_id')->map(fn ($gs) => [
             'app' => $gs->first()->app,
             'roles' => $gs->map(fn ($g) => $g->role->name.' · '.$g->organization->name)->all(),

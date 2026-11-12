@@ -25,6 +25,9 @@ class UserController
             return response()->json(['error' => 'not_found'], 404);
         }
         $client = OAuthClient::with('app')->find($t->claims()->get('client_id'));
+        if ($client?->app?->isSuspended()) {
+            return response()->json(['error' => 'invalid_token'], 401);
+        }
         // Apps outside William's own organizations only see people who have access to them and said OK
         // (SPEC-organizations §6.2); everyone else is "not found".
         if ($client?->app && ! $client->app->isFirstParty() && (Claims::orgs($user, $client->app) === [] || ! Consents::has($user, $client->app))) {

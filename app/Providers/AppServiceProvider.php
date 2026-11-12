@@ -10,6 +10,7 @@ use App\OAuth\TokenContext;
 use App\Services\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -40,7 +41,18 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('login', fn (Request $r) => Limit::perMinute(5)->by(mb_strtolower((string) $r->input('email')).'|'.$r->ip()));
         RateLimiter::for('mfa', fn (Request $r) => Limit::perMinute(10)->by(($r->session()->get('login.user_id') ?? '').'|'.$r->ip()));
-        RateLimiter::for('token', fn (Request $r) => Limit::perMinute(30)->by(($r->input('client_id') ?: $r->getUser() ?: '').'|'.$r->ip()));
+        // Token requests per client per minute: 30 by default, the publisher's limit for outside organizations (§10.1),
+        // more for William's own organizations' apps.
+        RateLimiter::for('token', function (Request $r) {
+            $clientId = (string) ($r->input('client_id') ?: $r->getUser() ?: '');
+            $per = Cache::remember('clauth.token_limit.'.$clientId, 60, function () use ($clientId) {
+                $org = $clientId ? OAuthClient::with('app.publisher')->find($clientId)?->app?->publisher : null;
+
+                return $org ? ($org->limit('token_per_minute') ?? 120) : 30;
+            });
+
+            return Limit::perMinute($per)->by($clientId.'|'.$r->ip());
+        });
         RateLimiter::for('forgot', fn (Request $r) => Limit::perMinute(3)->by($r->ip()));
 
         // The Clauth bar script. Registered here (not in routes/web.php) so it carries no session or cookies.

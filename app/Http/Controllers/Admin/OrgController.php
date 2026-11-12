@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\Installations;
+use App\Services\Suspensions;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -49,13 +50,34 @@ class OrgController
     /** Clauth owners: name, status and whether it is one of William's own (platform) organizations. */
     public function update(Request $request, Organization $org)
     {
-        $before = $org->only('name', 'status', 'is_platform');
-        $data = $request->validate(['name' => 'required|string|max:120', 'status' => 'required|in:active,disabled', 'is_platform' => 'nullable|boolean']);
+        $before = $org->only('name', 'status', 'is_platform', 'verified_at', 'limits');
+        $keys = array_keys(config('clauth.limits.verified'));
+        $data = $request->validate(['name' => 'required|string|max:120', 'status' => 'required|in:active,disabled', 'is_platform' => 'nullable|boolean',
+            'verified' => 'nullable|boolean', 'limits' => 'array', 'limits.*' => 'nullable|integer|min:0|max:1000000']);
+        $verified = $request->boolean('is_platform') || $request->boolean('verified');
+        $limits = collect($data['limits'] ?? [])->only($keys)->reject(fn ($v) => $v === null || $v === '')->map(fn ($v) => (int) $v)->all();
         $org->update(['name' => $data['name'], 'status' => $data['status'], 'is_platform' => $request->boolean('is_platform'),
-            'verified_at' => $request->boolean('is_platform') ? ($org->verified_at ?? now()) : $org->verified_at]);
-        Audit::log('org.updated', 'admin', $org, $before, $org->only('name', 'status', 'is_platform'), orgId: $org->id);
+            'verified_at' => $verified ? ($org->verified_at ?? now()) : null, 'limits' => $limits ?: null]);
+        Audit::log('org.updated', 'admin', $org, $before, $org->only('name', 'status', 'is_platform', 'verified_at', 'limits'), orgId: $org->id);
 
         return back()->with('status', "{$org->name} saved.");
+    }
+
+    /** Clauth owners: suspend (with a reason shown to the organization's staff) or restore. */
+    public function suspend(Request $request, Organization $org)
+    {
+        abort_if($org->is_platform, 422, 'William’s own organizations can’t be suspended here.');
+        $data = $request->validate(['reason' => 'required|string|max:500']);
+        Suspensions::suspendOrg($org, $data['reason']);
+
+        return back()->with('status', "{$org->name} is suspended. Its apps can’t sign anyone in.");
+    }
+
+    public function restore(Organization $org)
+    {
+        Suspensions::restoreOrg($org);
+
+        return back()->with('status', "{$org->name} is active again.");
     }
 
     /** Set a member's role in the organization. Clauth owners and the organization's owners only. */
