@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Application;
 use App\Models\ClientSession;
+use App\Models\Consent;
 use App\Models\Grant;
 use App\Services\Audit;
 use App\Services\Claims;
+use App\Services\Consents;
 use App\Services\Passwords;
 use App\Services\Sessions;
 use App\Services\TwoFactor;
@@ -35,7 +38,18 @@ class AccountController
             'currentSession' => $request->session()->getId(), 'mfaRequired' => Claims::policyRequiresMfa($user),
             'codesLeft' => count($user->two_factor_recovery_codes ?? []),
             'newCodes' => $request->session()->get('new_codes'),
+            // Apps outside your own organizations that you've allowed to receive your details (SPEC-organizations §6.1).
+            'consents' => Consent::with('app.publisher')->where('user_id', $user->id)->whereNull('revoked_at')->latest('granted_at')->get()->filter(fn ($c) => $c->app),
         ]);
+    }
+
+    /** "Remove access": the app loses your consent and you're signed out of it there. */
+    public function revokeConsent(Request $request, Application $app)
+    {
+        abort_unless(Consent::where('user_id', $request->user()->id)->where('app_id', $app->id)->whereNull('revoked_at')->exists(), 404);
+        Consents::revoke($request->user(), $app);
+
+        return back()->with('status', "{$app->name} no longer has access to your details. It will ask again if you sign in to it.");
     }
 
     public function profile(Request $request)

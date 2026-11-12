@@ -6,6 +6,7 @@ use App\Models\ClientSession;
 use App\Models\OAuthClient;
 use App\Services\Audit;
 use App\Services\Claims;
+use App\Services\Consents;
 use App\Services\Domains;
 use App\Services\Theme;
 use Defuse\Crypto\Crypto;
@@ -87,6 +88,31 @@ class AuthorizeController
             Audit::log('signin.denied', 'signin', $user, after: ['app' => $app->key], appId: $app->id, actorId: $user->id, actorType: 'user');
 
             return $this->deny($server, $authRequest, $request, 'access_denied', 'You don’t have access to this app.');
+        }
+
+        // Consent (SPEC-organizations §6): apps outside the person's own organizations ask once.
+        $answer = $request->session()->pull('consent.answer.'.$client->id);
+        if ($answer === 'no') {
+            return $this->deny($server, $authRequest, $request, 'access_denied', 'You chose not to continue.');
+        }
+        if ($answer !== 'yes') {
+            $scopes = array_values(array_filter(explode(' ', (string) $request->query('scope'))));
+            $missing = Consents::missing($user, $app, $scopes);
+            if ($prompt->contains('consent') && ! Consents::exempt($user, $app)) {
+                $missing = array_values(array_intersect(['openid', 'profile', 'email', 'clauth'], $scopes ?: ['openid']));
+            }
+            if ($missing) {
+                if ($prompt->contains('none')) {
+                    return $this->deny($server, $authRequest, $request, 'consent_required');
+                }
+                $request->session()->put('consent.request', ['url' => $request->fullUrl(), 'client' => $client->id, 'scopes' => $scopes]);
+                $orgNames = $user->grants()->where('app_id', $app->id)->with('organization')->get()->pluck('organization.name')->filter()->unique()->values();
+
+                return response()->view('auth.consent', [
+                    'app' => $app->loadMissing('publisher'), 'user' => $user, 'scopes' => $missing, 'orgNames' => $orgNames,
+                    'theme' => Theme::for($app), 'labels' => config('clauth.scopes'),
+                ]);
+            }
         }
 
         $authRequest->setUser(new BridgeUser($user->getAuthIdentifier()));

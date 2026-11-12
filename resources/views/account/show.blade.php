@@ -25,6 +25,16 @@
     @endforeach
   </div>
   @endif
+  @if($consents->isNotEmpty())
+    <h2 class="lbl" style="margin:24px 0 12px">Apps you've allowed</h2>
+    <div class="card"><div class="list">
+      @foreach($consents as $c)
+        <div class="row"><span class="grow"><b>{{ $c->app->name }}</b> <span class="small muted">by {{ $c->app->publisher?->name ?? '—' }} · allowed {{ $c->granted_at->diffForHumans() }}</span><br>
+          <span class="small muted">Gets {{ collect($c->scopes)->reject(fn ($s) => $s === 'openid')->map(fn ($s) => ['profile' => 'your name', 'email' => 'your email', 'clauth' => 'your roles in it'][$s] ?? $s)->join(', ', ' and ') ?: 'your sign-in' }}</span></span>
+          <form method="post" action="{{ route('account.consents.revoke', $c->app->key) }}" data-confirm="Remove {{ $c->app->name }}'s access? You'll be signed out of it and asked again next time.">@csrf @method('delete')<button class="btn sm danger">Remove access</button></form></div>
+      @endforeach
+    </div></div>
+  @endif
 </section>
 
 <div class="grid2">

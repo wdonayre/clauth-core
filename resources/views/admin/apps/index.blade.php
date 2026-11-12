@@ -23,6 +23,10 @@
         <div class="f"><label for="apub">Owned by</label><select class="in" id="apub" name="publisher" required>
           @foreach($publishers as $o)<option value="{{ $o->id }}" @selected(old('publisher') === $o->id)>{{ $o->name }}</option>@endforeach</select>
           <span class="small muted">The organization that publishes the app. Its owners, admins and developers manage it.</span></div>
+        <div class="f"><label for="ppriv">Privacy policy URL</label><input class="in mono" id="ppriv" name="privacy_url" value="{{ old('privacy_url') }}" placeholder="https://…/privacy"></div>
+        <div class="f"><label for="pterm">Terms URL</label><input class="in mono" id="pterm" name="terms_url" value="{{ old('terms_url') }}" placeholder="https://…/terms"></div>
+        <div class="f"><label for="psup">Support email</label><input class="in" id="psup" name="support_email" type="email" value="{{ old('support_email') }}">
+          <span class="small muted">Required for apps of organizations outside your own businesses: shown on the consent screen.</span></div>
         <div class="f"><span>Also usable in</span>
           @foreach($orgs as $o)<label class="cb"><input type="checkbox" name="orgs[]" value="{{ $o->id }}" @checked(in_array($o->id, old('orgs', [])))> {{ $o->name }}</label>@endforeach</div>
         <div class="actions"><button class="btn pri">Register</button></div>

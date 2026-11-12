@@ -56,9 +56,10 @@ class AppController
 
     public function store(Request $request)
     {
+        $reserved = $this->reservedRules($request);
         $data = $request->validate([
-            'name' => 'required|string|max:80',
-            'key' => ['required', 'regex:/^[a-z][a-z0-9-]{1,40}$/', Rule::unique('apps', 'key')],
+            'name' => ['required', 'string', 'max:80', ...$reserved['name']],
+            'key' => ['required', 'regex:/^[a-z][a-z0-9-]{1,40}$/', Rule::unique('apps', 'key'), ...$reserved['key']],
             'type' => 'required|in:web,public,m2m',
             'redirect_uri' => 'required_unless:type,m2m|nullable|url',
             'home_url' => 'nullable|url',
@@ -66,11 +67,14 @@ class AppController
             'orgs' => 'array',
             'orgs.*' => 'exists:organizations,id',
             'color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-        ], ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.', 'publisher.in' => 'Pick the organization that owns this app.']);
+        ] + $this->policyRules($request->input('publisher')), ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.', 'publisher.in' => 'Pick the organization that owns this app.',
+            'privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
+            'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
 
         $app = DB::transaction(function () use ($data, $request) {
             $app = Application::create([
                 'owner_organization_id' => $data['publisher'], 'visibility' => 'private',
+                'privacy_url' => $data['privacy_url'] ?? null, 'terms_url' => $data['terms_url'] ?? null, 'support_email' => $data['support_email'] ?? null,
                 'name' => $data['name'], 'key' => $data['key'], 'home_url' => $data['home_url'] ?? null,
                 'color' => $data['color'] ?? '#22D3EE', 'icon_letter' => mb_strtoupper(mb_substr($data['name'], 0, 1)),
                 'status' => 'not_connected', 'manifest_url' => ! empty($data['home_url']) ? rtrim($data['home_url'], '/').'/.well-known/clauth.json' : null,
@@ -112,9 +116,10 @@ class AppController
 
     public function update(Request $request, Application $app)
     {
-        $before = $app->only('name', 'home_url', 'manifest_url', 'status', 'require_mfa_roles', 'color', 'visibility', 'owner_organization_id');
+        $before = $app->only('name', 'home_url', 'manifest_url', 'status', 'require_mfa_roles', 'color', 'visibility', 'owner_organization_id', 'privacy_url', 'terms_url', 'support_email');
+        $publisher = $request->user()->isOwner() && $request->filled('publisher') ? $request->input('publisher') : $app->owner_organization_id;
         $data = $request->validate([
-            'name' => 'required|string|max:80',
+            'name' => ['required', 'string', 'max:80', ...($request->input('name') !== $app->name ? $this->reservedRules($request)['name'] : [])],
             'home_url' => 'nullable|url',
             'manifest_url' => 'nullable|url',
             'status' => 'required|in:live,paused,not_connected',
@@ -124,7 +129,8 @@ class AppController
             'orgs' => 'array',
             'orgs.*' => 'exists:organizations,id',
             'require_mfa_roles' => 'array',
-        ]);
+        ] + $this->policyRules($publisher), ['privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
+            'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
         $app->update(collect($data)->except('orgs', 'visibility', 'publisher')->all() + ['require_mfa_roles' => array_values($data['require_mfa_roles'] ?? []),
             'visibility' => $data['visibility'] ?? $app->visibility,
             'owner_organization_id' => $request->user()->isOwner() && ! empty($data['publisher']) ? $data['publisher'] : $app->owner_organization_id]);
@@ -321,6 +327,40 @@ class AppController
         }
 
         return view('auth.login', ['theme' => $theme, 'app' => $draft, 'preview' => true]);
+    }
+
+    /** Keys/names only Clauth owners may use (William's apps, Clauth, trusted brands). */
+    private function reservedRules(Request $request): array
+    {
+        if ($request->user()->isOwner()) {
+            return ['key' => [], 'name' => []];
+        }
+        $key = function (string $attr, $value, $fail) {
+            if (in_array($value, config('clauth.reserved_app_keys'), true) || collect(config('clauth.reserved_key_prefixes'))->contains(fn ($p) => str_starts_with($value, $p))) {
+                $fail('That app key is reserved. Pick another one.');
+            }
+        };
+        $name = function (string $attr, $value, $fail) {
+            $n = mb_strtolower((string) $value);
+            if (collect(config('clauth.reserved_name_words'))->contains(fn ($w) => str_contains($n, $w))) {
+                $fail('That name uses a reserved word (another company’s or Clauth’s). Pick another one.');
+            }
+        };
+
+        return ['key' => [$key], 'name' => [$name]];
+    }
+
+    /** Outside organizations' apps must publish where their policies live (shown on the consent screen). */
+    private function policyRules(?string $publisherId): array
+    {
+        $outside = $publisherId && ! Organization::whereKey($publisherId)->value('is_platform');
+        $req = $outside ? 'required' : 'nullable';
+
+        return [
+            'privacy_url' => [$req, 'nullable', 'url', 'starts_with:https://', 'max:500'],
+            'terms_url' => [$req, 'nullable', 'url', 'starts_with:https://', 'max:500'],
+            'support_email' => [$req, 'nullable', 'email', 'max:190'],
+        ];
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\OAuth\AuthorizeController;
+use App\Http\Controllers\OAuth\ConsentController;
 use App\Http\Controllers\OAuth\OidcController;
 use App\Http\Controllers\OAuth\TokenController;
 use App\Http\Controllers\SignOutEverywhereController;
@@ -54,6 +55,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'update'])->name
 
 // Custom-domain ownership proof; answered by ServeCustomDomain on the app's domain, 404 everywhere else.
 Route::get('/.well-known/clauth-domain/{token}', fn () => response('Not found', 404))->where('token', '[a-z0-9]{32}');
+Route::post('/oauth/consent', ConsentController::class)->middleware(['auth', 'throttle:30,1'])->name('oauth.consent');
 Route::get('/sso/check', [SsoController::class, 'check'])->middleware('throttle:60,1')->name('sso.check');
 Route::post('/sso/check', [SsoController::class, 'confirm'])->middleware('throttle:60,1')->name('sso.confirm');
 Route::get('/sso/accept', [SsoController::class, 'accept'])->middleware('throttle:60,1')->name('sso.accept');
@@ -79,6 +81,7 @@ Route::middleware('auth')->prefix('account')->name('account')->group(function ()
     Route::delete('/sessions/web/{id}', [AccountController::class, 'revokeWeb'])->name('.sessions.web');
     Route::delete('/sessions/app/{id}', [AccountController::class, 'revokeApp'])->name('.sessions.app');
     Route::post('/sessions/revoke-all', [AccountController::class, 'revokeAll'])->name('.sessions.all');
+    Route::delete('/consents/{app}', [AccountController::class, 'revokeConsent'])->name('.consents.revoke');
 });
 
 // ---- Admin console ----

@@ -171,6 +171,10 @@
       <div class="f"><label for="sc">Icon color</label><input class="in mono" id="sc" name="color" value="{{ $app->color }}" pattern="#[0-9A-Fa-f]{6}" required></div>
       <div class="f"><label for="sh">Home URL</label><input class="in mono" id="sh" name="home_url" value="{{ $app->home_url }}"></div>
       <div class="f"><label for="sm">Manifest URL</label><input class="in mono" id="sm" name="manifest_url" value="{{ $app->manifest_url }}" placeholder="https://…/.well-known/clauth.json"></div>
+      <div class="f"><label for="ppriv">Privacy policy URL</label><input class="in mono" id="ppriv" name="privacy_url" value="{{ old('privacy_url', $app->privacy_url) }}" placeholder="https://…/privacy"></div>
+      <div class="f"><label for="pterm">Terms URL</label><input class="in mono" id="pterm" name="terms_url" value="{{ old('terms_url', $app->terms_url) }}" placeholder="https://…/terms"></div>
+      <div class="f"><label for="psup">Support email</label><input class="in" id="psup" name="support_email" type="email" value="{{ old('support_email', $app->support_email) }}">
+        <span class="small muted">Required for apps of organizations outside your own businesses: shown on the consent screen.</span></div>
       <div class="f"><label for="ss">Status</label><select class="in" id="ss" name="status">
         @foreach(['live' => 'Live', 'not_connected' => 'Not connected yet', 'paused' => 'Paused (nobody can sign in)'] as $k => $l)<option value="{{ $k }}" @selected($app->status === $k)>{{ $l }}</option>@endforeach</select></div>
       @if(auth()->user()->isOwner())

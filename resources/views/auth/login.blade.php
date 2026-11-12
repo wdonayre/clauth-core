@@ -3,6 +3,7 @@
 @section('card')
   <h1>Sign in</h1>
   <p class="sub">{!! $app ? 'Continue to <strong>'.e($app->name).'</strong>' : (! empty($theme['brand']) ? 'Continue to <strong>'.e($theme['brand']).'</strong>' : 'to your Clauth account') !!}</p>
+  @if($app && ! $app->isFirstParty())<p class="small" style="margin:-6px 0 12px">@include('partials.publisher', ['app' => $app])</p>@endif
   @include('partials.errors')
   <form method="post" action="{{ $preview ?? false ? '#' : url('/login') }}" novalidate>
     @csrf

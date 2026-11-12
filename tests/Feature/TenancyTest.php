@@ -99,7 +99,7 @@ class TenancyTest extends ClauthTestCase
         // …and the matrix isn't vacuous: Bob reaches his own organization's things.
         $this->as($this->bob)->get('/admin/apps/foo-roster')->assertOk();
         $this->as($this->bob)->get('/admin/orgs')->assertOk()->assertSee('Other Co');
-        $this->as($this->bob)->post('/admin/apps', ['name' => 'Foo Two', 'key' => 'foo-two', 'type' => 'web', 'redirect_uri' => 'https://e.test/cb', 'publisher' => $this->other->id])->assertSessionHasNoErrors();
+        $this->as($this->bob)->post('/admin/apps', ['name' => 'Foo Two', 'key' => 'foo-two', 'type' => 'web', 'redirect_uri' => 'https://e.test/cb', 'publisher' => $this->other->id, 'privacy_url' => 'https://o.test/p', 'terms_url' => 'https://o.test/t', 'support_email' => 'h@o.test'])->assertSessionHasNoErrors();
         $this->assertSame($this->other->id, Application::where('key', 'foo-two')->value('owner_organization_id'));
         $this->assertSame('active', Installations::status(Application::where('key', 'foo-two')->first(), $this->other));
     }
@@ -108,7 +108,7 @@ class TenancyTest extends ClauthTestCase
     {
         $dan = $this->staff('dan@other.test', 'Dan', $this->other, 'developer');
         $this->as($dan)->get('/admin/apps')->assertOk()->assertSee('Foo Roster');
-        $this->as($dan)->put('/admin/apps/foo-roster', ['name' => 'Foo Rota', 'status' => 'live', 'color' => '#22D3EE'])->assertSessionHasNoErrors();
+        $this->as($dan)->put('/admin/apps/foo-roster', ['name' => 'Foo Rota', 'status' => 'live', 'color' => '#22D3EE', 'privacy_url' => 'https://o.test/p', 'terms_url' => 'https://o.test/t', 'support_email' => 'h@o.test'])->assertSessionHasNoErrors();
         $this->assertSame('Foo Rota', $this->foo->fresh()->name);
         $this->as($dan)->get('/admin/users')->assertNotFound();
         $this->as($dan)->get('/admin/orgs')->assertNotFound();
