@@ -20,10 +20,10 @@ exec 9>"$BASE/shared/.domains.lock"; flock -n 9 || exit 0
 [ -f "$CUR/artisan" ] || exit 0
 log() { printf '%s [domains] %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG"; }
 art() { sudo -u "$SITE_USER" -H php8.5 "$CUR/artisan" "$@" 2>>"$LOG"; }
-clean() { tr -d '\r' | grep -E '^[a-z0-9.-]+$' | sort -u || true; }
+clean() { (tr -d '\r' | grep -E '^[a-z0-9.-]+$' || true) | sort -u; }
 
 sync_vhost() {
-  local want; want="$(art clauth:domains hosts | clean | tr '\n' ' ')"
+  local want; want="$( (art clauth:domains hosts || true) | clean | tr '\n' ' ')"
   # shellcheck disable=SC2086
   if [ "$(python3 "$HERE/vhost.py" "$VHOST" "$CLPDB" "$APP_HOST" $want)" = "changed" ]; then
     if nginx -t >/dev/null 2>&1; then
@@ -37,8 +37,8 @@ sync_vhost() {
 sync_vhost
 
 # Certificate: reissue when the wanted SAN set differs from what the cert has (added or removed domains).
-want_cert="$(art clauth:domains cert-hosts | clean)"
-have_cert="$(openssl x509 -in "$CERT" -noout -ext subjectAltName 2>/dev/null | grep -o 'DNS:[^,]*' | cut -c5- | grep -v "^${APP_HOST}$" | clean)"
+want_cert="$( (art clauth:domains cert-hosts || true) | clean)"
+have_cert="$( (openssl x509 -in "$CERT" -noout -ext subjectAltName 2>/dev/null | grep -o 'DNS:[^,]*' | cut -c5- | grep -v "^${APP_HOST}$" || true) | clean)"
 [ "$want_cert" = "$have_cert" ] && exit 0
 
 key="$(printf '%s' "$want_cert" | sha1sum | cut -c1-12)"

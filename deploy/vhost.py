@@ -11,12 +11,14 @@ import re, sqlite3, sys
 vhost, db, main, extra = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
 names = ' '.join([main] + sorted(set(h for h in extra if re.fullmatch(r'[a-z0-9.-]+', h) and h != main)))
 OLD_LOC = r'location ~ ^/\.well-known/(openid-configuration|jwks\.json)$ {'
-NEW_LOC = r'location ~ ^/\.well-known/(openid-configuration|jwks\.json|clauth-domain/[a-z0-9]{32})$ {'
+# Quoted: nginx would read the {32} as the start of a block.
+NEW_LOC = r'location ~ "^/\.well-known/(openid-configuration|jwks\.json|clauth-domain/[a-z0-9]{32})$" {'
+BROKEN_LOC = r'location ~ ^/\.well-known/(openid-configuration|jwks\.json|clauth-domain/[a-z0-9]{32})$ {'
 
 
 def fix(text: str) -> str:
     text = re.sub(r'^(\s*)server_name [^;]*;', lambda m: f'{m.group(1)}server_name {names};', text, flags=re.M)
-    return text.replace(OLD_LOC, NEW_LOC)
+    return text.replace(BROKEN_LOC, NEW_LOC).replace(OLD_LOC, NEW_LOC)
 
 
 s = open(vhost).read()
