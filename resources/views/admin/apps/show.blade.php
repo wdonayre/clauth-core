@@ -103,6 +103,40 @@
       <p class="small muted" style="margin:8px 0 0">The preview follows the style and color you pick; save to apply logo changes.</p>
     </section>
   </div>
+
+  @php($dom = $app->domain)
+  <section class="card pad" aria-labelledby="dom-h">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div><h2 id="dom-h">Custom sign-in domain</h2>
+        <p class="small muted" style="margin:4px 0 0">Optional. People sign in to {{ $app->name }} at its own address (e.g. <code>auth.{{ $app->key }}.com</code>) instead of <code>{{ \App\Services\Domains::mainHost() }}</code>. Tokens don't change, and one sign-in still covers every app.</p></div>
+      @if($dom)<span class="chip {{ ['active' => 'ok', 'problem' => 'bad', 'pending' => 'warn'][$dom->status] ?? 'info' }}">{{ $dom->label() }}</span>@endif
+    </div>
+    @if(! $dom)
+      <form class="actions" method="post" action="{{ route('admin.apps.domain.store', $app->key) }}" style="margin-top:16px">@csrf
+        <label class="sr-only" for="dh">Domain</label>
+        <input class="in mono" id="dh" name="host" placeholder="auth.example.com" style="max-width:320px" required>
+        <button class="btn pri">Add domain</button>
+      </form>
+    @else
+      <p style="margin:16px 0 8px"><b class="mono">{{ $dom->host }}</b>
+        @if($dom->isServed()) — live since {{ $dom->active_at?->format('j M Y') }}. <a href="https://{{ $dom->host }}/login" target="_blank" rel="noopener">Open sign-in page</a>@endif</p>
+      @if($dom->last_error && ! $dom->isServed())<div class="flash {{ $dom->status === 'problem' ? 'bad' : 'info' }}">{{ $dom->last_error }}</div>@endif
+      <p class="lbl" style="margin:16px 0 6px">DNS records to add at your DNS provider</p>
+      <div class="scroll"><table class="t">
+        <thead><tr><th>Type</th><th>Name</th><th>Value</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>TXT</td><td><code id="txtn">{{ $dom->txtName() }}</code></td><td><code id="txtv">{{ $dom->txtValue() }}</code> <button class="btn sm" type="button" data-copy="#txtv">Copy</button></td><td class="small muted">Proves you control the domain. Keep it: it's re-checked daily.</td></tr>
+          <tr><td>CNAME</td><td><code>{{ $dom->host }}</code></td><td><code>{{ \App\Services\Domains::mainHost() }}</code></td><td class="small muted">Sends visitors to Clauth. Or an A record to <code>{{ implode(', ', config('clauth.server_ips')) }}</code>. Cloudflare proxy is fine.</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted" style="margin:10px 0 0">Steps: DNS verified → the server adds the domain → HTTPS certificate → live. Clauth checks every 5 minutes; you can check now. Last checked {{ $dom->last_checked_at?->diffForHumans() ?? 'never' }}@if($dom->dns_target) · DNS: {{ ['cname' => 'CNAME to Clauth', 'a' => 'A record to this server', 'proxied' => 'behind Cloudflare', 'other' => 'points somewhere else', 'none' => 'not resolving'][$dom->dns_target] ?? $dom->dns_target }}@endif.</p>
+      <div class="actions" style="margin-top:12px">
+        <form method="post" action="{{ route('admin.apps.domain.check', $app->key) }}">@csrf<button class="btn">Check now</button></form>
+        <form method="post" action="{{ route('admin.apps.domain.destroy', $app->key) }}" data-confirm="Remove {{ $dom->host }}? Sign-in goes back to {{ \App\Services\Domains::mainHost() }} right away.">@csrf @method('delete')<button class="btn danger">Remove domain</button></form>
+      </div>
+      @if($dom->isServed())<p class="small muted" style="margin:12px 0 0">In {{ $app->name }}'s <code>.env</code>: <code>CLAUTH_LOGIN_URL=https://{{ $dom->host }}</code> (kit 0.4+). Without it the app keeps sending people to {{ \App\Services\Domains::mainHost() }}.</p>@endif
+    @endif
+  </section>
 @endif
 
 @if($tab === 'settings')

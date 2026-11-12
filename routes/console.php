@@ -19,3 +19,7 @@ Schedule::call(function () {
 // Audit retention: 1 year.
 Schedule::call(fn () => AuditEvent::where('at', '<', now()->subYear())->delete())->dailyAt('03:40');
 Schedule::command('passport:purge --hours=24')->dailyAt('03:50');
+
+// Custom sign-in domains: move pending ones forward every 5 minutes; re-check live ones daily.
+Schedule::command('clauth:domains check')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('clauth:domains check --all')->dailyAt('04:20')->withoutOverlapping();

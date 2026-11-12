@@ -33,14 +33,15 @@ class Invites
         return [$invite, $token];
     }
 
-    public static function url(string $token): string
+    /** Invite links open on the invited app's own sign-in domain when it has one. */
+    public static function url(string $token, ?Invite $invite = null): string
     {
-        return route('invite.show', $token);
+        return $invite ? Domains::urlFor($invite->primaryApp(), 'invite/'.$token) : route('invite.show', $token);
     }
 
     public static function send(Invite $invite, string $token): void
     {
-        Mail::to($invite->email)->send(new InviteMail($invite, self::url($token)));
+        Mail::to($invite->email)->send(new InviteMail($invite, self::url($token, $invite)));
     }
 
     /** Joins the org, creates grants, applies admin roles; marks the invite used. */

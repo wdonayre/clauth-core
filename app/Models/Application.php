@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
@@ -52,6 +53,11 @@ class Application extends Model
     public function roles(): HasMany
     {
         return $this->hasMany(AppRole::class, 'app_id')->orderBy('position')->orderBy('id');
+    }
+
+    public function domain(): HasOne
+    {
+        return $this->hasOne(AppDomain::class, 'app_id');
     }
 
     public function grants(): HasMany

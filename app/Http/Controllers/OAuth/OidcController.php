@@ -6,6 +6,7 @@ use App\Models\OAuthClient;
 use App\Models\User;
 use App\Services\Claims;
 use App\Services\SigningKeys;
+use App\Services\Sso;
 use App\Services\Theme;
 use Defuse\Crypto\Crypto;
 use Illuminate\Http\Request;
@@ -114,6 +115,7 @@ class OidcController
         $client = $clientId ? OAuthClient::with('app')->find($clientId) : null;
 
         if (Auth::check()) {
+            Sso::endFamily($request);
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

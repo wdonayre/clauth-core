@@ -41,6 +41,16 @@ Migrations aren't undone: restore the matching `backups/*.sql.gz` if the schema 
 
 If you change a script here, copy it to `/root/clauth-deploy/` on the server too: cron runs that copy.
 
+## Custom sign-in domains (apps' own addresses, e.g. auth.cebpos.com)
+
+`/root/clauth-deploy/domains.sh` (+ `vhost.py`) runs every minute as root. It asks Clauth which hosts are verified
+(`artisan clauth:domains hosts`) and keeps both `server_name` lines of the vhost **and** CloudPanel's stored
+`site.vhost_template` in sync, then reissues the Let's Encrypt certificate with the wanted SANs
+(`clpctl lets-encrypt:install:certificate --domainName=auth.thecakelabs.com --subjectAlternativeName=…`) whenever the
+set changes (at most hourly per set). Log: `shared/storage/logs/domains.log`. Domains broken for over a week drop out of
+the certificate so they can't block renewing auth.thecakelabs.com itself. The session cookie is host-only
+(`SESSION_DOMAIN=` empty, `SESSION_COOKIE=clauth_sid`) — required for app domains.
+
 **Losing APP_KEY or the database logs everyone out of every app.** Keep an off-box copy of the newest
 `backups/clauth-env-*.tar.gz` and `clauth-nightly-*.sql.gz` (SPEC §10.1).
 

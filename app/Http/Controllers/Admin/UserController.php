@@ -85,7 +85,7 @@ class UserController
             $data['is_org_admin'] = false;
         }
         [$invite, $token] = Invites::create($data + ['grants' => $grants], auth()->user());
-        $link = Invites::url($token);
+        $link = Invites::url($token, $invite);
         $sent = false;
         if ($request->boolean('send', true)) {
             $sent = rescue(fn () => Invites::send($invite, $token) ?? true, false, report: true);
@@ -241,7 +241,7 @@ class UserController
                 ], auth()->user());
                 $sent = rescue(fn () => Invites::send($invite, $token) ?? true, false, report: true);
 
-                return back()->with('invite_link', ['link' => Invites::url($token), 'email' => $user->email, 'sent' => (bool) $sent]);
+                return back()->with('invite_link', ['link' => Invites::url($token, $invite), 'email' => $user->email, 'sent' => (bool) $sent]);
             default:
                 abort(404);
         }

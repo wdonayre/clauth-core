@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\AppDomain;
 use App\Models\Application;
 use App\Models\AuditEvent;
 use App\Models\Invite;
@@ -20,6 +21,13 @@ class DashboardController
         if ($ids === null) {
             foreach (OAuthClient::with('app')->whereNotNull('secret_expires_at')->where('revoked', false)->where('secret_expires_at', '<', now()->addDays(14))->get() as $c) {
                 $attention[] = ['tone' => 'warn', 'text' => "{$c->app?->name} · {$c->name}: client secret ".($c->secret_expires_at->isPast() ? 'expired' : 'expires '.$c->secret_expires_at->diffForHumans()), 'href' => route('admin.apps.show', [$c->app?->key ?? '-', 'tab' => 'settings'])];
+            }
+            foreach (AppDomain::with('app')->get() as $d) {
+                if ($d->status === 'problem') {
+                    $attention[] = ['tone' => 'danger', 'text' => "{$d->app?->name}: sign-in domain {$d->host} has a problem — {$d->last_error}", 'href' => route('admin.apps.show', [$d->app?->key ?? '-', 'tab' => 'brand'])];
+                } elseif (! $d->isServed() && $d->created_at->lt(now()->subDay())) {
+                    $attention[] = ['tone' => 'warn', 'text' => "{$d->app?->name}: sign-in domain {$d->host} isn’t live yet — {$d->label()}", 'href' => route('admin.apps.show', [$d->app?->key ?? '-', 'tab' => 'brand'])];
+                }
             }
             foreach (Application::whereNotNull('manifest_diff')->get() as $a) {
                 $attention[] = ['tone' => 'info', 'text' => "{$a->name}: manifest wants role changes you edited in Clauth", 'href' => route('admin.apps.show', $a->key)];

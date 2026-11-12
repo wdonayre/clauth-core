@@ -7,7 +7,9 @@ use App\Models\Application;
 use App\Models\OAuthClient;
 use App\Models\User;
 use App\Models\UserDevice;
+use App\Services\Domains;
 use App\Services\Settings;
+use App\Services\Sso;
 use App\Services\Theme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +29,8 @@ trait Concerns
             return Application::where('key', $key)->first();
         }
 
-        return null;
+        // On an app's own sign-in domain, everything is that app's.
+        return $request->attributes->get('clauth.domain')?->app;
     }
 
     protected function theme(Request $request): array
@@ -101,6 +104,16 @@ trait Concerns
             'trusted_until' => $trustDevice ? now()->addDays((int) Settings::get('trusted_device_days')) : $device->trusted_until,
         ])->save();
         Cookie::queue(Cookie::make('clauth_dev', $token, 60 * 24 * 400, null, null, null, true, false, 'lax'));
+        Sso::register($request, $user);
+
+        // Signed in on an app's own domain: sign this browser in on the main domain too (one hop), so every
+        // other app — whatever its sign-in domain — recognises the person.
+        if ($request->attributes->get('clauth.domain')) {
+            $return = $request->session()->pull('url.intended') ?: Domains::mainUrl('account');
+            $ticket = Sso::issue(Sso::snapshot($request, $user) + ['to' => 'main', 'return' => $return]);
+
+            return redirect()->away(Domains::mainUrl('sso/adopt?ticket='.$ticket));
+        }
 
         return redirect()->intended(route('account'));
     }

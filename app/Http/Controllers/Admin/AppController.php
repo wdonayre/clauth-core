@@ -10,6 +10,7 @@ use App\Models\Invite;
 use App\Models\OAuthClient;
 use App\Models\Organization;
 use App\Services\Audit;
+use App\Services\Domains;
 use App\Services\Manifest;
 use App\Services\Theme;
 use Illuminate\Http\Request;
@@ -67,7 +68,7 @@ class AppController
     public function show(Request $request, Application $app)
     {
         $tab = $request->query('tab', 'roles');
-        $app->load(['roles.permissions', 'organizations', 'clients']);
+        $app->load(['roles.permissions', 'organizations', 'clients', 'domain']);
 
         return view('admin.apps.show', [
             'app' => $app, 'tab' => $tab,
@@ -284,6 +285,49 @@ class AppController
         }
 
         return view('auth.login', ['theme' => $theme, 'app' => $draft, 'preview' => true]);
+    }
+
+    public function storeDomain(Request $request, Application $app)
+    {
+        // Accept a pasted URL: keep just the host.
+        $raw = trim((string) $request->input('host'));
+        $host = str_contains($raw, '://') ? (string) parse_url($raw, PHP_URL_HOST) : explode('/', $raw)[0];
+        $request->merge(['host' => strtolower(trim($host, " .\t\n\r"))]);
+        $data = $request->validate([
+            'host' => ['required', 'max:190', 'regex:/^(?=.{4,190}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/', Rule::unique('app_domains', 'host'),
+                Rule::notIn([Domains::mainHost()])],
+        ], ['host.regex' => 'Enter a domain like auth.example.com (no https://, no path).', 'host.not_in' => 'That is Clauth’s main address.']);
+        abort_if($app->domain()->exists(), 422, 'This app already has a custom domain. Remove it first.');
+        $d = $app->domain()->create(['host' => $data['host'], 'verify_token' => Str::lower(Str::random(32)), 'status' => 'pending', 'created_by' => auth()->id()]);
+        Audit::log('app.domain_added', 'app', $d, after: ['host' => $d->host], appId: $app->id);
+        rescue(fn () => Domains::check($d), report: false);
+
+        return back()->with('status', "Added {$d->host}. Add the two DNS records below; Clauth checks every 5 minutes.");
+    }
+
+    public function checkDomain(Application $app)
+    {
+        $d = $app->domain()->firstOrFail();
+        // Up to three steps at once (DNS → reachable → active) when everything is already in place.
+        foreach (range(1, 3) as $i) {
+            $before = $d->status;
+            $d = Domains::check($d);
+            if ($d->status === $before || $d->status === 'active') {
+                break;
+            }
+        }
+
+        return back()->with('status', "{$d->host}: {$d->label()}.");
+    }
+
+    public function destroyDomain(Application $app)
+    {
+        $d = $app->domain()->firstOrFail();
+        $d->delete();
+        Domains::flush($d->host);
+        Audit::log('app.domain_removed', 'app', $d, before: ['host' => $d->host], appId: $app->id);
+
+        return back()->with('status', "Removed {$d->host}. Sign-in uses ".Domains::mainHost().' again.');
     }
 
     /** Serves an uploaded logo from Clauth's own domain (no hot-linking). */

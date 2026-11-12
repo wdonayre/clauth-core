@@ -6,10 +6,13 @@ use App\Mail\LockoutMail;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\Claims;
+use App\Services\Domains;
 use App\Services\Settings;
+use App\Services\Sso;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class LoginController
 {
@@ -19,6 +22,15 @@ class LoginController
     {
         if ($request->user() && ! $request->session()->has('login.client_id')) {
             return redirect()->route('account');
+        }
+
+        // On an app's own domain: first ask the main domain whether this browser is already signed in.
+        $domain = $request->attributes->get('clauth.domain');
+        if ($domain && ! $request->user() && ! $request->session()->get('sso.checked') && ! $request->session()->get('login.prompted')) {
+            $state = Str::random(40);
+            $request->session()->put(['sso.state' => $state, 'sso.return' => $request->session()->get('url.intended') ?: '/login']);
+
+            return redirect()->away(Domains::mainUrl('sso/check?'.http_build_query(['host' => $domain->host, 'state' => $state])));
         }
 
         return view('auth.login', ['theme' => $this->theme($request), 'app' => $this->flowApp($request)]);
@@ -83,6 +95,7 @@ class LoginController
 
     public function logout(Request $request)
     {
+        Sso::endFamily($request);
         auth()->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

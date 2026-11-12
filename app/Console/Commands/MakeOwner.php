@@ -35,7 +35,7 @@ class MakeOwner extends Command
             Invites::send($invite, $token);
             $this->info("Setup link emailed to $email.");
         }
-        $this->line(Invites::url($token));
+        $this->line(Invites::url($token, $invite));
         $this->comment('One-time link, valid 7 days. Opening it sets the password and 2-step verification.');
 
         return self::SUCCESS;

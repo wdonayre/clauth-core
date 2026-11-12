@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\UserController as ApiUserController;
 use App\Http\Controllers\Auth\InviteController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\OAuth\AuthorizeController;
 use App\Http\Controllers\OAuth\OidcController;
@@ -51,6 +52,11 @@ Route::post('/forgot-password', [PasswordResetController::class, 'email'])->midd
 Route::get('/reset-password/{token}', [PasswordResetController::class, 'reset'])->name('password.reset');
 Route::post('/reset-password', [PasswordResetController::class, 'update'])->name('password.update');
 
+// Custom-domain ownership proof; answered by ServeCustomDomain on the app's domain, 404 everywhere else.
+Route::get('/.well-known/clauth-domain/{token}', fn () => response('Not found', 404))->where('token', '[a-z0-9]{32}');
+Route::get('/sso/check', [SsoController::class, 'check'])->middleware('throttle:60,1')->name('sso.check');
+Route::get('/sso/accept', [SsoController::class, 'accept'])->middleware('throttle:60,1')->name('sso.accept');
+Route::get('/sso/adopt', [SsoController::class, 'adoptOnMain'])->middleware('throttle:60,1')->name('sso.adopt');
 Route::get('/invite/{token}', [InviteController::class, 'show'])->name('invite.show');
 Route::post('/invite/{token}', [InviteController::class, 'store'])->middleware('throttle:10,1');
 
@@ -103,6 +109,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/apps/{app}', [Admin\AppController::class, 'destroy'])->name('apps.destroy');
         Route::get('/apps/{app}/preview', [Admin\AppController::class, 'preview'])->name('apps.preview');
         Route::post('/apps/{app}/branding', [Admin\AppController::class, 'branding'])->name('apps.branding');
+        Route::post('/apps/{app}/domain', [Admin\AppController::class, 'storeDomain'])->name('apps.domain.store');
+        Route::post('/apps/{app}/domain/check', [Admin\AppController::class, 'checkDomain'])->name('apps.domain.check');
+        Route::delete('/apps/{app}/domain', [Admin\AppController::class, 'destroyDomain'])->name('apps.domain.destroy');
         Route::post('/apps/{app}/sync', [Admin\AppController::class, 'sync'])->name('apps.sync');
         Route::post('/apps/{app}/manifest', [Admin\AppController::class, 'importManifest'])->name('apps.manifest');
         Route::post('/apps/{app}/matrix', [Admin\AppController::class, 'matrix'])->name('apps.matrix');
