@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
- * An app's own sign-in address. Lifecycle:
+ * A custom sign-in address (e.g. auth.alabapparel.com). Owned by the organization that verified it and shared by
+ * one or more of that organization's apps. "trusted" = people signed in on the main domain are signed in here
+ * silently; on an untrusted domain they confirm first. Lifecycle:
  *   pending   — waiting for the TXT record (_clauth.<host>)
  *   dns_ok    — TXT verified; the server job adds the host to nginx
  *   reachable — Clauth answered its own proof URL through the host; the server job requests a certificate
@@ -26,13 +29,43 @@ class AppDomain extends Model
     protected function casts(): array
     {
         return [
-            'verified_at' => 'datetime', 'reachable_at' => 'datetime', 'active_at' => 'datetime', 'last_checked_at' => 'datetime',
+            'trusted' => 'boolean', 'verified_at' => 'datetime', 'reachable_at' => 'datetime', 'active_at' => 'datetime', 'last_checked_at' => 'datetime',
         ];
     }
 
-    public function app(): BelongsTo
+    public function organization(): BelongsTo
     {
-        return $this->belongsTo(Application::class, 'app_id');
+        return $this->belongsTo(Organization::class);
+    }
+
+    /** The apps that sign people in here (oldest link first). */
+    public function apps(): BelongsToMany
+    {
+        return $this->belongsToMany(Application::class, 'app_domain_app', 'app_domain_id', 'app_id')
+            ->withPivot('created_by')->withTimestamps()->orderBy('app_domain_app.created_at')->orderBy('apps.name');
+    }
+
+    public function serves(?Application $app): bool
+    {
+        return $app && $this->apps->contains('id', $app->id);
+    }
+
+    /** The app whose look is used when the page isn't for a specific app: the only app, else the first one linked. */
+    public function brandApp(): ?Application
+    {
+        return $this->apps->first();
+    }
+
+    /** What the page says when it isn't for a specific app ("Continue to Alab Apparel"). */
+    public function brandName(): string
+    {
+        return $this->display_name ?: ($this->apps->count() === 1 ? $this->apps->first()->name : ($this->organization?->name ?? $this->host));
+    }
+
+    /** First linked app, for audit rows. */
+    public function firstAppId(): ?string
+    {
+        return $this->apps()->value('apps.id');
     }
 
     public function txtName(): string

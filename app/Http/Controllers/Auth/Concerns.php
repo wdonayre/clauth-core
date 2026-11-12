@@ -22,20 +22,28 @@ trait Concerns
 {
     protected function flowApp(Request $request): ?Application
     {
+        $domain = $request->attributes->get('clauth.domain');
+        $app = null;
         if ($id = $request->session()->get('login.client_id')) {
-            return OAuthClient::with('app')->find($id)?->app;
+            $app = OAuthClient::with('app')->find($id)?->app;
+        } elseif ($key = $request->session()->get('login.app_key')) {
+            $app = Application::where('key', $key)->first();
         }
-        if ($key = $request->session()->get('login.app_key')) {
-            return Application::where('key', $key)->first();
+        if ($domain) {
+            // On a custom domain only its own apps are named; with one app, everything is that app's.
+            return $domain->serves($app) ? $app : ($domain->apps->count() === 1 ? $domain->apps->first() : null);
         }
 
-        // On an app's own sign-in domain, everything is that app's.
-        return $request->attributes->get('clauth.domain')?->app;
+        return $app;
     }
 
+    /** The page's look: the flow's app, else (on a shared custom domain) the domain's brand app. */
     protected function theme(Request $request): array
     {
-        return Theme::for($this->flowApp($request));
+        $theme = Theme::for($this->flowApp($request) ?? $request->attributes->get('clauth.domain')?->brandApp());
+        $theme['brand'] = $request->attributes->get('clauth.domain')?->brandName();
+
+        return $theme;
     }
 
     /** The user who passed the password step but not yet 2-step (or a signed-in user stepping up). */
@@ -108,7 +116,8 @@ trait Concerns
 
         // Signed in on an app's own domain: sign this browser in on the main domain too (one hop), so every
         // other app — whatever its sign-in domain — recognises the person.
-        if ($request->attributes->get('clauth.domain')) {
+        // (Untrusted domains — another organization's — stay on their own: their session doesn't spread to main.)
+        if ($request->attributes->get('clauth.domain')?->trusted) {
             $return = $request->session()->pull('url.intended') ?: Domains::mainUrl('account');
             $ticket = Sso::issue(Sso::snapshot($request, $user) + ['to' => 'main', 'return' => $return]);
 

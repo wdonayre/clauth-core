@@ -6,6 +6,7 @@ use App\Models\ClientSession;
 use App\Models\OAuthClient;
 use App\Services\Audit;
 use App\Services\Claims;
+use App\Services\Domains;
 use App\Services\Theme;
 use Defuse\Crypto\Crypto;
 use GuzzleHttp\Psr7\Response as PsrResponse;
@@ -38,6 +39,12 @@ class AuthorizeController
         $app = $client?->app;
         if (! $client || ! $app || $client->type === 'm2m') {
             return response()->view('auth.error', ['title' => 'Unknown app', 'message' => 'This app isn’t registered with Clauth.'], 400);
+        }
+
+        // A custom sign-in domain only serves its own apps; any other app signs in at its own address.
+        $domain = $request->attributes->get('clauth.domain');
+        if ($domain && ! $domain->serves($app)) {
+            return redirect()->away(Domains::urlFor($app, 'oauth/authorize?'.parse_url($request->getRequestUri(), PHP_URL_QUERY)));
         }
 
         // Everything after this is styled for the app.

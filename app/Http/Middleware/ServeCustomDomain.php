@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\URL;
  * Clauth answers on its main domain and on apps' own sign-in domains (e.g. auth.cebpos.com).
  * On an app domain only the person-facing pages are served, styled for that app; links and emails point back
  * at that domain. Everything else (admin, My account, token/JWKS/API) lives on the main domain only.
+ * A domain can serve several apps of one organization; a flow for any other app moves to that app's own address.
  * Unknown hosts get a 404, so a forged Host header can never mint links to someone else's domain.
  */
 class ServeCustomDomain
@@ -38,10 +39,16 @@ class ServeCustomDomain
         }
 
         $domain = Domains::activeFor($host);
+        $path = trim($request->path(), '/');
         if (! $domain) {
+            // A known domain that isn't live (being verified, or failing its checks): keep sign-in working on the
+            // main domain instead of breaking apps that already point here. Unknown hosts get nothing.
+            if (Domains::knownFor($host) && $request->isMethod('GET') && ($path === '' || preg_match(self::ALLOWED, $path))) {
+                return redirect()->away(Domains::mainUrl($path === '' ? 'login' : $request->getRequestUri()));
+            }
+
             return response('This sign-in address isn’t set up.', 404, ['Content-Type' => 'text/plain; charset=utf-8']);
         }
-        $path = trim($request->path(), '/');
         if ($path === '') {
             return redirect('/login');
         }

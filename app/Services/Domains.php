@@ -31,7 +31,7 @@ class Domains
     {
         $id = Cache::remember('clauth.domain.'.strtolower($host), 60, fn () => AppDomain::where('host', strtolower($host))->where('status', 'active')->value('id') ?? 0);
 
-        return $id ? AppDomain::with('app')->find($id) : null;
+        return $id ? AppDomain::with(['apps', 'organization'])->find($id) : null;
     }
 
     public static function flush(string $host): void
@@ -39,10 +39,16 @@ class Domains
         Cache::forget('clauth.domain.'.strtolower($host));
     }
 
+    /** A known custom host that isn't live (not verified yet, or a problem), or null. */
+    public static function knownFor(string $host): ?AppDomain
+    {
+        return AppDomain::where('host', strtolower($host))->first();
+    }
+
     /** Absolute URL for $path on the app's own sign-in domain when it has an active one, else on the main domain. */
     public static function urlFor(?Application $app, string $path): string
     {
-        $d = $app ? AppDomain::where('app_id', $app->id)->where('status', 'active')->first() : null;
+        $d = $app ? $app->domains()->where('status', 'active')->first() : null;
 
         return $d ? 'https://'.$d->host.'/'.ltrim($path, '/') : self::mainUrl($path);
     }
@@ -90,7 +96,7 @@ class Domains
                     $d->last_error = ! $txtOk ? 'The TXT record is gone.' : 'HTTPS check failed (DNS moved away or the certificate is invalid).';
                     if ($d->fail_count >= 2 && $d->status === 'active') {
                         $d->status = 'problem';
-                        Audit::log('app.domain_problem', 'app', $d, after: ['host' => $d->host, 'error' => $d->last_error], appId: $d->app_id, actorType: 'system');
+                        Audit::log('app.domain_problem', 'app', $d, after: ['host' => $d->host, 'error' => $d->last_error], appId: $d->firstAppId(), actorType: 'system');
                     }
                 }
                 break;
@@ -100,7 +106,7 @@ class Domains
         if ($was !== $d->status) {
             self::flush($d->host);
             if ($d->status === 'active') {
-                Audit::log('app.domain_active', 'app', $d, ['status' => $was], ['status' => 'active', 'host' => $d->host], $d->app_id, actorType: 'system');
+                Audit::log('app.domain_active', 'app', $d, ['status' => $was], ['status' => 'active', 'host' => $d->host], $d->firstAppId(), actorType: 'system');
             }
         }
 

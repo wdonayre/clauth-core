@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Models\User;
 use App\Services\Domains;
 use App\Services\Sso;
+use App\Services\Theme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,17 +18,31 @@ class SsoController
         abort_unless(Domains::isMain($request->getHost()), 404);
         $host = strtolower((string) $request->query('host'));
         $state = (string) $request->query('state');
-        abort_unless(Domains::activeFor($host) && preg_match('/^[A-Za-z0-9]{32,64}$/', $state), 400);
+        abort_unless(($domain = Domains::activeFor($host)) && preg_match('/^[A-Za-z0-9]{32,64}$/', $state), 400);
         $back = 'https://'.$host.'/sso/accept?state='.urlencode($state);
 
         $user = $request->user();
         if (! $user || $user->status !== 'active') {
             return redirect()->away($back.'&none=1');
         }
+        // Only trusted domains (Clauth's own organizations) get a silent sign-in. Anyone else's domain could be
+        // repointed by its owner to catch the ticket, so the person confirms first.
+        if (! $domain->trusted && ! $request->isMethod('POST')) {
+            return response()->view('auth.sso-confirm', ['domain' => $domain, 'user' => $user, 'state' => $state, 'back' => $back,
+                'theme' => Theme::for($domain->brandApp()) + ['brand' => $domain->brandName()]]);
+        }
 
         Sso::register($request, $user); // so signing out on the app domain also ends this session
 
         return redirect()->away($back.'&ticket='.Sso::issue(Sso::snapshot($request, $user) + ['host' => $host, 'state' => $state]));
+    }
+
+    /** MAIN: the person confirmed "Continue as …" for an untrusted domain. */
+    public function confirm(Request $request)
+    {
+        $request->query->replace(['host' => (string) $request->input('host'), 'state' => (string) $request->input('state')]);
+
+        return $this->check($request);
     }
 
     /** APP DOMAIN: take the answer from the main domain. */
@@ -55,7 +70,7 @@ class SsoController
         $t = Sso::take($request->query('ticket'));
         $return = $t['return'] ?? null;
         $returnHost = $return ? strtolower((string) parse_url($return, PHP_URL_HOST)) : null;
-        if (! $t || ($t['to'] ?? null) !== 'main' || ! $returnHost || ! (Domains::isMain($returnHost) || Domains::activeFor($returnHost))) {
+        if (! $t || ($t['to'] ?? null) !== 'main' || ! $returnHost || ! (Domains::isMain($returnHost) || Domains::activeFor($returnHost)?->trusted)) {
             return redirect()->route('login');
         }
         $user = User::find($t['user']);

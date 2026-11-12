@@ -55,6 +55,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'update'])->name
 // Custom-domain ownership proof; answered by ServeCustomDomain on the app's domain, 404 everywhere else.
 Route::get('/.well-known/clauth-domain/{token}', fn () => response('Not found', 404))->where('token', '[a-z0-9]{32}');
 Route::get('/sso/check', [SsoController::class, 'check'])->middleware('throttle:60,1')->name('sso.check');
+Route::post('/sso/check', [SsoController::class, 'confirm'])->middleware('throttle:60,1')->name('sso.confirm');
 Route::get('/sso/accept', [SsoController::class, 'accept'])->middleware('throttle:60,1')->name('sso.accept');
 Route::get('/sso/adopt', [SsoController::class, 'adoptOnMain'])->middleware('throttle:60,1')->name('sso.adopt');
 Route::get('/invite/{token}', [InviteController::class, 'show'])->name('invite.show');
@@ -112,6 +113,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/apps/{app}/domain', [Admin\AppController::class, 'storeDomain'])->name('apps.domain.store');
         Route::post('/apps/{app}/domain/check', [Admin\AppController::class, 'checkDomain'])->name('apps.domain.check');
         Route::delete('/apps/{app}/domain', [Admin\AppController::class, 'destroyDomain'])->name('apps.domain.destroy');
+        Route::patch('/apps/{app}/domain', [Admin\AppController::class, 'updateDomain'])->name('apps.domain.update');
         Route::post('/apps/{app}/sync', [Admin\AppController::class, 'sync'])->name('apps.sync');
         Route::post('/apps/{app}/manifest', [Admin\AppController::class, 'importManifest'])->name('apps.manifest');
         Route::post('/apps/{app}/matrix', [Admin\AppController::class, 'matrix'])->name('apps.matrix');

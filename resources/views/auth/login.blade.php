@@ -2,7 +2,7 @@
 @section('title', 'Sign in')
 @section('card')
   <h1>Sign in</h1>
-  <p class="sub">{!! $app ? 'Continue to <strong>'.e($app->name).'</strong>' : 'to your Clauth account' !!}</p>
+  <p class="sub">{!! $app ? 'Continue to <strong>'.e($app->name).'</strong>' : (! empty($theme['brand']) ? 'Continue to <strong>'.e($theme['brand']).'</strong>' : 'to your Clauth account') !!}</p>
   @include('partials.errors')
   <form method="post" action="{{ $preview ?? false ? '#' : url('/login') }}" novalidate>
     @csrf

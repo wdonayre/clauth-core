@@ -104,24 +104,44 @@
     </section>
   </div>
 
-  @php($dom = $app->domain)
+  @php($dom = $app->signInDomain()?->load(['apps', 'organization']))
+  @php($share = session('domain_share'))
   <section class="card pad" aria-labelledby="dom-h">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div><h2 id="dom-h">Custom sign-in domain</h2>
-        <p class="small muted" style="margin:4px 0 0">Optional. People sign in to {{ $app->name }} at its own address (e.g. <code>auth.{{ $app->key }}.com</code>) instead of <code>{{ \App\Services\Domains::mainHost() }}</code>. Tokens don't change, and one sign-in still covers every app.</p></div>
+        <p class="small muted" style="margin:4px 0 0">Optional. People sign in to {{ $app->name }} at its own address (e.g. <code>auth.{{ $app->key }}.com</code>) instead of <code>{{ \App\Services\Domains::mainHost() }}</code>. Tokens don't change, and one sign-in still covers every app. A domain belongs to an organization and can be shared by several of its apps.</p></div>
       @if($dom)<span class="chip {{ ['active' => 'ok', 'problem' => 'bad', 'pending' => 'warn'][$dom->status] ?? 'info' }}">{{ $dom->label() }}</span>@endif
     </div>
     @if(! $dom)
-      <form class="actions" method="post" action="{{ route('admin.apps.domain.store', $app->key) }}" style="margin-top:16px">@csrf
-        <label class="sr-only" for="dh">Domain</label>
-        <input class="in mono" id="dh" name="host" placeholder="auth.example.com" style="max-width:320px" required>
-        <button class="btn pri">Add domain</button>
-      </form>
+      @if($share)
+        <div class="flash info" style="margin-top:16px"><b class="mono">{{ $share['host'] }}</b> is already verified{{ $share['org'] ? ' for '.$share['org'] : '' }} and used by {{ implode(', ', $share['apps']) }} ({{ $share['status'] }}). Share it with {{ $app->name }}? No DNS changes are needed.
+          <form class="actions" method="post" action="{{ route('admin.apps.domain.store', $app->key) }}" style="margin-top:10px">@csrf
+            <input type="hidden" name="host" value="{{ $share['host'] }}"><input type="hidden" name="share" value="1">
+            <button class="btn pri">Share with {{ $app->name }}</button><a class="btn" href="{{ route('admin.apps.show', [$app->key, 'tab' => 'brand']) }}">Cancel</a>
+          </form></div>
+      @else
+        @php($appOrgs = $app->organizations()->orderBy('name')->get())
+        <form class="actions" method="post" action="{{ route('admin.apps.domain.store', $app->key) }}" style="margin-top:16px">@csrf
+          <label class="sr-only" for="dh">Domain</label>
+          <input class="in mono" id="dh" name="host" placeholder="auth.example.com" style="max-width:320px" value="{{ old('host') }}" required>
+          @if($appOrgs->count() > 1)
+            <label class="sr-only" for="dorg">Owned by</label>
+            <select class="in" id="dorg" name="organization_id" style="max-width:220px" title="The organization that owns this domain">
+              @foreach($appOrgs as $o)<option value="{{ $o->id }}" @selected(old('organization_id') === $o->id)>Owned by {{ $o->name }}</option>@endforeach
+            </select>
+          @endif
+          <button class="btn pri">Add domain</button>
+        </form>
+        @error('host')<p class="small" style="color:var(--danger,#b91c1c);margin:8px 0 0">{{ $message }}</p>@enderror
+        <p class="small muted" style="margin:8px 0 0">Already using a domain for another app of the same organization? Enter it here to share it.</p>
+      @endif
     @else
+      @php($others = $dom->apps->where('id', '!=', $app->id))
       <p style="margin:16px 0 8px"><b class="mono">{{ $dom->host }}</b>
         @if($dom->isServed()) — live since {{ $dom->active_at?->format('j M Y') }}. <a href="https://{{ $dom->host }}/login" target="_blank" rel="noopener">Open sign-in page</a>@endif</p>
-      @if($dom->last_error && ! $dom->isServed())<div class="flash {{ $dom->status === 'problem' ? 'bad' : 'info' }}">{{ $dom->last_error }}</div>@endif
-      <p class="lbl" style="margin:16px 0 6px">DNS records to add at your DNS provider</p>
+      <p class="small muted" style="margin:0 0 8px">Owned by {{ $dom->organization?->name ?? '—' }} · used by {{ $dom->apps->pluck('name')->join(', ') }}@if($others->isNotEmpty()) (shared)@endif · {{ $dom->trusted ? 'Trusted: people signed in to Clauth continue here without a prompt' : 'Not trusted: people signed in to Clauth confirm before continuing here' }}</p>
+      @if($dom->last_error && ! $dom->isServed())<div class="flash {{ $dom->status === 'problem' ? 'bad' : 'info' }}">{{ $dom->last_error }}@if($dom->status === 'problem') Sign-in falls back to {{ \App\Services\Domains::mainHost() }} until this passes.@endif</div>@endif
+      <p class="lbl" style="margin:16px 0 6px">DNS records{{ $others->isNotEmpty() ? ' (shared — already set up for '.$others->pluck('name')->join(', ').')' : ' to add at your DNS provider' }}</p>
       <div class="scroll"><table class="t">
         <thead><tr><th>Type</th><th>Name</th><th>Value</th><th>Why</th></tr></thead>
         <tbody>
@@ -130,9 +150,20 @@
         </tbody>
       </table></div>
       <p class="small muted" style="margin:10px 0 0">Steps: DNS verified → the server adds the domain → HTTPS certificate → live. Clauth checks every 5 minutes; you can check now. Last checked {{ $dom->last_checked_at?->diffForHumans() ?? 'never' }}@if($dom->dns_target) · DNS: {{ ['cname' => 'CNAME to Clauth', 'a' => 'A record to this server', 'proxied' => 'behind Cloudflare', 'other' => 'points somewhere else', 'none' => 'not resolving'][$dom->dns_target] ?? $dom->dns_target }}@endif.</p>
+      <form method="post" action="{{ route('admin.apps.domain.update', $app->key) }}" style="margin-top:16px">@csrf @method('patch')
+        <div class="actions" style="align-items:end">
+          <div><label class="lbl" for="ddn">Name on the page when no app is named</label>
+            <input class="in" id="ddn" name="display_name" maxlength="80" placeholder="{{ $dom->apps->count() > 1 ? ($dom->organization?->name ?? '') : $app->name }}" value="{{ $dom->display_name }}" style="max-width:260px"></div>
+          @if(auth()->user()?->isOwner())
+            <label class="small" style="display:flex;gap:6px;align-items:center"><input type="hidden" name="trusted" value="0"><input type="checkbox" name="trusted" value="1" @checked($dom->trusted)> Trusted (silent sign-in from {{ \App\Services\Domains::mainHost() }})</label>
+          @endif
+          <button class="btn">Save</button>
+        </div>
+        <p class="small muted" style="margin:6px 0 0">Shown on password reset and other pages opened directly on {{ $dom->host }}. Applies to every app sharing it.</p>
+      </form>
       <div class="actions" style="margin-top:12px">
         <form method="post" action="{{ route('admin.apps.domain.check', $app->key) }}">@csrf<button class="btn">Check now</button></form>
-        <form method="post" action="{{ route('admin.apps.domain.destroy', $app->key) }}" data-confirm="Remove {{ $dom->host }}? Sign-in goes back to {{ \App\Services\Domains::mainHost() }} right away.">@csrf @method('delete')<button class="btn danger">Remove domain</button></form>
+        <form method="post" action="{{ route('admin.apps.domain.destroy', $app->key) }}" data-confirm="{{ $others->isNotEmpty() ? 'Stop using '.$dom->host.' for '.$app->name.'? '.$others->pluck('name')->join(', ').' keep using it.' : 'Remove '.$dom->host.'? Sign-in goes back to '.\App\Services\Domains::mainHost().' right away.' }}">@csrf @method('delete')<button class="btn danger">{{ $others->isNotEmpty() ? 'Stop using for '.$app->name : 'Remove domain' }}</button></form>
       </div>
       @if($dom->isServed())<p class="small muted" style="margin:12px 0 0">In {{ $app->name }}'s <code>.env</code>: <code>CLAUTH_LOGIN_URL=https://{{ $dom->host }}</code> (kit 0.4+). Without it the app keeps sending people to {{ \App\Services\Domains::mainHost() }}.</p>@endif
     @endif

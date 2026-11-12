@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
@@ -55,9 +54,15 @@ class Application extends Model
         return $this->hasMany(AppRole::class, 'app_id')->orderBy('position')->orderBy('id');
     }
 
-    public function domain(): HasOne
+    /** Sign-in domains this app uses (at most one; see signInDomain()). */
+    public function domains(): BelongsToMany
     {
-        return $this->hasOne(AppDomain::class, 'app_id');
+        return $this->belongsToMany(AppDomain::class, 'app_domain_app', 'app_id', 'app_domain_id')->withTimestamps();
+    }
+
+    public function signInDomain(): ?AppDomain
+    {
+        return $this->domains()->first();
     }
 
     public function grants(): HasMany

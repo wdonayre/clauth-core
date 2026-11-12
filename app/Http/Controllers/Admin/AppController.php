@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\AppDomain;
 use App\Models\Application;
 use App\Models\AppPermission;
 use App\Models\AppRole;
@@ -13,6 +14,7 @@ use App\Services\Audit;
 use App\Services\Domains;
 use App\Services\Manifest;
 use App\Services\Theme;
+use App\Support\Dns;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -68,7 +70,7 @@ class AppController
     public function show(Request $request, Application $app)
     {
         $tab = $request->query('tab', 'roles');
-        $app->load(['roles.permissions', 'organizations', 'clients', 'domain']);
+        $app->load(['roles.permissions', 'organizations', 'clients']);
 
         return view('admin.apps.show', [
             'app' => $app, 'tab' => $tab,
@@ -287,6 +289,11 @@ class AppController
         return view('auth.login', ['theme' => $theme, 'app' => $draft, 'preview' => true]);
     }
 
+    /**
+     * Add a sign-in domain to an app. A new host starts verification for one of the app's organizations. A host
+     * that organization already verified is shared after a confirmation (no new DNS records). A host verified by
+     * another organization is refused, unless that claim is stale (never verified for a day, or its TXT is gone).
+     */
     public function storeDomain(Request $request, Application $app)
     {
         // Accept a pasted URL: keep just the host.
@@ -294,20 +301,71 @@ class AppController
         $host = str_contains($raw, '://') ? (string) parse_url($raw, PHP_URL_HOST) : explode('/', $raw)[0];
         $request->merge(['host' => strtolower(trim($host, " .\t\n\r"))]);
         $data = $request->validate([
-            'host' => ['required', 'max:190', 'regex:/^(?=.{4,190}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/', Rule::unique('app_domains', 'host'),
-                Rule::notIn([Domains::mainHost()])],
+            'host' => ['required', 'max:190', 'regex:/^(?=.{4,190}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/', Rule::notIn([Domains::mainHost()])],
+            'organization_id' => ['nullable', 'string'],
+            'share' => ['nullable', 'boolean'],
         ], ['host.regex' => 'Enter a domain like auth.example.com (no https://, no path).', 'host.not_in' => 'That is Clauth’s main address.']);
-        abort_if($app->domain()->exists(), 422, 'This app already has a custom domain. Remove it first.');
-        $d = $app->domain()->create(['host' => $data['host'], 'verify_token' => Str::lower(Str::random(32)), 'status' => 'pending', 'created_by' => auth()->id()]);
-        Audit::log('app.domain_added', 'app', $d, after: ['host' => $d->host], appId: $app->id);
+        if ($app->signInDomain()) {
+            return back()->withErrors(['host' => "{$app->name} already has a sign-in domain. Remove it first."]);
+        }
+        $orgs = $app->organizations()->orderBy('name')->get();
+        if ($orgs->isEmpty()) {
+            return back()->withErrors(['host' => "Turn {$app->name} on for an organization first: a sign-in domain belongs to an organization."]);
+        }
+
+        $existing = AppDomain::with(['apps', 'organization'])->where('host', $data['host'])->first();
+        if ($existing && ! $orgs->contains('id', $existing->organization_id)) {
+            if (! $this->claimIsStale($existing)) {
+                return back()->withErrors(['host' => "{$data['host']} is verified by another organization. It can only be used by that organization’s apps."]);
+            }
+            Audit::log('app.domain_taken_over', 'app', $existing, before: ['host' => $existing->host, 'organization' => $existing->organization?->slug, 'status' => $existing->status], appId: $app->id);
+            $existing->delete();
+            Domains::flush($data['host']);
+            $existing = null;
+        }
+
+        if ($existing) {
+            if (! $request->boolean('share')) {
+                return back()->withInput()->with('domain_share', [
+                    'host' => $existing->host, 'apps' => $existing->apps->pluck('name')->all(), 'status' => $existing->label(), 'org' => $existing->organization?->name,
+                ]);
+            }
+            $existing->apps()->attach($app->id, ['created_by' => auth()->id()]);
+            Domains::flush($existing->host);
+            Audit::log('app.domain_shared', 'app', $existing, after: ['host' => $existing->host, 'app' => $app->key], appId: $app->id, orgId: $existing->organization_id);
+
+            return back()->with('status', "{$app->name} now signs in at {$existing->host} too ({$existing->label()}). No DNS changes needed.");
+        }
+
+        $orgId = $request->input('organization_id') ?: $orgs->first()->id;
+        if (! $orgs->contains('id', $orgId)) {
+            return back()->withErrors(['host' => 'Pick one of the app’s organizations.']);
+        }
+        $d = AppDomain::create(['host' => $data['host'], 'organization_id' => $orgId, 'trusted' => (bool) $request->user()?->isOwner(),
+            'verify_token' => Str::lower(Str::random(32)), 'status' => 'pending', 'created_by' => auth()->id()]);
+        $d->apps()->attach($app->id, ['created_by' => auth()->id()]);
+        Audit::log('app.domain_added', 'app', $d, after: ['host' => $d->host, 'organization_id' => $orgId], appId: $app->id, orgId: $orgId);
         rescue(fn () => Domains::check($d), report: false);
 
         return back()->with('status', "Added {$d->host}. Add the two DNS records below; Clauth checks every 5 minutes.");
     }
 
+    /** Another organization's claim can be replaced when it was never verified (a day old) or its TXT record is gone. */
+    private function claimIsStale(AppDomain $d): bool
+    {
+        if ($d->status === 'pending') {
+            return $d->created_at->lt(now()->subDay());
+        }
+        if ($d->status === 'problem') {
+            return ! in_array($d->txtValue(), array_map('trim', app(Dns::class)->txt($d->txtName())), true);
+        }
+
+        return false;
+    }
+
     public function checkDomain(Application $app)
     {
-        $d = $app->domain()->firstOrFail();
+        $d = $app->signInDomain() ?? abort(404);
         // Up to three steps at once (DNS → reachable → active) when everything is already in place.
         foreach (range(1, 3) as $i) {
             $before = $d->status;
@@ -320,14 +378,37 @@ class AppController
         return back()->with('status', "{$d->host}: {$d->label()}.");
     }
 
+    /** Display name (all admins) and trusted (Clauth owners only). Applies to every app sharing the domain. */
+    public function updateDomain(Request $request, Application $app)
+    {
+        $d = $app->signInDomain() ?? abort(404);
+        $data = $request->validate(['display_name' => ['nullable', 'string', 'max:80'], 'trusted' => ['nullable', 'boolean']]);
+        $before = $d->only(['display_name', 'trusted']);
+        $d->display_name = $data['display_name'] ?? null;
+        if ($request->has('trusted')) {
+            abort_unless($request->user()?->isOwner(), 403);
+            $d->trusted = $request->boolean('trusted');
+        }
+        $d->save();
+        Domains::flush($d->host);
+        Audit::log('app.domain_updated', 'app', $d, $before, $d->only(['display_name', 'trusted']), $app->id, $d->organization_id);
+
+        return back()->with('status', "Saved {$d->host}.");
+    }
+
+    /** Stop this app using its domain. The last app out deletes the domain (the server job drops it from nginx and the certificate). */
     public function destroyDomain(Application $app)
     {
-        $d = $app->domain()->firstOrFail();
-        $d->delete();
+        $d = $app->signInDomain() ?? abort(404);
+        $d->apps()->detach($app->id);
+        $left = $d->apps()->count();
+        if ($left === 0) {
+            $d->delete();
+        }
         Domains::flush($d->host);
-        Audit::log('app.domain_removed', 'app', $d, before: ['host' => $d->host], appId: $app->id);
+        Audit::log($left ? 'app.domain_unshared' : 'app.domain_removed', 'app', $d, before: ['host' => $d->host, 'app' => $app->key], appId: $app->id, orgId: $d->organization_id);
 
-        return back()->with('status', "Removed {$d->host}. Sign-in uses ".Domains::mainHost().' again.');
+        return back()->with('status', "{$app->name} no longer uses {$d->host}; it signs in at ".Domains::mainHost().' again.'.($left ? " The domain stays for its {$left} other app(s)." : ''));
     }
 
     /** Serves an uploaded logo from Clauth's own domain (no hot-linking). */

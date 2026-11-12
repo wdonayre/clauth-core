@@ -8,6 +8,7 @@ use App\Models\AuditEvent;
 use App\Models\Invite;
 use App\Models\OAuthClient;
 use App\Models\User;
+use App\Services\Domains;
 
 class DashboardController
 {
@@ -22,11 +23,13 @@ class DashboardController
             foreach (OAuthClient::with('app')->whereNotNull('secret_expires_at')->where('revoked', false)->where('secret_expires_at', '<', now()->addDays(14))->get() as $c) {
                 $attention[] = ['tone' => 'warn', 'text' => "{$c->app?->name} · {$c->name}: client secret ".($c->secret_expires_at->isPast() ? 'expired' : 'expires '.$c->secret_expires_at->diffForHumans()), 'href' => route('admin.apps.show', [$c->app?->key ?? '-', 'tab' => 'settings'])];
             }
-            foreach (AppDomain::with('app')->get() as $d) {
+            foreach (AppDomain::with('apps')->get() as $d) {
+                $names = $d->apps->pluck('name')->join(', ') ?: 'No app';
+                $href = route('admin.apps.show', [$d->apps->first()?->key ?? '-', 'tab' => 'brand']);
                 if ($d->status === 'problem') {
-                    $attention[] = ['tone' => 'danger', 'text' => "{$d->app?->name}: sign-in domain {$d->host} has a problem — {$d->last_error}", 'href' => route('admin.apps.show', [$d->app?->key ?? '-', 'tab' => 'brand'])];
+                    $attention[] = ['tone' => 'danger', 'text' => "{$names}: sign-in domain {$d->host} has a problem (sign-in falls back to ".Domains::mainHost().") — {$d->last_error}", 'href' => $href];
                 } elseif (! $d->isServed() && $d->created_at->lt(now()->subDay())) {
-                    $attention[] = ['tone' => 'warn', 'text' => "{$d->app?->name}: sign-in domain {$d->host} isn’t live yet — {$d->label()}", 'href' => route('admin.apps.show', [$d->app?->key ?? '-', 'tab' => 'brand'])];
+                    $attention[] = ['tone' => 'warn', 'text' => "{$names}: sign-in domain {$d->host} isn’t live yet — {$d->label()}", 'href' => $href];
                 }
             }
             foreach (Application::whereNotNull('manifest_diff')->get() as $a) {

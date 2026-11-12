@@ -50,8 +50,8 @@ class DomainsCommand extends Command
                 }
                 break;
             default:
-                $this->table(['host', 'app', 'status', 'last error'], AppDomain::with('app')->get()
-                    ->map(fn ($d) => [$d->host, $d->app?->key, $d->status, $d->last_error]));
+                $this->table(['host', 'org', 'apps', 'trusted', 'status', 'last error'], AppDomain::with(['apps', 'organization'])->get()
+                    ->map(fn ($d) => [$d->host, $d->organization?->slug, $d->apps->pluck('key')->join(','), $d->trusted ? 'yes' : 'no', $d->status, $d->last_error]));
         }
 
         return self::SUCCESS;
