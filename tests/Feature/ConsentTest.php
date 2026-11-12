@@ -30,7 +30,7 @@ class ConsentTest extends ClauthTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->foo = Organization::create(['slug' => 'foo-ltd', 'name' => 'Foo Ltd']);
+        $this->foo = Organization::create(['slug' => 'foo-ltd', 'name' => 'Foo Ltd', 'terms_version' => config('clauth.terms_version')]);
         $this->roster = Application::create(['key' => 'foo-roster', 'name' => 'Foo Roster', 'status' => 'live', 'owner_organization_id' => $this->foo->id,
             'visibility' => 'installable', 'privacy_url' => 'https://foo.test/privacy', 'terms_url' => 'https://foo.test/terms', 'support_email' => 'help@foo.test']);
         $role = AppRole::create(['app_id' => $this->roster->id, 'key' => 'member', 'name' => 'Member']);

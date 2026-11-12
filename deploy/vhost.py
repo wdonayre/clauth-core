@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """Keep Clauth's nginx vhost (live file + CloudPanel's stored template) answering for the app sign-in domains.
 
-    vhost.py <vhost file> <cloudpanel db> <main host> [extra hosts...]
+    vhost.py <vhost file> <cloudpanel db> <main host> [--own-cert=h1,h2] [extra hosts...]
 
-Sets both `server_name` lines to the main host + extra hosts and makes sure the exact /.well-known location proxies
+Sets both `server_name` lines to the main host + extra hosts (per-host certificate mode: hosts listed in
+--own-cert have their own front server block with their own certificate, so they're left out of CloudPanel's
+front block and kept only in its PHP backend block) and makes sure the exact /.well-known location proxies
 the custom-domain ownership proof to Laravel. Prints "changed" when the live file changed. Run as root by domains.sh.
 """
 import re, sqlite3, sys
 
-vhost, db, main, extra = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
-names = ' '.join([main] + sorted(set(h for h in extra if re.fullmatch(r'[a-z0-9.-]+', h) and h != main)))
+vhost, db, main, rest = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
+own = set()
+for a in [a for a in rest if a.startswith('--own-cert=')]:
+    own |= set(h for h in a.split('=', 1)[1].split(',') if h)
+extra = [a for a in rest if not a.startswith('--')]
+hosts = sorted(set(h for h in extra if re.fullmatch(r'[a-z0-9.-]+', h) and h != main))
+names = ' '.join([main] + hosts)                                   # PHP backend block (port 8080)
+front = ' '.join([main] + [h for h in hosts if h not in own])      # CloudPanel's public block (80/443)
 OLD_LOC = r'location ~ ^/\.well-known/(openid-configuration|jwks\.json)$ {'
 # Quoted: nginx would read the {32} as the start of a block.
 NEW_LOC = r'location ~ "^/\.well-known/(openid-configuration|jwks\.json|clauth-domain/[a-z0-9]{32})$" {'
@@ -17,7 +25,12 @@ BROKEN_LOC = r'location ~ ^/\.well-known/(openid-configuration|jwks\.json|clauth
 
 
 def fix(text: str) -> str:
-    text = re.sub(r'^(\s*)server_name [^;]*;', lambda m: f'{m.group(1)}server_name {names};', text, flags=re.M)
+    seen = [0]
+
+    def repl(m):
+        seen[0] += 1
+        return f'{m.group(1)}server_name {front if seen[0] == 1 else names};'   # first block = public front
+    text = re.sub(r'^(\s*)server_name [^;]*;', repl, text, flags=re.M)
     return text.replace(BROKEN_LOC, NEW_LOC).replace(OLD_LOC, NEW_LOC)
 
 

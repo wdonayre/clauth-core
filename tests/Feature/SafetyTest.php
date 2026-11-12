@@ -49,7 +49,7 @@ class SafetyTest extends ClauthTestCase
                 return 'none';
             }
         });
-        $this->foo = Organization::create(['slug' => 'foo-ltd', 'name' => 'Foo Ltd']);
+        $this->foo = Organization::create(['slug' => 'foo-ltd', 'name' => 'Foo Ltd', 'terms_version' => config('clauth.terms_version')]);
         $this->bob = $this->staff('bob@foo.test', $this->foo, 'admin');
         $this->owner = $this->makeUser('owner@thecakelabs.com', ['name' => 'William', 'clauth_role' => 'owner']);
         $this->owner->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now()])->save();

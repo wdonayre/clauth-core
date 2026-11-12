@@ -75,6 +75,9 @@ class AppController
             'privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
             'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
 
+        if (Organization::find($data['publisher'])?->needsTerms()) {
+            return back()->withInput()->withErrors(['publisher' => 'The organization’s owner must accept the Terms and Data Processing Agreement first (Organizations page).']);
+        }
         if ($msg = Limits::exceeded(Organization::find($data['publisher']), 'apps')) {
             return back()->withInput()->withErrors(['name' => $msg]);
         }

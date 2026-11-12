@@ -14,7 +14,7 @@
 </head>
 <body>
 <div class="auth {{ $t['dark'] ? 'dark' : 'light' }}" style="{{ \App\Services\Theme::css($t) }}">
-  <main>
+  <main @hasSection('wide') style="max-width:760px" @endif>
     <div class="card">
       <div class="brand">
         @if($t['app'] && $t['logo'])

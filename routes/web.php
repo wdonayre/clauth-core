@@ -14,6 +14,7 @@ use App\Http\Controllers\OAuth\AuthorizeController;
 use App\Http\Controllers\OAuth\ConsentController;
 use App\Http\Controllers\OAuth\OidcController;
 use App\Http\Controllers\OAuth\TokenController;
+use App\Http\Controllers\OrganizationRequestController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SignOutEverywhereController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -70,6 +71,10 @@ Route::post('/signout-everywhere', [SignOutEverywhereController::class, 'store']
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/help', 'pages.help')->name('help');
+Route::get('/organizations/new', [OrganizationRequestController::class, 'show'])->name('org-request');
+Route::post('/organizations/new', [OrganizationRequestController::class, 'store'])->middleware('throttle:3,10')->name('org-request.store');
+Route::get('/organizations/verify/{token}', [OrganizationRequestController::class, 'verify'])->middleware('throttle:20,10')->name('org-request.verify');
+Route::view('/dpa', 'pages.dpa')->name('dpa');
 Route::get('/report', [ReportController::class, 'show'])->name('report');
 Route::post('/report', [ReportController::class, 'store'])->middleware('throttle:5,10')->name('report.store');
 
@@ -104,6 +109,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
         Route::get('/orgs', [Admin\OrgController::class, 'index'])->name('orgs.index');
         Route::post('/orgs/{org}/roles', [Admin\OrgController::class, 'role'])->name('orgs.roles');
+        Route::post('/orgs/{org}/domain', [Admin\OrgController::class, 'domain'])->name('orgs.domain');
+        Route::post('/orgs/{org}/domain/check', [Admin\OrgController::class, 'checkDomain'])->name('orgs.domain.check');
+        Route::post('/orgs/{org}/terms', [Admin\OrgController::class, 'acceptTerms'])->name('orgs.terms');
+        Route::get('/orgs/{org}/export', [Admin\OrgController::class, 'export'])->name('orgs.export');
+        Route::post('/orgs/{org}/deletion', [Admin\OrgController::class, 'requestDeletion'])->name('orgs.deletion');
+        Route::delete('/orgs/{org}/deletion', [Admin\OrgController::class, 'cancelDeletion'])->name('orgs.deletion.cancel');
         Route::post('/orgs/{org}/apps', [Admin\OrgController::class, 'addApp'])->name('orgs.apps.store');
         Route::delete('/orgs/{org}/apps/{app}', [Admin\OrgController::class, 'removeApp'])->name('orgs.apps.destroy');
         Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
@@ -143,6 +154,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs', [Admin\OrgController::class, 'store'])->name('orgs.store');
         Route::put('/orgs/{org}', [Admin\OrgController::class, 'update'])->name('orgs.update');
         Route::post('/orgs/{org}/suspend', [Admin\OrgController::class, 'suspend'])->name('orgs.suspend');
+        Route::post('/org-requests/{orgRequest}/approve', [Admin\OrgController::class, 'approveRequest'])->name('org-requests.approve');
+        Route::post('/org-requests/{orgRequest}/reject', [Admin\OrgController::class, 'rejectRequest'])->name('org-requests.reject');
         Route::delete('/orgs/{org}/suspend', [Admin\OrgController::class, 'restore'])->name('orgs.restore');
         Route::post('/apps/{app}/suspend', [Admin\AppController::class, 'suspend'])->name('apps.suspend');
         Route::delete('/apps/{app}/suspend', [Admin\AppController::class, 'restore'])->name('apps.restore');

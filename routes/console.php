@@ -23,3 +23,4 @@ Schedule::command('passport:purge --hours=24')->dailyAt('03:50');
 // Custom sign-in domains: move pending ones forward every 5 minutes; re-check live ones daily.
 Schedule::command('clauth:domains check')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('clauth:domains check --all')->dailyAt('04:20')->withoutOverlapping();
+Schedule::command('clauth:orgs-purge')->dailyAt('04:40')->withoutOverlapping();

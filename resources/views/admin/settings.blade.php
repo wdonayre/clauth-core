@@ -14,6 +14,7 @@
     <div class="f"><label for="si">Clauth session ends after (hours idle)</label><input class="in" id="si" type="number" name="session_idle_hours" value="{{ $s['session_idle_hours'] }}" min="1" max="72"></div>
     <div class="f"><label for="td">“Trust this device” lasts (days, 0 = off)</label><input class="in" id="td" type="number" name="trusted_device_days" value="{{ $s['trusted_device_days'] }}" min="0" max="90"></div>
     <label class="cb"><input type="checkbox" name="new_device_email" value="1" @checked($s['new_device_email'])> Email people when they sign in on a new device</label>
+    <label class="cb"><input type="checkbox" name="legal_reviewed" value="1" @checked($s['legal_reviewed'])> A lawyer has reviewed the <a href="{{ route('terms') }}" target="_blank">Terms</a>, <a href="{{ route('privacy') }}" target="_blank">Privacy Policy</a> and <a href="{{ route('dpa') }}" target="_blank">Data Processing Agreement</a>. Outside organizations can request to join.</label>
     <div class="f"><label for="se">Support email (shown on Help)</label><input class="in" id="se" type="email" name="support_email" value="{{ $s['support_email'] }}"></div>
     <div class="actions"><button class="btn pri">Save settings</button></div>
   </form>

@@ -8,6 +8,7 @@ use App\Models\AuditEvent;
 use App\Models\Invite;
 use App\Models\OAuthClient;
 use App\Models\Organization;
+use App\Models\OrganizationRequest;
 use App\Models\Report;
 use App\Models\User;
 use App\Services\Domains;
@@ -44,6 +45,9 @@ class DashboardController
                 } elseif (! $d->isServed() && $d->created_at->lt(now()->subDay())) {
                     $attention[] = ['tone' => 'warn', 'text' => "{$names}: sign-in domain {$d->host} isn’t live yet — {$d->label()}", 'href' => $href];
                 }
+            }
+            if ($n = OrganizationRequest::where('status', 'pending')->whereNotNull('email_verified_at')->count()) {
+                $attention[] = ['tone' => 'info', 'text' => "$n organization request(s) to review", 'href' => route('admin.orgs.index')];
             }
             if ($n = Report::where('status', 'open')->count()) {
                 $attention[] = ['tone' => 'danger', 'text' => "$n sign-in page report(s) to review", 'href' => route('admin.reports')];

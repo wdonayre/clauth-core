@@ -14,6 +14,25 @@
       </form></div></div></details>
   @endif
 </header>
+@if($requests->isNotEmpty())
+  <section class="card" aria-labelledby="req-h" style="margin-bottom:20px">
+    <div class="card-h"><h2 id="req-h">Requests to join ({{ $requests->count() }})</h2></div>
+    <div class="list">
+      @foreach($requests as $r)
+        <div class="row" style="align-items:flex-start;flex-wrap:wrap">
+          <span class="grow"><b>{{ $r->org_name }}</b> <span class="mono small">{{ $r->slug }}</span>@if($r->website) · <a href="{{ $r->website }}" target="_blank" rel="noopener noreferrer">{{ $r->website }}</a>@endif<br>
+            <span class="small">{{ $r->contact_name }} · {{ $r->contact_email }} · {{ $r->created_at->diffForHumans() }}</span><br>
+            <span class="small muted">{{ $r->purpose }}</span></span>
+          <form method="post" action="{{ route('admin.org-requests.approve', $r->id) }}" data-confirm="Create {{ $r->org_name }} and invite {{ $r->contact_email }} as its owner?">@csrf<button class="btn pri sm">Approve</button></form>
+          <form class="actions" method="post" action="{{ route('admin.org-requests.reject', $r->id) }}">@csrf
+            <label class="sr-only" for="rr{{ $r->id }}">Note</label><input class="in" id="rr{{ $r->id }}" name="reason" placeholder="Optional note" style="max-width:200px">
+            <button class="btn sm">Reject</button></form>
+        </div>
+      @endforeach
+    </div>
+  </section>
+@endif
+@error('request')<div class="flash bad">{{ $message }}</div>@enderror
 <div class="grid2">
   @forelse($orgs as $o)
     @php($canRoles = $canEdit || in_array($o->id, $ownedOrgIds, true))
@@ -66,6 +85,44 @@
           <button class="btn sm">Add app</button>
         </form>
       @endif
+
+      @if($o->deletion_requested_at)
+        <div class="flash bad" style="margin-top:16px">Will be deleted on {{ $o->deletion_requested_at->addDays(\App\Services\OrgLifecycle::GRACE_DAYS)->format('j M Y') }}.
+          @if($canRoles)<form method="post" action="{{ route('admin.orgs.deletion.cancel', $o->id) }}" style="display:inline">@csrf @method('delete')<button class="btn sm">Cancel deletion</button></form>@endif</div>
+      @endif
+      @if($o->needsTerms() && $canRoles)
+        <form class="flash info" method="post" action="{{ route('admin.orgs.terms', $o->id) }}" style="margin-top:16px">@csrf
+          <label class="cb"><input type="checkbox" name="agree" value="1" required> I accept the <a href="{{ route('terms') }}" target="_blank">Terms</a> and the <a href="{{ route('dpa') }}" target="_blank">Data Processing Agreement</a> for {{ $o->name }}.</label>
+          <button class="btn sm pri">Accept</button> <span class="small muted">Needed before {{ $o->name }} can publish apps.</span></form>
+      @endif
+      @unless($o->is_platform)
+        <p class="lbl" style="margin:16px 0 6px">Your domain</p>
+        @if($o->domain && $o->domain_verified_at)
+          <p class="small" style="margin:0"><b class="mono">{{ $o->domain }}</b> verified {{ $o->domain_verified_at->diffForHumans() }}.@unless($o->verified_at) Clauth will review {{ $o->name }} for the Verified badge.@endunless</p>
+        @elseif($o->domain)
+          <p class="small" style="margin:0 0 6px">Add this TXT record to <b class="mono">{{ $o->domain }}</b>'s DNS, then check:</p>
+          <p class="small mono" style="margin:0 0 6px">{{ \App\Services\OrgLifecycle::txtName($o) }} &nbsp; TXT &nbsp; {{ \App\Services\OrgLifecycle::txtValue($o) }}</p>
+          <form method="post" action="{{ route('admin.orgs.domain.check', $o->id) }}">@csrf<button class="btn sm">Check now</button></form>
+        @endif
+        @unless($o->domain_verified_at)
+          <form class="actions" method="post" action="{{ route('admin.orgs.domain', $o->id) }}" style="margin-top:8px">@csrf
+            <label class="sr-only" for="od{{ $o->id }}">Domain</label><input class="in mono" id="od{{ $o->id }}" name="domain" placeholder="example.com" value="{{ $o->domain }}" style="max-width:220px" required>
+            <button class="btn sm">{{ $o->domain ? 'Change' : 'Prove domain' }}</button></form>
+          <p class="small muted" style="margin:4px 0 0">Proving the domain your organization uses is the first step to the Verified badge and higher limits.</p>
+        @endunless
+      @endunless
+      <div class="actions" style="margin-top:16px">
+        <a class="btn sm" href="{{ route('admin.orgs.export', $o->id) }}">Export data (JSON)</a>
+        @if(! $o->is_platform && $canRoles && ! $o->deletion_requested_at)
+          <details><summary class="btn sm danger">Delete organization…</summary>
+            <form class="actions" method="post" action="{{ route('admin.orgs.deletion', $o->id) }}" style="margin-top:8px">@csrf
+              <label class="sr-only" for="dc{{ $o->id }}">Type {{ $o->slug }}</label><input class="in mono" id="dc{{ $o->id }}" name="confirm" placeholder="type {{ $o->slug }}" style="max-width:200px" required>
+              <button class="btn sm danger">Delete in 30 days</button></form>
+            <p class="small muted" style="margin:4px 0 0">People, access, invites, its apps and domains are deleted after 30 days. Export first.</p></details>
+        @endif
+      </div>
+      @error('domain')<p class="small" style="color:var(--danger,#b91c1c)">{{ $message }}</p>@enderror
+      @error('confirm')<p class="small" style="color:var(--danger,#b91c1c)">{{ $message }}</p>@enderror
 
       @if($canEdit)
         <form class="form" method="post" action="{{ route('admin.orgs.update', $o->id) }}" style="margin-top:16px">@csrf @method('put')

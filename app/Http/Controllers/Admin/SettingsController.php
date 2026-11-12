@@ -34,8 +34,9 @@ class SettingsController
             'trusted_device_days' => 'required|integer|min:0|max:90',
             'new_device_email' => 'boolean',
             'support_email' => 'required|email',
+            'legal_reviewed' => 'boolean',
         ]);
-        foreach (['require_mfa_everyone', 'breached_password_check', 'new_device_email'] as $b) {
+        foreach (['require_mfa_everyone', 'breached_password_check', 'new_device_email', 'legal_reviewed'] as $b) {
             $data[$b] = $request->boolean($b);
         }
         $before = array_intersect_key(Settings::all(), $data);

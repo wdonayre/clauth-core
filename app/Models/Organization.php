@@ -19,7 +19,14 @@ class Organization extends Model
 
     protected function casts(): array
     {
-        return ['is_platform' => 'boolean', 'verified_at' => 'datetime', 'suspended_at' => 'datetime', 'limits' => 'array'];
+        return ['is_platform' => 'boolean', 'verified_at' => 'datetime', 'suspended_at' => 'datetime', 'limits' => 'array',
+            'domain_verified_at' => 'datetime', 'terms_accepted_at' => 'datetime', 'deletion_requested_at' => 'datetime'];
+    }
+
+    /** Outside organizations must accept the current Terms + Data Processing Agreement before publishing apps. */
+    public function needsTerms(): bool
+    {
+        return ! $this->is_platform && $this->terms_version !== config('clauth.terms_version');
     }
 
     public function isSuspended(): bool

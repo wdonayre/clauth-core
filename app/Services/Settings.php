@@ -18,6 +18,9 @@ class Settings
         'trusted_device_days' => 30,
         'new_device_email' => true,
         'support_email' => 'support@thecakelabs.com',
+        // Outside organizations can only request to join once a lawyer has reviewed the Terms, Privacy Policy and
+        // Data Processing Agreement and William ticks this (SPEC-organizations §10.5).
+        'legal_reviewed' => false,
     ];
 
     public static function all(): array

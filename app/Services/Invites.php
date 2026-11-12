@@ -22,6 +22,7 @@ class Invites
             'grants' => array_values($data['grants'] ?? []),
             'clauth_role' => $data['clauth_role'] ?? null,
             'is_org_admin' => (bool) ($data['is_org_admin'] ?? false),
+            'org_role' => $data['org_role'] ?? null,
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
             'token_hash' => hash('sha256', $token),
             'expires_at' => now()->addDays(7),
@@ -49,8 +50,8 @@ class Invites
     {
         if ($invite->organization_id) {
             $user->organizations()->syncWithoutDetaching([$invite->organization_id => ['joined_at' => now()]]);
-            if ($invite->is_org_admin) {
-                $user->organizations()->updateExistingPivot($invite->organization_id, ['role' => 'admin']);
+            if ($invite->org_role || $invite->is_org_admin) {
+                $user->organizations()->updateExistingPivot($invite->organization_id, ['role' => $invite->org_role ?: 'admin']);
             }
             foreach ($invite->grants ?? [] as $g) {
                 Grant::updateOrCreate(

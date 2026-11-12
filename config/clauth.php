@@ -24,6 +24,9 @@ return [
         'verified' => ['apps' => 20, 'people' => 5000, 'invites_per_day' => 1000, 'domains' => 5, 'installs' => 50, 'token_per_minute' => 120],
     ],
     // Hosts under these parent domains can only be claimed by platform organizations (SPEC-organizations §7.2).
+    // Version of the Terms + Data Processing Agreement outside organizations accept (bump to ask everyone again).
+    'terms_version' => '2026-11',
+
     'reserved_parent_domains' => array_filter(explode(',', env('CLAUTH_RESERVED_PARENT_DOMAINS',
         'thecakelabs.com,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
     // Custom-domain certificates: "san" = one certificate shared with the main domain (CloudPanel on h1, today);
@@ -35,6 +38,9 @@ return [
         'php_fpm' => env('CLAUTH_PHP_FPM', 'unix:/run/php/php8.5-fpm.sock'),
         'acme_root' => env('CLAUTH_ACME_ROOT', '/var/www/clauth-acme'),
         'cert_dir' => env('CLAUTH_CERT_DIR', '/etc/letsencrypt/live'),
+        // When set (e.g. http://127.0.0.1:8080 on CloudPanel), the domain's blocks proxy to that backend instead of
+        // running PHP themselves.
+        'upstream' => env('CLAUTH_PERHOST_UPSTREAM'),
     ],
 
     'server_ips' => array_filter(explode(',', env('CLAUTH_SERVER_IPS', '209.74.81.192'))),
