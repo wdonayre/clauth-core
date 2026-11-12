@@ -5,21 +5,45 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Organization extends Model
 {
     use HasUlids, SoftDeletes;
 
+    /** Roles a person can hold in an organization (SPEC-organizations §4). */
+    public const ROLES = ['owner' => 'Owner', 'admin' => 'Admin', 'developer' => 'Developer', 'member' => 'Member'];
+
     protected $guarded = ['id'];
+
+    protected function casts(): array
+    {
+        return ['is_platform' => 'boolean', 'verified_at' => 'datetime'];
+    }
 
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)->withPivot('is_org_admin', 'joined_at');
+        return $this->belongsToMany(User::class)->withPivot('role', 'joined_at');
     }
 
+    /** Apps usable in this organization (active installations). */
     public function apps(): BelongsToMany
     {
-        return $this->belongsToMany(Application::class, 'app_organization', 'organization_id', 'app_id');
+        return $this->belongsToMany(Application::class, 'app_installations', 'organization_id', 'app_id')
+            ->withPivotValue('status', 'active')->withTimestamps();
+    }
+
+    /** Install requests from other organizations' apps, waiting for this organization's admin. */
+    public function installRequests(): BelongsToMany
+    {
+        return $this->belongsToMany(Application::class, 'app_installations', 'organization_id', 'app_id')
+            ->wherePivot('status', 'requested')->withPivot('requested_by', 'created_at');
+    }
+
+    /** Apps this organization publishes. */
+    public function publishedApps(): HasMany
+    {
+        return $this->hasMany(Application::class, 'owner_organization_id');
     }
 }

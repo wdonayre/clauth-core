@@ -27,7 +27,7 @@ class SsoController
         }
         // Only trusted domains (Clauth's own organizations) get a silent sign-in. Anyone else's domain could be
         // repointed by its owner to catch the ticket, so the person confirms first.
-        if (! $domain->trusted && ! $request->isMethod('POST')) {
+        if (! $domain->isTrusted() && ! $request->isMethod('POST')) {
             return response()->view('auth.sso-confirm', ['domain' => $domain, 'user' => $user, 'state' => $state, 'back' => $back,
                 'theme' => Theme::for($domain->brandApp()) + ['brand' => $domain->brandName()]]);
         }
@@ -70,7 +70,7 @@ class SsoController
         $t = Sso::take($request->query('ticket'));
         $return = $t['return'] ?? null;
         $returnHost = $return ? strtolower((string) parse_url($return, PHP_URL_HOST)) : null;
-        if (! $t || ($t['to'] ?? null) !== 'main' || ! $returnHost || ! (Domains::isMain($returnHost) || Domains::activeFor($returnHost)?->trusted)) {
+        if (! $t || ($t['to'] ?? null) !== 'main' || ! $returnHost || ! (Domains::isMain($returnHost) || Domains::activeFor($returnHost)?->isTrusted())) {
             return redirect()->route('login');
         }
         $user = User::find($t['user']);

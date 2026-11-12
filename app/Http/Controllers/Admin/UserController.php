@@ -7,6 +7,7 @@ use App\Models\AppRole;
 use App\Models\AuditEvent;
 use App\Models\Grant;
 use App\Models\Invite;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\Claims;
@@ -50,7 +51,9 @@ class UserController
             'users' => $q->orderBy('name')->paginate(25)->withQueryString(),
             'counts' => $counts, 'status' => $status,
             'orgs' => $this->orgs(),
-            'apps' => Application::with(['roles', 'organizations'])->orderBy('name')->get(),
+            // Only apps installed in the organizations this admin runs (invite dialog).
+            'apps' => Application::with(['roles', 'organizations' => fn ($q) => $q->when($this->orgIds() !== null, fn ($w) => $w->whereIn('organizations.id', $this->orgIds()))])
+                ->when($this->orgIds() !== null, fn ($q) => $q->whereHas('organizations', fn ($o) => $o->whereIn('organizations.id', $this->orgIds())))->orderBy('name')->get(),
             'invited' => session('invite_link'),
         ]);
     }
@@ -81,8 +84,8 @@ class UserController
             abort_unless($role->app->organizations->contains('id', $data['organization_id']), 422, 'App not enabled for this organization.');
             $grants[] = ['app_id' => $appId, 'role_id' => $role->id];
         }
-        if (! empty($data['is_org_admin']) && ! auth()->user()->isOwner()) {
-            $data['is_org_admin'] = false;
+        if (! empty($data['is_org_admin']) && ! auth()->user()->isOwner() && ! in_array($data['organization_id'], auth()->user()->ownedOrgIds(), true)) {
+            $data['is_org_admin'] = false; // only Clauth owners and the organization's owners hand out admin
         }
         [$invite, $token] = Invites::create($data + ['grants' => $grants], auth()->user());
         $link = Invites::url($token, $invite);
@@ -114,7 +117,9 @@ class UserController
             'events' => AuditEvent::with('actor')->where('subject_type', 'user')->where('subject_id', $user->id)
                 ->when($this->orgIds() !== null, fn ($q) => $q->where(fn ($w) => $w->whereNull('organization_id')->orWhereIn('organization_id', $this->orgIds())))
                 ->latest('at')->limit(10)->get(),
-            'isOrgAdmin' => $org ? (bool) $org->pivot->is_org_admin : false,
+            'orgRole' => $org?->pivot->role ?? 'member',
+            'canSetRole' => $org && (auth()->user()->isOwner() || in_array($org->id, auth()->user()->ownedOrgIds(), true)),
+            'roles' => Organization::ROLES,
         ]);
     }
 
@@ -145,8 +150,13 @@ class UserController
                 ['app_role_id' => $role->id, 'granted_by' => auth()->id(), 'granted_at' => now()]);
             Audit::log('grant.changed', 'role', $user, $old ? ['app' => $app->key, 'role' => $old->role->key] : null, ['app' => $app->key, 'role' => $role->key], $app->id, $orgId);
         }
-        if (auth()->user()->isOwner()) {
-            $user->organizations()->updateExistingPivot($orgId, ['is_org_admin' => $request->boolean('is_org_admin')]);
+        $newRole = $request->input('org_role');
+        if ($newRole && isset(Organization::ROLES[$newRole]) && (auth()->user()->isOwner() || in_array($orgId, auth()->user()->ownedOrgIds(), true))) {
+            $was = $org->pivot->role;
+            if ($was !== $newRole) {
+                $user->organizations()->updateExistingPivot($orgId, ['role' => $newRole]);
+                Audit::log('org.role_changed', 'admin', $user, ['role' => $was], ['role' => $newRole, 'org' => $org->slug], orgId: $orgId);
+            }
         }
 
         return back()->with('status', 'Access saved. It applies the next time the app refreshes its token (within 15 minutes).');

@@ -45,6 +45,12 @@ class AppDomain extends Model
             ->withPivot('created_by')->withTimestamps()->orderBy('app_domain_app.created_at')->orderBy('apps.name');
     }
 
+    /** Silent single sign-on from the main domain: always for William's own (platform) organizations, else only by override. */
+    public function isTrusted(): bool
+    {
+        return (bool) $this->organization?->is_platform || $this->trusted;
+    }
+
     public function serves(?Application $app): bool
     {
         return $app && $this->apps->contains('id', $app->id);

@@ -3,7 +3,7 @@
 @section('content')
 <header class="head">
   <div style="display:flex;gap:16px;align-items:center"><span class="ico lg" style="background:{{ $app->color }}">{{ $app->letter() }}</span>
-    <div><h1>{{ $app->name }}</h1><p class="mono">aud: {{ $app->key }} · {{ $app->organizations->pluck('name')->implode(', ') ?: 'no organizations yet' }}</p></div></div>
+    <div><h1>{{ $app->name }}</h1><p class="mono">aud: {{ $app->key }} · by {{ $app->publisher?->name ?? 'no owning organization' }} · used in {{ $app->organizations->pluck('name')->implode(', ') ?: 'no organizations yet' }}</p></div></div>
   <span class="chip {{ ['live' => 'ok', 'paused' => 'warn'][$app->status] ?? '' }}">{{ ['live' => 'Live', 'paused' => 'Paused', 'not_connected' => 'Not connected'][$app->status] }}</span>
 </header>
 
@@ -120,26 +120,19 @@
             <button class="btn pri">Share with {{ $app->name }}</button><a class="btn" href="{{ route('admin.apps.show', [$app->key, 'tab' => 'brand']) }}">Cancel</a>
           </form></div>
       @else
-        @php($appOrgs = $app->organizations()->orderBy('name')->get())
         <form class="actions" method="post" action="{{ route('admin.apps.domain.store', $app->key) }}" style="margin-top:16px">@csrf
           <label class="sr-only" for="dh">Domain</label>
           <input class="in mono" id="dh" name="host" placeholder="auth.example.com" style="max-width:320px" value="{{ old('host') }}" required>
-          @if($appOrgs->count() > 1)
-            <label class="sr-only" for="dorg">Owned by</label>
-            <select class="in" id="dorg" name="organization_id" style="max-width:220px" title="The organization that owns this domain">
-              @foreach($appOrgs as $o)<option value="{{ $o->id }}" @selected(old('organization_id') === $o->id)>Owned by {{ $o->name }}</option>@endforeach
-            </select>
-          @endif
           <button class="btn pri">Add domain</button>
         </form>
         @error('host')<p class="small" style="color:var(--danger,#b91c1c);margin:8px 0 0">{{ $message }}</p>@enderror
-        <p class="small muted" style="margin:8px 0 0">Already using a domain for another app of the same organization? Enter it here to share it.</p>
+        <p class="small muted" style="margin:8px 0 0">The domain belongs to {{ $app->publisher?->name ?? 'the app’s organization' }}. Already using it for another of its apps? Enter it here to share it.</p>
       @endif
     @else
       @php($others = $dom->apps->where('id', '!=', $app->id))
       <p style="margin:16px 0 8px"><b class="mono">{{ $dom->host }}</b>
         @if($dom->isServed()) — live since {{ $dom->active_at?->format('j M Y') }}. <a href="https://{{ $dom->host }}/login" target="_blank" rel="noopener">Open sign-in page</a>@endif</p>
-      <p class="small muted" style="margin:0 0 8px">Owned by {{ $dom->organization?->name ?? '—' }} · used by {{ $dom->apps->pluck('name')->join(', ') }}@if($others->isNotEmpty()) (shared)@endif · {{ $dom->trusted ? 'Trusted: people signed in to Clauth continue here without a prompt' : 'Not trusted: people signed in to Clauth confirm before continuing here' }}</p>
+      <p class="small muted" style="margin:0 0 8px">Owned by {{ $dom->organization?->name ?? '—' }} · used by {{ $dom->apps->pluck('name')->join(', ') }}@if($others->isNotEmpty()) (shared)@endif · {{ $dom->isTrusted() ? 'Trusted: people signed in to Clauth continue here without a prompt' : 'Not trusted: people signed in to Clauth confirm before continuing here' }}</p>
       @if($dom->last_error && ! $dom->isServed())<div class="flash {{ $dom->status === 'problem' ? 'bad' : 'info' }}">{{ $dom->last_error }}@if($dom->status === 'problem') Sign-in falls back to {{ \App\Services\Domains::mainHost() }} until this passes.@endif</div>@endif
       <p class="lbl" style="margin:16px 0 6px">DNS records{{ $others->isNotEmpty() ? ' (shared — already set up for '.$others->pluck('name')->join(', ').')' : ' to add at your DNS provider' }}</p>
       <div class="scroll"><table class="t">
@@ -154,8 +147,8 @@
         <div class="actions" style="align-items:end">
           <div><label class="lbl" for="ddn">Name on the page when no app is named</label>
             <input class="in" id="ddn" name="display_name" maxlength="80" placeholder="{{ $dom->apps->count() > 1 ? ($dom->organization?->name ?? '') : $app->name }}" value="{{ $dom->display_name }}" style="max-width:260px"></div>
-          @if(auth()->user()?->isOwner())
-            <label class="small" style="display:flex;gap:6px;align-items:center"><input type="hidden" name="trusted" value="0"><input type="checkbox" name="trusted" value="1" @checked($dom->trusted)> Trusted (silent sign-in from {{ \App\Services\Domains::mainHost() }})</label>
+          @if(auth()->user()?->isOwner() && ! $dom->organization?->is_platform)
+            <label class="small" style="display:flex;gap:6px;align-items:center"><input type="hidden" name="trusted" value="0"><input type="checkbox" name="trusted" value="1" @checked($dom->trusted)> Trust anyway (silent sign-in from {{ \App\Services\Domains::mainHost() }})</label>
           @endif
           <button class="btn">Save</button>
         </div>
@@ -180,12 +173,39 @@
       <div class="f"><label for="sm">Manifest URL</label><input class="in mono" id="sm" name="manifest_url" value="{{ $app->manifest_url }}" placeholder="https://…/.well-known/clauth.json"></div>
       <div class="f"><label for="ss">Status</label><select class="in" id="ss" name="status">
         @foreach(['live' => 'Live', 'not_connected' => 'Not connected yet', 'paused' => 'Paused (nobody can sign in)'] as $k => $l)<option value="{{ $k }}" @selected($app->status === $k)>{{ $l }}</option>@endforeach</select></div>
-      <div class="f"><span>Organizations that can use it</span>
-        @foreach($orgs as $o)<label class="cb"><input type="checkbox" name="orgs[]" value="{{ $o->id }}" @checked($app->organizations->contains('id', $o->id))> {{ $o->name }}</label>@endforeach</div>
+      @if(auth()->user()->isOwner())
+        <div class="f"><label for="spub">Owned by</label><select class="in" id="spub" name="publisher">
+          @foreach(\App\Models\Organization::orderBy('name')->get() as $o)<option value="{{ $o->id }}" @selected($app->owner_organization_id === $o->id)>{{ $o->name }}</option>@endforeach</select>
+          <span class="small muted">Its owners, admins and developers manage this app. Sign-in domains must belong to it.</span></div>
+      @endif
+      <div class="f"><span>Organizations you run that can use it</span>
+        @forelse($orgs as $o)<label class="cb"><input type="checkbox" name="orgs[]" value="{{ $o->id }}" @checked($app->organizations->contains('id', $o->id))> {{ $o->name }}</label>@empty<span class="small muted">None.</span>@endforelse</div>
+      <div class="f"><label for="sv">Other organizations</label><select class="in" id="sv" name="visibility">
+        <option value="private" @selected($app->visibility === 'private')>Only organizations I run</option>
+        <option value="installable" @selected($app->visibility === 'installable')>Other organizations can be offered it (their admin approves)</option></select></div>
       <div class="f"><span>Roles that must use 2-step verification</span>
         @foreach($app->roles as $r)<label class="cb"><input type="checkbox" name="require_mfa_roles[]" value="{{ $r->key }}" @checked(in_array($r->key, $app->require_mfa_roles ?? []))> {{ $r->name }}</label>@endforeach</div>
       <div class="actions"><button class="btn pri">Save settings</button></div>
     </form>
+    @php($others = $app->installations->reject(fn ($o) => $orgs->contains('id', $o->id)))
+    @if($others->isNotEmpty() || $app->visibility === 'installable')
+    <section class="card pad form">
+      <h2>Used by other organizations</h2>
+      <div class="scroll"><table class="t"><tbody>
+        @forelse($others as $o)
+          <tr><td><b>{{ $o->name }}</b> <span class="chip {{ $o->pivot->status === 'active' ? 'ok' : 'warn' }}">{{ $o->pivot->status === 'active' ? 'Using it' : 'Waiting for their admin' }}</span></td>
+            <td style="text-align:right"><form method="post" action="{{ route('admin.apps.installations.destroy', [$app->key, $o->id]) }}" data-confirm="Remove {{ $app->name }} from {{ $o->name }}? Their people lose access to it.">@csrf @method('delete')<button class="btn sm danger">{{ $o->pivot->status === 'active' ? 'Remove' : 'Withdraw' }}</button></form></td></tr>
+        @empty<tr><td class="small muted">None yet.</td></tr>@endforelse
+      </tbody></table></div>
+      @if($app->visibility === 'installable')
+        <form class="actions" method="post" action="{{ route('admin.apps.installations.store', $app->key) }}">@csrf
+          <label class="sr-only" for="islug">Organization slug</label><input class="in mono" id="islug" name="slug" placeholder="organization-slug" style="max-width:240px" required>
+          <button class="btn sm">Offer to organization</button>
+        </form>
+        <p class="small muted" style="margin:0">Their admin sees the request on their Organizations page. Nothing about their people is shared until they give someone access.</p>
+      @endif
+    </section>
+    @endif
     <div style="display:flex;flex-direction:column;gap:20px">
       @foreach($app->clients as $c)
         <section class="card pad form">

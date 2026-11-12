@@ -2,41 +2,76 @@
 @section('title', 'Organizations')
 @section('content')
 <header class="head">
-  <div><h1>Organizations</h1><p>The businesses people belong to. Roles are given per organization.</p></div>
+  <div><h1>Organizations</h1><p>The businesses people belong to. Each organization decides which apps its people can use and gives roles per app.</p></div>
   @if($canEdit)
   <details class="modal"><summary class="btn pri">@include('partials.icon', ['i' => 'plus'])New organization</summary>
     <div class="sheet"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>New organization</h2><a class="btn sm" href="{{ route('admin.orgs.index') }}">Close</a></div>
       <form class="form" method="post" action="{{ route('admin.orgs.store') }}" style="margin-top:16px">@csrf
         <div class="f"><label for="on">Name</label><input class="in" id="on" name="name" required></div>
         <div class="f"><label for="os">Slug</label><input class="in mono" id="os" name="slug" pattern="[a-z0-9][a-z0-9-]{1,60}" required><span class="small muted">Appears in tokens as the key of the <code>orgs</code> claim. Don’t change it later.</span></div>
+        <label class="cb"><input type="checkbox" name="is_platform" value="1"> One of my own businesses (its apps skip the consent screen and its sign-in domains are trusted)</label>
         <div class="actions"><button class="btn pri">Create</button></div>
       </form></div></div></details>
   @endif
 </header>
 <div class="grid2">
   @forelse($orgs as $o)
+    @php($canRoles = $canEdit || in_array($o->id, $ownedOrgIds, true))
     <section class="card pad">
       <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
         <div><h2>{{ $o->name }}</h2><p class="small muted mono" style="margin:4px 0 0">{{ $o->slug }} · {{ $o->users_count }} people</p></div>
-        <span class="chip {{ $o->status === 'active' ? 'ok' : 'bad' }}">{{ ucfirst($o->status) }}</span>
+        <div class="pills">
+          @if($o->is_platform)<span class="chip info" title="One of William's own businesses">Own business</span>@endif
+          <span class="chip {{ $o->status === 'active' ? 'ok' : 'bad' }}">{{ ucfirst($o->status) }}</span>
+        </div>
       </div>
-      <p class="lbl" style="margin:16px 0 6px">Org admins</p>
-      <div class="pills">@forelse($o->users as $u)<a class="chip" href="{{ route('admin.users.show', [$u->id, 'org' => $o->id]) }}">{{ $u->name }}</a>@empty<span class="small muted">None</span>@endforelse</div>
+
+      @if($o->installRequests->isNotEmpty())
+        <p class="lbl" style="margin:16px 0 6px">Waiting for your approval</p>
+        @foreach($o->installRequests as $a)
+          <div class="flash info" style="margin:0 0 8px"><b>{{ $a->name }}</b> by {{ $a->publisher?->name ?? '—' }} wants to be available to {{ $o->name }}. It will receive the name, email and roles of the people you give access to.
+            <div class="actions" style="margin-top:8px">
+              <form method="post" action="{{ route('admin.orgs.requests.approve', [$o->id, $a->key]) }}">@csrf<button class="btn pri sm">Approve</button></form>
+              <form method="post" action="{{ route('admin.orgs.apps.destroy', [$o->id, $a->key]) }}">@csrf @method('delete')<button class="btn sm">Decline</button></form>
+            </div></div>
+        @endforeach
+      @endif
+
+      <p class="lbl" style="margin:16px 0 6px">Owners, admins and developers</p>
+      <div class="pills">@forelse($o->users as $u)<a class="chip" href="{{ route('admin.users.show', [$u->id, 'org' => $o->id]) }}">{{ $u->name }} · {{ $roles[$u->pivot->role] ?? $u->pivot->role }}</a>@empty<span class="small muted">None</span>@endforelse</div>
+      @if($canRoles)
+        <form class="actions" method="post" action="{{ route('admin.orgs.roles', $o->id) }}" style="margin-top:10px">@csrf
+          <label class="sr-only" for="ae{{ $o->id }}">Member email</label><input class="in" id="ae{{ $o->id }}" type="email" name="email" placeholder="member email" style="max-width:220px" required>
+          <label class="sr-only" for="ar{{ $o->id }}">Role</label>
+          <select class="in" id="ar{{ $o->id }}" name="role" style="max-width:150px">@foreach($roles as $k => $label)<option value="{{ $k }}" @selected($k === 'admin')>{{ $label }}</option>@endforeach</select>
+          <button class="btn sm">Set role</button>
+        </form>
+        <p class="small muted" style="margin:6px 0 0">Admins manage people and installed apps. Developers manage this organization's own apps. Owners can also change roles.</p>
+      @endif
+
+      <p class="lbl" style="margin:16px 0 6px">Apps people here can use</p>
+      <div class="scroll"><table class="t"><tbody>
+        @forelse($o->apps as $a)
+          <tr><td><b>{{ $a->name }}</b>@if($a->owner_organization_id !== $o->id)<span class="small muted"> · by {{ $a->publisher?->name ?? '—' }}</span>@endif</td>
+            <td style="text-align:right"><form method="post" action="{{ route('admin.orgs.apps.destroy', [$o->id, $a->key]) }}" data-confirm="Remove {{ $a->name }} from {{ $o->name }}? Everyone's access to it here is removed and they're signed out of it.">@csrf @method('delete')<button class="btn sm danger">Remove</button></form></td></tr>
+        @empty<tr><td class="small muted">None yet.</td></tr>@endforelse
+      </tbody></table></div>
+      @php($more = $addable->reject(fn ($a) => $o->apps->contains('id', $a->id)))
+      @if($more->isNotEmpty())
+        <form class="actions" method="post" action="{{ route('admin.orgs.apps.store', $o->id) }}" style="margin-top:10px">@csrf
+          <label class="sr-only" for="aa{{ $o->id }}">App</label>
+          <select class="in" id="aa{{ $o->id }}" name="app_id" style="max-width:260px">@foreach($more as $a)<option value="{{ $a->id }}">{{ $a->name }}{{ $a->publisher && $a->owner_organization_id !== $o->id ? ' (by '.$a->publisher->name.')' : '' }}</option>@endforeach</select>
+          <button class="btn sm">Add app</button>
+        </form>
+      @endif
+
       @if($canEdit)
         <form class="form" method="post" action="{{ route('admin.orgs.update', $o->id) }}" style="margin-top:16px">@csrf @method('put')
           <div class="f"><label for="n{{ $o->id }}">Name</label><input class="in" id="n{{ $o->id }}" name="name" value="{{ $o->name }}" required></div>
-          <div class="f"><span>Apps enabled</span>
-            @forelse($apps as $a)<label class="cb"><input type="checkbox" name="apps[]" value="{{ $a->id }}" @checked($o->apps->contains('id', $a->id))> {{ $a->name }}</label>@empty<span class="small muted">No apps yet.</span>@endforelse</div>
           <div class="f"><label for="s{{ $o->id }}">Status</label><select class="in" id="s{{ $o->id }}" name="status"><option value="active" @selected($o->status === 'active')>Active</option><option value="disabled" @selected($o->status === 'disabled')>Disabled (no app access)</option></select></div>
+          <input type="hidden" name="is_platform" value="0"><label class="cb"><input type="checkbox" name="is_platform" value="1" @checked($o->is_platform)> One of my own businesses</label>
           <div class="actions"><button class="btn">Save</button></div>
         </form>
-        <form class="actions" method="post" action="{{ route('admin.orgs.admins', $o->id) }}" style="margin-top:12px">@csrf
-          <label class="sr-only" for="ae{{ $o->id }}">Member email</label><input class="in" id="ae{{ $o->id }}" type="email" name="email" placeholder="member email" style="max-width:240px" required>
-          <input type="hidden" name="is_org_admin" value="1"><button class="btn sm">Make org admin</button>
-        </form>
-      @else
-        <p class="lbl" style="margin:16px 0 6px">Apps</p>
-        <div class="pills">@forelse($o->apps as $a)<span class="chip">{{ $a->name }}</span>@empty<span class="small muted">None</span>@endforelse</div>
       @endif
     </section>
   @empty<div class="card empty">No organizations yet.</div>@endforelse

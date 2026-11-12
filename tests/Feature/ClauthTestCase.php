@@ -46,9 +46,9 @@ abstract class ClauthTestCase extends TestCase
         if (! file_exists(storage_path('oauth-private.key'))) {
             $this->artisan('passport:keys');
         }
-        $this->cbg = Organization::create(['slug' => 'cakesbygrace', 'name' => 'CakesbyGrace']);
-        $this->alab = Organization::create(['slug' => 'alab-apparel', 'name' => 'Alab Apparel']);
-        $this->xp = Application::create(['key' => 'xpenses', 'name' => 'Xpenses', 'status' => 'live', 'home_url' => 'https://xpenses.test']);
+        $this->cbg = Organization::create(['slug' => 'cakesbygrace', 'name' => 'CakesbyGrace', 'is_platform' => true]);
+        $this->alab = Organization::create(['slug' => 'alab-apparel', 'name' => 'Alab Apparel', 'is_platform' => true]);
+        $this->xp = Application::create(['key' => 'xpenses', 'name' => 'Xpenses', 'status' => 'live', 'home_url' => 'https://xpenses.test', 'owner_organization_id' => $this->cbg->id]);
         $this->xp->organizations()->sync([$this->cbg->id, $this->alab->id]);
         $perms = collect(['expense.submit', 'expense.approve', 'expense.view_all', 'report.export'])
             ->mapWithKeys(fn ($k) => [$k => AppPermission::create(['app_id' => $this->xp->id, 'key' => $k, 'source' => 'manifest'])->id]);

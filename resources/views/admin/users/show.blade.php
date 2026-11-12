@@ -55,8 +55,12 @@
               </div>
             </div>
           @empty<div class="empty">No apps are enabled for {{ $org->name }}.</div>@endforelse
-          @if(auth()->user()->isOwner())
-            <div class="row"><label class="cb"><input type="checkbox" name="is_org_admin" value="1" @checked($isOrgAdmin)> Admin of {{ $org->name }} (can invite people and change their roles)</label></div>
+          @if($canSetRole)
+            <div class="row"><label for="orole">Role in {{ $org->name }}</label>
+              <select class="in" id="orole" name="org_role" style="max-width:200px">@foreach($roles as $k => $label)<option value="{{ $k }}" @selected($orgRole === $k)>{{ $label }}</option>@endforeach</select>
+              <span class="small muted">Admins manage people and installed apps; developers manage {{ $org->name }}'s own apps.</span></div>
+          @elseif($orgRole !== 'member')
+            <div class="row small muted">{{ $roles[$orgRole] ?? $orgRole }} of {{ $org->name }}</div>
           @endif
           <div class="row"><button class="btn pri">Save access</button><span class="small muted">Applies at the app’s next token refresh (≤ 15 min).</span></div>
         </div>

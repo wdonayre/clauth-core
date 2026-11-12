@@ -85,24 +85,28 @@ Route::middleware('auth')->prefix('account')->name('account')->group(function ()
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', Admin\DashboardController::class)->name('dashboard');
 
-    Route::get('/users', [Admin\UserController::class, 'index'])->name('users.index');
-    Route::post('/users/invite', [Admin\UserController::class, 'invite'])->name('users.invite');
-    Route::get('/users/{id}', [Admin\UserController::class, 'show'])->name('users.show');
-    Route::put('/users/{id}', [Admin\UserController::class, 'update'])->name('users.update');
-    Route::post('/users/{id}/grants', [Admin\UserController::class, 'grants'])->name('users.grants');
-    Route::post('/users/{id}/orgs', [Admin\UserController::class, 'addOrg'])->name('users.orgs.add');
-    Route::delete('/users/{id}/orgs', [Admin\UserController::class, 'removeOrg'])->name('users.orgs.remove');
-    Route::post('/users/{id}/{action}', [Admin\UserController::class, 'action'])->name('users.action');
+    // People: Clauth owner or org owner/admin, scoped to their organizations.
+    Route::middleware('admin:people')->group(function () {
+        Route::get('/users', [Admin\UserController::class, 'index'])->name('users.index');
+        Route::post('/users/invite', [Admin\UserController::class, 'invite'])->name('users.invite');
+        Route::get('/users/{id}', [Admin\UserController::class, 'show'])->name('users.show');
+        Route::put('/users/{id}', [Admin\UserController::class, 'update'])->name('users.update');
+        Route::post('/users/{id}/grants', [Admin\UserController::class, 'grants'])->name('users.grants');
+        Route::post('/users/{id}/orgs', [Admin\UserController::class, 'addOrg'])->name('users.orgs.add');
+        Route::delete('/users/{id}/orgs', [Admin\UserController::class, 'removeOrg'])->name('users.orgs.remove');
+        Route::post('/users/{id}/{action}', [Admin\UserController::class, 'action'])->name('users.action');
 
-    Route::get('/orgs', [Admin\OrgController::class, 'index'])->name('orgs.index');
-    Route::get('/audit', [Admin\AuditController::class, 'index'])->name('audit');
-    Route::get('/audit.csv', [Admin\AuditController::class, 'export'])->name('audit.export');
+        Route::get('/orgs', [Admin\OrgController::class, 'index'])->name('orgs.index');
+        Route::post('/orgs/{org}/roles', [Admin\OrgController::class, 'role'])->name('orgs.roles');
+        Route::post('/orgs/{org}/apps', [Admin\OrgController::class, 'addApp'])->name('orgs.apps.store');
+        Route::delete('/orgs/{org}/apps/{app}', [Admin\OrgController::class, 'removeApp'])->name('orgs.apps.destroy');
+        Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
+        Route::get('/audit', [Admin\AuditController::class, 'index'])->name('audit');
+        Route::get('/audit.csv', [Admin\AuditController::class, 'export'])->name('audit.export');
+    });
 
-    Route::middleware('admin:owner')->group(function () {
-        Route::post('/orgs', [Admin\OrgController::class, 'store'])->name('orgs.store');
-        Route::put('/orgs/{org}', [Admin\OrgController::class, 'update'])->name('orgs.update');
-        Route::post('/orgs/{org}/admins', [Admin\OrgController::class, 'admin'])->name('orgs.admins');
-
+    // Apps: Clauth owner or org owner/admin/developer of the app's publisher.
+    Route::middleware('admin:apps')->group(function () {
         Route::get('/apps', [Admin\AppController::class, 'index'])->name('apps.index');
         Route::post('/apps', [Admin\AppController::class, 'store'])->name('apps.store');
         Route::get('/apps/{app}', [Admin\AppController::class, 'show'])->name('apps.show');
@@ -110,6 +114,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/apps/{app}', [Admin\AppController::class, 'destroy'])->name('apps.destroy');
         Route::get('/apps/{app}/preview', [Admin\AppController::class, 'preview'])->name('apps.preview');
         Route::post('/apps/{app}/branding', [Admin\AppController::class, 'branding'])->name('apps.branding');
+        Route::post('/apps/{app}/installations', [Admin\AppController::class, 'requestInstall'])->name('apps.installations.store');
+        Route::delete('/apps/{app}/installations/{org}', [Admin\AppController::class, 'removeInstall'])->name('apps.installations.destroy');
         Route::post('/apps/{app}/domain', [Admin\AppController::class, 'storeDomain'])->name('apps.domain.store');
         Route::post('/apps/{app}/domain/check', [Admin\AppController::class, 'checkDomain'])->name('apps.domain.check');
         Route::delete('/apps/{app}/domain', [Admin\AppController::class, 'destroyDomain'])->name('apps.domain.destroy');
@@ -124,6 +130,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::put('/apps/{app}/clients/{client}', [Admin\AppController::class, 'updateClient'])->name('apps.clients.update');
         Route::post('/apps/{app}/clients/{client}/rotate', [Admin\AppController::class, 'rotateSecret'])->name('apps.clients.rotate');
         Route::post('/apps/{app}/clients/{client}/revoke', [Admin\AppController::class, 'revokeClient'])->name('apps.clients.revoke');
+    });
+
+    // Platform: Clauth owner only.
+    Route::middleware('admin:owner')->group(function () {
+        Route::post('/orgs', [Admin\OrgController::class, 'store'])->name('orgs.store');
+        Route::put('/orgs/{org}', [Admin\OrgController::class, 'update'])->name('orgs.update');
 
         Route::get('/updates', [Admin\UpdatesController::class, 'index'])->name('updates');
         Route::post('/updates', [Admin\UpdatesController::class, 'store'])->name('updates.store');

@@ -51,7 +51,7 @@ class DomainsCommand extends Command
                 break;
             default:
                 $this->table(['host', 'org', 'apps', 'trusted', 'status', 'last error'], AppDomain::with(['apps', 'organization'])->get()
-                    ->map(fn ($d) => [$d->host, $d->organization?->slug, $d->apps->pluck('key')->join(','), $d->trusted ? 'yes' : 'no', $d->status, $d->last_error]));
+                    ->map(fn ($d) => [$d->host, $d->organization?->slug, $d->apps->pluck('key')->join(','), $d->isTrusted() ? 'yes' : 'no', $d->status, $d->last_error]));
         }
 
         return self::SUCCESS;

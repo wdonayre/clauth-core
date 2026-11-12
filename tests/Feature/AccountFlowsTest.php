@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Mail\InviteMail;
+use App\Models\Application;
 use App\Models\AppPermission;
 use App\Models\AppRole;
 use App\Models\AuditEvent;
@@ -85,7 +86,7 @@ class AccountFlowsTest extends ClauthTestCase
     public function test_org_admin_cannot_see_other_org_users(): void
     {
         $orgAdmin = $this->makeUser('boss@cakesbygrace.ph', ['name' => 'Grace']);
-        $orgAdmin->organizations()->attach($this->cbg->id, ['is_org_admin' => true]);
+        $orgAdmin->organizations()->attach($this->cbg->id, ['role' => 'admin']);
         $orgAdmin->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now()])->save();
         $alabUser = $this->makeUser('jun@alabapparel.com', ['name' => 'Jun']);
         $this->grant($alabUser, $this->alab, 'member');
@@ -96,7 +97,10 @@ class AccountFlowsTest extends ClauthTestCase
         $as->get('/admin/users/'.$alabUser->id)->assertNotFound();
         $as->get('/admin/users/'.$cbgUser->id)->assertOk();
         $as->get('/admin/users')->assertOk()->assertSee('Maria Santos')->assertDontSee('jun@alabapparel.com');
-        $as->get('/admin/apps')->assertNotFound();
+        // M7: org admins see the apps their organization publishes, nothing else.
+        $alabApp = Application::create(['key' => 'alab-studio', 'name' => 'Alab Studio', 'status' => 'live', 'owner_organization_id' => $this->alab->id]);
+        $as->get('/admin/apps')->assertOk()->assertSee('Xpenses')->assertDontSee('Alab Studio');
+        $as->get('/admin/apps/alab-studio')->assertNotFound();
         $as->post('/admin/users/'.$alabUser->id.'/grants', ['organization_id' => $this->alab->id])->assertNotFound();
     }
 

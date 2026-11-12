@@ -69,7 +69,7 @@ class CustomDomainTest extends ClauthTestCase
     /** A second app (like Alab ERP next to Alab Studio) with its own client. */
     private function secondApp(array $orgs): array
     {
-        $app = Application::create(['key' => 'erp', 'name' => 'Alab ERP', 'status' => 'live', 'home_url' => 'https://erp.test']);
+        $app = Application::create(['key' => 'erp', 'name' => 'Alab ERP', 'status' => 'live', 'home_url' => 'https://erp.test', 'owner_organization_id' => $orgs[0]->id]);
         $app->organizations()->sync(array_map(fn ($o) => $o->id, $orgs));
         $role = AppRole::create(['app_id' => $app->id, 'key' => 'member', 'name' => 'Member']);
         $client = new OAuthClient;
@@ -139,8 +139,8 @@ class CustomDomainTest extends ClauthTestCase
         $d = AppDomain::firstOrFail();
         $this->assertSame('auth.xpenses.test', $d->host);
         $this->assertSame('pending', $d->status);
-        $this->assertTrue($d->trusted, 'added by a Clauth owner');
-        $this->assertSame($this->alab->id, $d->organization_id, 'first of the app’s organizations by name');
+        $this->assertTrue($d->isTrusted(), 'owned by one of William’s own organizations');
+        $this->assertSame($this->cbg->id, $d->organization_id, 'the app’s publisher owns the domain');
         $this->assertTrue($d->serves($this->xp));
         $this->actingAs($owner)->withSession(['auth.mfa' => true])->get(self::MAIN.'/admin/apps/xpenses?tab=brand')
             ->assertOk()->assertSee($d->txtName())->assertSee($d->txtValue())->assertSee('Waiting for DNS');
@@ -307,6 +307,7 @@ class CustomDomainTest extends ClauthTestCase
 
     public function test_untrusted_domain_asks_before_continuing_and_keeps_its_session_to_itself(): void
     {
+        $this->cbg->update(['is_platform' => false]); // an outside organization's domain
         $this->activeDomain(trusted: false);
         $user = $this->makeUser();
         $this->grant($user, $this->cbg, 'member');

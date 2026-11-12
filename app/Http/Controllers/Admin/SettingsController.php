@@ -16,8 +16,8 @@ class SettingsController
         return view('admin.settings', [
             's' => Settings::all(),
             'keys' => SigningKey::orderByDesc('id')->limit(10)->get(),
-            'admins' => User::where('clauth_role', 'owner')->orWhereHas('organizations', fn ($q) => $q->where('organization_user.is_org_admin', true))
-                ->with(['organizations' => fn ($q) => $q->wherePivot('is_org_admin', true)])->orderBy('name')->get(),
+            'admins' => User::where('clauth_role', 'owner')->orWhereHas('organizations', fn ($q) => $q->whereIn('organization_user.role', ['owner', 'admin', 'developer']))
+                ->with(['organizations' => fn ($q) => $q->wherePivotIn('role', ['owner', 'admin', 'developer'])])->orderBy('name')->get(),
             'mail' => ['mailer' => config('mail.default'), 'from' => config('mail.from.address')],
         ]);
     }

@@ -26,7 +26,7 @@ class DatabaseSeeder extends Seeder
         $cbg = Organization::where('slug', 'cakesbygrace')->first();
         $alab = Organization::where('slug', 'alab-apparel')->first();
 
-        $app = Application::firstOrCreate(['key' => 'demo'], ['name' => 'Demo App', 'color' => '#FBBF24', 'status' => 'live',
+        $app = Application::firstOrCreate(['key' => 'demo'], ['owner_organization_id' => $cbg->id, 'name' => 'Demo App', 'color' => '#FBBF24', 'status' => 'live',
             'home_url' => 'http://127.0.0.1:8021', 'login_theme' => 'daylight', 'accent_color' => '#FBBF24']);
         $app->organizations()->sync([$cbg->id, $alab->id]);
         foreach (['expense.submit' => 'Create and submit expense claims', 'expense.approve' => 'Approve or reject claims', 'report.export' => 'Export reports'] as $k => $d) {

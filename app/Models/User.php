@@ -48,7 +48,7 @@ class User extends Authenticatable
 
     public function organizations(): BelongsToMany
     {
-        return $this->belongsToMany(Organization::class)->withPivot('is_org_admin', 'joined_at');
+        return $this->belongsToMany(Organization::class)->withPivot('role', 'joined_at');
     }
 
     public function grants(): HasMany
@@ -71,15 +71,40 @@ class User extends Authenticatable
         return $this->clauth_role === 'owner';
     }
 
+    /** Can open the console at all: Clauth owners, org owners/admins/developers. */
     public function isAdmin(): bool
     {
-        return $this->isOwner() || $this->adminOrgIds() !== [];
+        return $this->isOwner() || $this->devOrgIds() !== [];
     }
 
-    /** Org ids this user administers (org admins only; owners see everything). */
+    /** Role in one organization (owner|admin|developer|member), or null when not a member. */
+    public function orgRole(?string $orgId): ?string
+    {
+        return $orgId ? $this->organizations()->where('organizations.id', $orgId)->value('organization_user.role') : null;
+    }
+
+    /** Org ids where this user manages people (org owners and admins; Clauth owners see everything). */
     public function adminOrgIds(): array
     {
-        return $this->organizations()->wherePivot('is_org_admin', true)->pluck('organizations.id')->all();
+        return $this->organizations()->wherePivotIn('role', ['owner', 'admin'])->pluck('organizations.id')->all();
+    }
+
+    /** Org ids whose apps this user manages (owners, admins and developers). */
+    public function devOrgIds(): array
+    {
+        return $this->organizations()->wherePivotIn('role', ['owner', 'admin', 'developer'])->pluck('organizations.id')->all();
+    }
+
+    /** Org ids this user owns (can change org roles). */
+    public function ownedOrgIds(): array
+    {
+        return $this->organizations()->wherePivot('role', 'owner')->pluck('organizations.id')->all();
+    }
+
+    /** May manage this app (clients, roles, branding, domain): Clauth owner, or owner/admin/developer of its publisher. */
+    public function canManageApp(Application $app): bool
+    {
+        return $this->isOwner() || ($app->owner_organization_id && in_array($app->owner_organization_id, $this->devOrgIds(), true));
     }
 
     public function hasTwoFactor(): bool

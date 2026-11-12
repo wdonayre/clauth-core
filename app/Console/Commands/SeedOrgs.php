@@ -20,7 +20,7 @@ class SeedOrgs extends Command
             'cebucake' => 'CebuCake Inc.',
             'the-cake-labs' => 'The Cake Labs',
         ] as $slug => $name) {
-            Organization::firstOrCreate(['slug' => $slug], ['name' => $name]);
+            Organization::firstOrCreate(['slug' => $slug], ['name' => $name, 'is_platform' => true, 'verified_at' => now()]); // William's own businesses
             $this->line("✓ $name ($slug)");
         }
 

@@ -12,6 +12,7 @@ use App\Models\OAuthClient;
 use App\Models\Organization;
 use App\Services\Audit;
 use App\Services\Domains;
+use App\Services\Installations;
 use App\Services\Manifest;
 use App\Services\Theme;
 use App\Support\Dns;
@@ -26,11 +27,31 @@ class AppController
 {
     public function index()
     {
+        $me = auth()->user();
+
         return view('admin.apps.index', [
-            'apps' => Application::withCount('grants')->with(['organizations', 'clients'])->orderBy('name')->get(),
-            'orgs' => Organization::orderBy('name')->get(),
+            'apps' => Application::withCount('grants')->with(['organizations', 'clients', 'publisher'])->orderBy('name')
+                ->when(! $me->isOwner(), fn ($q) => $q->whereIn('owner_organization_id', $me->devOrgIds()))->get(),
+            'publishers' => $this->publisherOrgs(),
+            'orgs' => $this->installableOrgs(),
             'created' => session('created_client'),
         ]);
+    }
+
+    /** Organizations the signed-in person can publish apps for. */
+    private function publisherOrgs()
+    {
+        $me = auth()->user();
+
+        return Organization::orderBy('name')->when(! $me->isOwner(), fn ($q) => $q->whereIn('id', $me->devOrgIds()))->get();
+    }
+
+    /** Organizations where the signed-in person can turn an app on directly (they approve for that organization). */
+    private function installableOrgs()
+    {
+        $me = auth()->user();
+
+        return Organization::orderBy('name')->when(! $me->isOwner(), fn ($q) => $q->whereIn('id', $me->adminOrgIds()))->get();
     }
 
     public function store(Request $request)
@@ -41,18 +62,21 @@ class AppController
             'type' => 'required|in:web,public,m2m',
             'redirect_uri' => 'required_unless:type,m2m|nullable|url',
             'home_url' => 'nullable|url',
+            'publisher' => ['required', Rule::in($this->publisherOrgs()->pluck('id')->all())],
             'orgs' => 'array',
             'orgs.*' => 'exists:organizations,id',
             'color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-        ], ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.']);
+        ], ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.', 'publisher.in' => 'Pick the organization that owns this app.']);
 
-        $app = DB::transaction(function () use ($data) {
+        $app = DB::transaction(function () use ($data, $request) {
             $app = Application::create([
+                'owner_organization_id' => $data['publisher'], 'visibility' => 'private',
                 'name' => $data['name'], 'key' => $data['key'], 'home_url' => $data['home_url'] ?? null,
                 'color' => $data['color'] ?? '#22D3EE', 'icon_letter' => mb_strtoupper(mb_substr($data['name'], 0, 1)),
                 'status' => 'not_connected', 'manifest_url' => ! empty($data['home_url']) ? rtrim($data['home_url'], '/').'/.well-known/clauth.json' : null,
             ]);
-            $app->organizations()->sync($data['orgs'] ?? []);
+            // Usable in its own organization, plus any others picked that this person runs.
+            Installations::syncFor($app, array_values(array_unique(array_merge([$data['publisher']], $data['orgs'] ?? []))), $request->user());
             // Every app starts with a basic role so access can be granted before a manifest exists.
             AppRole::create(['app_id' => $app->id, 'key' => 'member', 'name' => 'Member', 'source' => 'manual']);
 
@@ -70,13 +94,16 @@ class AppController
     public function show(Request $request, Application $app)
     {
         $tab = $request->query('tab', 'roles');
-        $app->load(['roles.permissions', 'organizations', 'clients']);
+        $app->load(['roles.permissions', 'organizations', 'clients', 'publisher', 'installations']);
 
         return view('admin.apps.show', [
             'app' => $app, 'tab' => $tab,
             'permissions' => AppPermission::where('app_id', $app->id)->orderByRaw('deprecated_at is not null')->orderBy('key')->get(),
-            'orgs' => Organization::orderBy('name')->get(),
-            'grants' => $tab === 'users' ? Grant::with(['user', 'organization', 'role'])->where('app_id', $app->id)->get()->sortBy('user.name') : collect(),
+            'orgs' => $this->installableOrgs(),
+            // People are only shown for organizations the viewer belongs to as staff: a publisher never sees who
+            // uses its app in another organization (SPEC-organizations §2.3).
+            'grants' => $tab === 'users' ? Grant::with(['user', 'organization', 'role'])->where('app_id', $app->id)
+                ->when(! $request->user()->isOwner(), fn ($q) => $q->whereIn('organization_id', $request->user()->devOrgIds()))->get()->sortBy('user.name') : collect(),
             'created' => session('created_client'),
             'theme' => Theme::for($app),
             'themes' => Theme::NAMES,
@@ -85,19 +112,24 @@ class AppController
 
     public function update(Request $request, Application $app)
     {
-        $before = $app->only('name', 'home_url', 'manifest_url', 'status', 'require_mfa_roles', 'color');
+        $before = $app->only('name', 'home_url', 'manifest_url', 'status', 'require_mfa_roles', 'color', 'visibility', 'owner_organization_id');
         $data = $request->validate([
             'name' => 'required|string|max:80',
             'home_url' => 'nullable|url',
             'manifest_url' => 'nullable|url',
             'status' => 'required|in:live,paused,not_connected',
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'visibility' => 'nullable|in:private,installable',
+            'publisher' => ['nullable', Rule::in($request->user()->isOwner() ? Organization::pluck('id')->all() : [$app->owner_organization_id])],
             'orgs' => 'array',
             'orgs.*' => 'exists:organizations,id',
             'require_mfa_roles' => 'array',
         ]);
-        $app->update(collect($data)->except('orgs')->all() + ['require_mfa_roles' => array_values($data['require_mfa_roles'] ?? [])]);
-        $app->organizations()->sync($data['orgs'] ?? []);
+        $app->update(collect($data)->except('orgs', 'visibility', 'publisher')->all() + ['require_mfa_roles' => array_values($data['require_mfa_roles'] ?? []),
+            'visibility' => $data['visibility'] ?? $app->visibility,
+            'owner_organization_id' => $request->user()->isOwner() && ! empty($data['publisher']) ? $data['publisher'] : $app->owner_organization_id]);
+        // Only organizations this person runs are touched; installations elsewhere stay as they are.
+        Installations::syncFor($app, $data['orgs'] ?? [], $request->user());
         Audit::log('app.updated', 'app', $app, $before, $app->only(array_keys($before)) + ['orgs' => $data['orgs'] ?? []], $app->id);
 
         return back()->with('status', 'App settings saved.');
@@ -253,6 +285,8 @@ class AppController
 
     public function destroy(Request $request, Application $app)
     {
+        $me = $request->user();
+        abort_unless($me->isOwner() || in_array($app->owner_organization_id, $me->adminOrgIds(), true), 403, 'Only an owner or admin of the app’s organization can delete it.');
         $request->validate(['confirm' => ['required', Rule::in([$app->key])]], ['confirm.in' => 'Type the app key to confirm.']);
         foreach ($app->clients as $c) {
             $c->update(['revoked' => true]);
@@ -290,6 +324,32 @@ class AppController
     }
 
     /**
+     * Offer the app to another organization by its slug (apps marked installable). The other organization's admin
+     * approves it on their Organizations page. When you run that organization too, it's on straight away.
+     */
+    public function requestInstall(Request $request, Application $app)
+    {
+        $data = $request->validate(['slug' => 'required|string|max:64']);
+        $org = Organization::where('slug', strtolower(trim($data['slug'])))->first();
+        $msg = 'If that organization exists, its admins will see the request on their Organizations page.';
+        if (! $org) {
+            return back()->with('status', $msg); // same answer whether or not the slug exists
+        }
+        $status = Installations::add($app, $org, $request->user());
+
+        return back()->with('status', $status === 'active' ? "{$app->name} can now be used in {$org->name}." : $msg);
+    }
+
+    /** Stop offering the app to an organization (or withdraw a request). Access given through it is removed. */
+    public function removeInstall(Application $app, string $org)
+    {
+        $o = $app->installations()->where('organizations.id', $org)->firstOrFail();
+        Installations::remove($app, $o);
+
+        return back()->with('status', "{$app->name} removed from {$o->name}.");
+    }
+
+    /**
      * Add a sign-in domain to an app. A new host starts verification for one of the app's organizations. A host
      * that organization already verified is shared after a confirmation (no new DNS records). A host verified by
      * another organization is refused, unless that claim is stale (never verified for a day, or its TXT is gone).
@@ -308,9 +368,10 @@ class AppController
         if ($app->signInDomain()) {
             return back()->withErrors(['host' => "{$app->name} already has a sign-in domain. Remove it first."]);
         }
-        $orgs = $app->organizations()->orderBy('name')->get();
+        // A sign-in domain belongs to the organization that publishes the app (SPEC-organizations §5.2).
+        $orgs = $app->publisher ? collect([$app->publisher]) : collect();
         if ($orgs->isEmpty()) {
-            return back()->withErrors(['host' => "Turn {$app->name} on for an organization first: a sign-in domain belongs to an organization."]);
+            return back()->withErrors(['host' => "{$app->name} has no owning organization yet. Set one first: a sign-in domain belongs to an organization."]);
         }
 
         $existing = AppDomain::with(['apps', 'organization'])->where('host', $data['host'])->first();
@@ -337,11 +398,8 @@ class AppController
             return back()->with('status', "{$app->name} now signs in at {$existing->host} too ({$existing->label()}). No DNS changes needed.");
         }
 
-        $orgId = $request->input('organization_id') ?: $orgs->first()->id;
-        if (! $orgs->contains('id', $orgId)) {
-            return back()->withErrors(['host' => 'Pick one of the app’s organizations.']);
-        }
-        $d = AppDomain::create(['host' => $data['host'], 'organization_id' => $orgId, 'trusted' => (bool) $request->user()?->isOwner(),
+        $orgId = $orgs->first()->id;
+        $d = AppDomain::create(['host' => $data['host'], 'organization_id' => $orgId, 'trusted' => false,
             'verify_token' => Str::lower(Str::random(32)), 'status' => 'pending', 'created_by' => auth()->id()]);
         $d->apps()->attach($app->id, ['created_by' => auth()->id()]);
         Audit::log('app.domain_added', 'app', $d, after: ['host' => $d->host, 'organization_id' => $orgId], appId: $app->id, orgId: $orgId);

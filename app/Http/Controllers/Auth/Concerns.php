@@ -117,7 +117,7 @@ trait Concerns
         // Signed in on an app's own domain: sign this browser in on the main domain too (one hop), so every
         // other app — whatever its sign-in domain — recognises the person.
         // (Untrusted domains — another organization's — stay on their own: their session doesn't spread to main.)
-        if ($request->attributes->get('clauth.domain')?->trusted) {
+        if ($request->attributes->get('clauth.domain')?->isTrusted()) {
             $return = $request->session()->pull('url.intended') ?: Domains::mainUrl('account');
             $ticket = Sso::issue(Sso::snapshot($request, $user) + ['to' => 'main', 'return' => $return]);
 

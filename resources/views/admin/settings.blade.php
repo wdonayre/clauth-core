@@ -40,10 +40,10 @@
         @foreach($admins as $a)
           <a class="row" href="{{ route('admin.users.show', $a->id) }}" style="color:#E8EDF2"><span class="avatar">{{ $a->initials() }}</span>
             <span class="grow"><b>{{ $a->name }}</b><br><span class="small muted">{{ $a->email }}</span></span>
-            <span class="chip {{ $a->isOwner() ? 'info' : '' }}">{{ $a->isOwner() ? 'Owner' : 'Org admin · '.$a->organizations->pluck('name')->implode(', ') }}</span></a>
+            <span class="chip {{ $a->isOwner() ? 'info' : '' }}">{{ $a->isOwner() ? 'Owner' : $a->organizations->map(fn ($o) => (\App\Models\Organization::ROLES[$o->pivot->role] ?? $o->pivot->role).' · '.$o->name)->implode(', ') }}</span></a>
         @endforeach
       </div>
-      <p class="small muted" style="padding:0 20px 16px;margin:0">Make org admins from a user’s page or Organizations. Owners are added on the server with <code>php artisan clauth:owner</code>.</p>
+      <p class="small muted" style="padding:0 20px 16px;margin:0">Set org roles (owner, admin, developer) from a user’s page or Organizations. Owners are added on the server with <code>php artisan clauth:owner</code>.</p>
     </section>
     <section class="card pad"><h2>Email</h2><p class="small muted" style="margin:6px 0 0">Sending with <code>{{ $mail['mailer'] }}</code> from <code>{{ $mail['from'] }}</code>.</p></section>
   </div>

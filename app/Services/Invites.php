@@ -50,7 +50,7 @@ class Invites
         if ($invite->organization_id) {
             $user->organizations()->syncWithoutDetaching([$invite->organization_id => ['joined_at' => now()]]);
             if ($invite->is_org_admin) {
-                $user->organizations()->updateExistingPivot($invite->organization_id, ['is_org_admin' => true]);
+                $user->organizations()->updateExistingPivot($invite->organization_id, ['role' => 'admin']);
             }
             foreach ($invite->grants ?? [] as $g) {
                 Grant::updateOrCreate(

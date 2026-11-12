@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -34,9 +35,30 @@ class Application extends Model
         return 'key';
     }
 
+    /** Organizations where the app can be used (active installations). */
     public function organizations(): BelongsToMany
     {
-        return $this->belongsToMany(Organization::class, 'app_organization', 'app_id', 'organization_id');
+        return $this->belongsToMany(Organization::class, 'app_installations', 'app_id', 'organization_id')
+            ->withPivotValue('status', 'active')->withTimestamps();
+    }
+
+    /** Every installation row, including requests waiting for the other organization. */
+    public function installations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'app_installations', 'app_id', 'organization_id')
+            ->withPivot('status', 'requested_by', 'approved_by', 'approved_at')->withTimestamps();
+    }
+
+    /** The organization that owns (publishes) the app. */
+    public function publisher(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'owner_organization_id');
+    }
+
+    /** First-party for sign-in purposes: published by one of William's own (platform) organizations. */
+    public function isFirstParty(): bool
+    {
+        return $this->owner_organization_id === null || (bool) $this->publisher?->is_platform;
     }
 
     public function clients(): HasMany

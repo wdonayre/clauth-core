@@ -7,6 +7,7 @@ use App\Models\Application;
 use App\Models\AuditEvent;
 use App\Models\Invite;
 use App\Models\OAuthClient;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Domains;
 
@@ -17,8 +18,19 @@ class DashboardController
     public function __invoke()
     {
         $ids = $this->orgIds();
+        $me = auth()->user();
         $users = $this->scopeUsers(User::query());
+        // Apps this person may see: their organizations' own apps and the apps installed where they're admin.
+        $apps = Application::query()->when($ids !== null, fn ($q) => $q->where(fn ($w) => $w->whereIn('owner_organization_id', $me->devOrgIds())
+            ->orWhereHas('organizations', fn ($o) => $o->whereIn('organizations.id', $ids))));
         $attention = [];
+        if ($ids !== null) {
+            foreach (Organization::with('installRequests')->whereIn('id', $ids)->get() as $o) {
+                foreach ($o->installRequests as $a) {
+                    $attention[] = ['tone' => 'info', 'text' => "{$a->name} wants to be available to {$o->name} — approve or decline", 'href' => route('admin.orgs.index')];
+                }
+            }
+        }
         if ($ids === null) {
             foreach (OAuthClient::with('app')->whereNotNull('secret_expires_at')->where('revoked', false)->where('secret_expires_at', '<', now()->addDays(14))->get() as $c) {
                 $attention[] = ['tone' => 'warn', 'text' => "{$c->app?->name} · {$c->name}: client secret ".($c->secret_expires_at->isPast() ? 'expired' : 'expires '.$c->secret_expires_at->diffForHumans()), 'href' => route('admin.apps.show', [$c->app?->key ?? '-', 'tab' => 'settings'])];
@@ -49,11 +61,11 @@ class DashboardController
             'stats' => [
                 'Users' => (clone $users)->count(),
                 'Active today' => (clone $users)->where('last_login_at', '>=', now()->startOfDay())->count(),
-                'Apps' => Application::count(),
+                'Apps' => (clone $apps)->count(),
                 'Pending invites' => Invite::whereNull('accepted_at')->whereNull('revoked_at')->where('expires_at', '>', now())
                     ->when($ids !== null, fn ($q) => $q->whereIn('organization_id', $ids))->count(),
             ],
-            'apps' => Application::withCount(['grants'])->orderBy('name')->get(),
+            'apps' => (clone $apps)->withCount(['grants' => fn ($g) => $g->when($ids !== null, fn ($q) => $q->whereIn('organization_id', $ids))])->orderBy('name')->get(),
             'attention' => $attention,
             'events' => AuditEvent::with(['actor', 'app'])->when($ids !== null, fn ($q) => $q->whereIn('organization_id', $ids))
                 ->latest('at')->limit(8)->get(),
