@@ -18,7 +18,8 @@ trap 'log "FAILED (line $LINENO)"' ERR
 set -a; . /root/.clauth-offsite.env; set +a
 export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_ACL=private \
   RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
-  RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+  RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true \
+  RCLONE_CONFIG_R2_NO_HEAD=true RCLONE_CONFIG=/dev/null  # R2 501s on the post-upload HEAD ?versionId (rclone 1.60)
 
 db="$(ls -1t "$OUT"/clauth-nightly-*.sql.gz 2>/dev/null | head -n1)"
 env="$(ls -1t "$OUT"/clauth-env-*.tar.gz 2>/dev/null | head -n1)"

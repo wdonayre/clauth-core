@@ -6,7 +6,7 @@
 set -Eeuo pipefail
 set -a; . /root/.clauth-offsite.env; set +a
 export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
-  RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+  RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" RCLONE_CONFIG=/dev/null
 PASS="/root/.clauth-backup-passphrase"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 
@@ -25,6 +25,12 @@ for t in users organizations apps signing_keys grants oauth_clients; do
 done
 tar -xzOf "$envt" .env | grep -q '^APP_KEY=base64:' && echo "ok: .env has APP_KEY (signing keys can be decrypted)"
 if [ "${1:-}" = "--import" ]; then
+  # CloudPanel's MySQL root needs a password: read it from clpctl into a temp defaults file (never printed).
+  my="$tmp/my.cnf"; ( umask 077; clpctl db:show:master-credentials | awk -F'|' '
+    /\| Host /{h=$3} /\| User Name /{u=$3} /\| Password /{p=$3} /\| Port /{o=$3}
+    END{gsub(/ /,"",h);gsub(/ /,"",u);gsub(/ /,"",p);gsub(/ /,"",o);
+        printf "[client]\nhost=%s\nuser=%s\npassword=%s\nport=%s\n",h,u,p,o}' >"$my" )
+  mysql() { command mysql --defaults-extra-file="$my" "$@"; }
   mysql -e 'DROP DATABASE IF EXISTS clauth_restore_drill; CREATE DATABASE clauth_restore_drill'
   zcat "$dump" | mysql clauth_restore_drill
   mysql -N clauth_restore_drill -e "SELECT CONCAT('users=',(SELECT COUNT(*) FROM users),' orgs=',(SELECT COUNT(*) FROM organizations),' apps=',(SELECT COUNT(*) FROM apps),' keys=',(SELECT COUNT(*) FROM signing_keys))"
