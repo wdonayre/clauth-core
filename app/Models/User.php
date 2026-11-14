@@ -27,6 +27,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_secret' => 'encrypted',
             'two_factor_recovery_codes' => 'encrypted:array',
+            'mfa_exempt' => 'boolean',
         ];
     }
 

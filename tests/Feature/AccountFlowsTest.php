@@ -62,6 +62,54 @@ class AccountFlowsTest extends ClauthTestCase
         $this->get($path)->assertStatus(410);
     }
 
+    public function test_admin_can_turn_off_2fa_for_one_user_even_when_invite_and_app_require_it(): void
+    {
+        Mail::fake();
+        $admin = $this->owner();
+        $this->xp->update(['require_mfa_roles' => ['finance']]);
+        $as = fn () => $this->actingAs($admin)->withSession(['auth.mfa' => true]);
+        $as()->post('/admin/users/invite', ['name' => 'Ana Reyes', 'email' => 'ana@cakesbygrace.ph', 'organization_id' => $this->cbg->id,
+            'roles' => [$this->xp->id => $this->role('finance')->id], 'require_mfa' => 1, 'send' => 1])->assertRedirect();
+        $link = session('invite_link')['link'];
+        $ana = User::where('email', 'ana@cakesbygrace.ph')->first();
+
+        // Admins can't be exempted; the admin can't exempt themselves either.
+        $as()->post("/admin/users/{$admin->id}/mfa-off")->assertStatus(422);
+        $as()->get("/admin/users/{$ana->id}")->assertOk()->assertSee('Turn off 2-step');
+        $as()->post("/admin/users/{$ana->id}/mfa-off")->assertRedirect()->assertSessionHas('status');
+        $this->assertTrue($ana->fresh()->mfa_exempt);
+        $as()->get("/admin/users/{$ana->id}")->assertSee('Require 2-step again');
+        auth()->logout();
+        $this->flushSession();
+
+        // Invite asked for 2-step, Finance role requires it — the override wins: no setup step.
+        $path = parse_url($link, PHP_URL_PATH);
+        $this->keep($this->get($path))->assertOk();
+        $this->keep($this->post($path, ['name' => 'Ana Reyes', 'password' => 'a long enough password', 'password_confirmation' => 'a long enough password', 'terms' => 1]))
+            ->assertRedirect('https://xpenses.test');
+        $this->assertFalse($ana->fresh()->hasTwoFactor());
+
+        // Turning the override off brings the normal rule back.
+        auth()->logout();
+        $this->flushSession();
+        $this->defaultCookies = [];
+        $as()->post("/admin/users/{$ana->id}/mfa-on")->assertRedirect()->assertSessionHas('status');
+        $this->assertFalse($ana->fresh()->mfa_exempt);
+        $this->assertTrue(\App\Services\Claims::policyRequiresMfa($ana->fresh(), $this->xp));
+    }
+
+    public function test_turning_off_2fa_removes_an_existing_setup(): void
+    {
+        $admin = $this->owner();
+        $user = $this->makeUser();
+        $user->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now(), 'two_factor_recovery_codes' => ['aaaaa-bbbbb']])->save();
+        $this->actingAs($admin)->withSession(['auth.mfa' => true])->post("/admin/users/{$user->id}/mfa-off")->assertRedirect();
+        auth()->logout();
+        $this->flushSession();
+        $this->assertFalse($user->fresh()->hasTwoFactor());
+        $this->keep($this->post('/login', ['email' => $user->email, 'password' => self::PASSWORD]))->assertRedirect('/account');
+    }
+
     public function test_login_requires_code_when_2fa_enabled(): void
     {
         $user = $this->makeUser();

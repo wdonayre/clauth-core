@@ -215,7 +215,7 @@ class UserController
     public function action(Request $request, string $id, string $action)
     {
         $user = $this->visibleUser($id);
-        abort_if($user->id === auth()->id() && in_array($action, ['disable', 'reset-2fa']), 422, 'You can’t do that to your own account here.');
+        abort_if($user->id === auth()->id() && in_array($action, ['disable', 'reset-2fa', 'mfa-off']), 422, 'You can’t do that to your own account here.');
         abort_if($user->isOwner() && ! auth()->user()->isOwner(), 404);
         switch ($action) {
             case 'disable':
@@ -239,6 +239,18 @@ class UserController
                 Sessions::revokeAll($user);
                 Audit::log('security.mfa_reset', 'security', $user);
                 $msg = "2-step verification reset. {$user->name} sets it up again at next sign-in.";
+                break;
+            case 'mfa-off':
+                abort_if($user->isAdmin(), 422, 'Clauth admins always need 2-step verification.');
+                $user->forceFill(['mfa_exempt' => true, 'two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+                Sessions::revokeAll($user);
+                Audit::log('security.mfa_exempted', 'security', $user);
+                $msg = "2-step verification is off for {$user->name}. They sign in with just their password.";
+                break;
+            case 'mfa-on':
+                $user->forceFill(['mfa_exempt' => false])->save();
+                Audit::log('security.mfa_exemption_removed', 'security', $user);
+                $msg = "2-step verification follows the normal rules again for {$user->name}.";
                 break;
             case 'signout':
                 Sessions::revokeAll($user);

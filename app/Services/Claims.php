@@ -53,7 +53,13 @@ class Claims
     /** Policy alone (ignores whether the user already enrolled). */
     public static function policyRequiresMfa(User $user, ?Application $app = null): bool
     {
-        if ($user->isAdmin() || Settings::get('require_mfa_everyone')) {
+        if ($user->isAdmin()) {
+            return true; // the admin console always needs 2-step; admins can't be exempted
+        }
+        if ($user->mfa_exempt) {
+            return false; // an admin turned 2-step off for this user (overrides every policy below)
+        }
+        if (Settings::get('require_mfa_everyone')) {
             return true;
         }
         if (session('invite_require_mfa')) {
