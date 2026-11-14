@@ -28,7 +28,7 @@
     <div class="list">
       @forelse($attention as $a)
         <div class="row"><span class="chip {{ ['warn' => 'warn', 'danger' => 'bad', 'info' => 'info'][$a['tone']] }}">{{ ['warn' => 'Soon', 'danger' => 'Now', 'info' => 'Info'][$a['tone']] }}</span>
-          <a class="grow" href="{{ $a['href'] }}" style="color:#E8EDF2">{{ $a['text'] }}</a></div>
+          <a class="grow" href="{{ $a['href'] }}" style="color:var(--text)">{{ $a['text'] }}</a></div>
       @empty<div class="empty">All clear.</div>@endforelse
     </div>
   </section>

@@ -15,7 +15,7 @@
   @else
   <div class="grid3">
     @foreach($apps as $a)
-      <a class="card pad" href="{{ $a['app']->home_url ?: '#' }}" style="display:flex;flex-direction:column;gap:12px;color:#E8EDF2">
+      <a class="card pad" href="{{ $a['app']->home_url ?: '#' }}" style="display:flex;flex-direction:column;gap:12px;color:var(--text)">
         <span style="display:flex;gap:12px;align-items:center">
           <span class="ico lg" style="background:{{ $a['app']->color }}">{{ $a['app']->letter() }}</span>
           <span><b style="font-size:16px">{{ $a['app']->name }}</b><br><span class="small muted">{{ $a['last'] ? 'Last used '.\Carbon\Carbon::parse($a['last'])->diffForHumans() : 'Not used yet' }}</span></span>

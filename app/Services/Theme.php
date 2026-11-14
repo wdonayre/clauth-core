@@ -12,14 +12,15 @@ class Theme
     public static function for(?Application $app): array
     {
         $style = $app?->login_theme && isset(self::NAMES[$app->login_theme]) ? $app->login_theme : 'classic';
-        $accent = $style === 'classic' ? '#22D3EE' : ($app?->accent_color ?: '#22D3EE');
+        // Brand v2: Signal (#22D3EE) on dark, Deep Signal (#0E7490) on light.
+        $accent = $style === 'classic' ? '#22D3EE' : ($app?->accent_color ?: ($style === 'daylight' ? '#0E7490' : '#22D3EE'));
         $onAccent = self::luminance($accent) > 0.35 ? '#111111' : '#FFFFFF';
         $dark = $style !== 'daylight';
         $vars = match ($style) {
             'daylight' => [
-                'bg' => '#F3F5F8', 'card' => '#FFFFFF', 'border' => '#E2E7EE', 'text' => '#0F172A', 'muted' => '#475569',
-                'in-bg' => '#FFFFFF', 'in-border' => '#CBD5E1', 'sec' => '#FFFFFF', 'link' => '#0F172A',
-                'info-bg' => '#F1F5F9', 'info-border' => '#E2E8F0', 'shadow' => '0 10px 30px rgba(15,23,42,.08)', 'danger' => '#B91C1C',
+                'bg' => '#F7F8FA', 'card' => '#FFFFFF', 'border' => '#DDE2EA', 'text' => '#0B0D12', 'muted' => '#5B6475',
+                'in-bg' => '#FFFFFF', 'in-border' => '#C9D0DB', 'sec' => '#FFFFFF', 'link' => '#0E7490',
+                'info-bg' => '#ECFEFF', 'info-border' => '#A5E4EF', 'shadow' => '0 1px 2px rgba(11,13,18,.06), 0 8px 24px rgba(11,13,18,.06)', 'danger' => '#B91C1C',
             ],
             'midnight' => [
                 'bg' => '#0F0F12', 'card' => '#18181C', 'border' => '#2A2A31', 'text' => '#F4F4F5', 'muted' => '#A1A1AA',
@@ -28,13 +29,17 @@ class Theme
                 'info-bg' => '#1E1E24', 'info-border' => '#2E2E36', 'shadow' => 'none', 'danger' => '#F87171',
             ],
             default => [
-                'bg' => '#0A0C10', 'card' => '#12161C', 'border' => '#232A34', 'text' => '#E8EDF2', 'muted' => '#AEB8C5',
-                'in-bg' => '#0D1014', 'in-border' => '#2A323D', 'sec' => '#161B22', 'link' => '#22D3EE',
+                'bg' => '#0B0D12', 'card' => '#12161E', 'border' => '#232A36', 'text' => '#F2F5F9', 'muted' => '#AAB2C2',
+                'in-bg' => '#0B0D12', 'in-border' => '#2E3644', 'sec' => '#161B25', 'link' => '#22D3EE',
                 'info-bg' => '#0E2A31', 'info-border' => '#164E5A', 'shadow' => 'none', 'danger' => '#F87171',
             ],
         };
         $vars['accent'] = $accent;
         $vars['on-accent'] = $onAccent;
+        // Primary button: Ink on light (brand rule) unless the app chose its own accent; otherwise the accent.
+        $inkPrimary = $style === 'daylight' && ! $app?->accent_color;
+        $vars['pri'] = $inkPrimary ? '#0B0D12' : $accent;
+        $vars['on-pri'] = $inkPrimary ? '#FFFFFF' : $onAccent;
 
         return ['style' => $style, 'dark' => $dark, 'vars' => $vars, 'app' => $app, 'logo' => $app?->logoUrl($dark)];
     }

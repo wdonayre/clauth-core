@@ -26,57 +26,56 @@
     :host{display:block;position:sticky;top:0;z-index:2147483000;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
     :host([hidden]){display:none}
     *{box-sizing:border-box}
-    .bar{height:48px;display:flex;align-items:center;gap:8px;padding:0 8px 0 14px;background:#0D1014;color:#E8EDF2;border-bottom:1px solid #1E252E;font-size:14px;line-height:1.2}
+    .bar{height:48px;display:flex;align-items:center;gap:8px;padding:0 8px 0 14px;background:#12161E;color:#F2F5F9;border-bottom:1px solid #232A36;font-size:14px;line-height:1.2}
     .app{display:flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none}
-    .ico{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:800 13px Montserrat,Inter,sans-serif;color:#fff;flex:none;overflow:hidden}
+    .ico{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:600 13px "Space Grotesk",Inter,sans-serif;color:#fff;flex:none;overflow:hidden}
     .ico img{max-width:100%;max-height:100%;object-fit:contain}
     .name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .sp{flex:1}
     button{font:inherit;color:inherit}
-    .round{width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:#C4CDD8;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
-    .round:hover,.round[aria-expanded="true"]{background:#1A2029;color:#fff}
+    .round{width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:#C9D0DC;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+    .round:hover,.round[aria-expanded="true"]{background:#161B25;color:#fff}
     .round:focus-visible,.org:focus-visible,.item:focus-visible,.tile:focus-visible{outline:2px solid #22D3EE;outline-offset:2px}
     .av{width:32px;height:32px;border-radius:50%;background:#0E2A31;color:#22D3EE;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid transparent}
     .round[aria-expanded="true"] .av,.round:hover .av{border-color:#22D3EE}
-    .org{display:inline-flex;align-items:center;gap:6px;height:32px;max-width:220px;padding:0 10px;border-radius:8px;border:1px solid #2A323D;background:#12161C;cursor:pointer;font-weight:600;font-size:13px}
+    .org{display:inline-flex;align-items:center;gap:6px;height:32px;max-width:220px;padding:0 10px;border-radius:8px;border:1px solid #2E3644;background:#161B25;cursor:pointer;font-weight:600;font-size:13px}
     .org span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .org:hover,.org[aria-expanded="true"]{border-color:#22D3EE}
-    .orgname{font-size:13px;color:#8B96A5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
-    .panel{position:absolute;top:54px;right:8px;width:320px;max-width:calc(100vw - 16px);background:#12161C;border:1px solid #2A323D;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.45);color:#E8EDF2;padding:14px}
+    .orgname{font-size:13px;color:#8A93A6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+    .panel{position:absolute;top:54px;right:8px;width:320px;max-width:calc(100vw - 16px);background:#161B25;border:1px solid #2E3644;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.45);color:#F2F5F9;padding:14px}
     .panel[hidden]{display:none}
     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-    .tile{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border-radius:12px;border:1px solid transparent;color:#E8EDF2;text-decoration:none;font-weight:600;font-size:13px;text-align:center;word-break:break-word}
-    .tile:hover{background:#1A2029}
+    .tile{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border-radius:12px;border:1px solid transparent;color:#F2F5F9;text-decoration:none;font-weight:600;font-size:13px;text-align:center;word-break:break-word}
+    .tile:hover{background:#161B25}
     .tile.cur{border-color:#164E5A;background:#0E2A31}
     .tile .ico{width:44px;height:44px;border-radius:12px;font-size:18px}
-    .item{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#E8EDF2;text-decoration:none;font-size:14px;cursor:pointer;text-align:left}
-    .item:hover{background:#1A2029}
+    .item{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#F2F5F9;text-decoration:none;font-size:14px;cursor:pointer;text-align:left}
+    .item:hover{background:#161B25}
     .item.danger{color:#FCA5A5}
-    .lbl{margin:2px 4px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8B96A5}
+    .lbl{margin:2px 4px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8A93A6}
     .who{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0 12px;text-align:center}
     .who .av{width:56px;height:56px;font-size:20px}
     .who b{font-size:16px;margin-top:4px}
-    .muted{color:#8B96A5;font-size:13px}
-    .foot{border-top:1px solid #232A34;margin-top:10px;padding-top:10px;display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:12px;color:#8B96A5}
-    .foot a{color:#8B96A5}
+    .muted{color:#8A93A6;font-size:13px}
+    .foot{border-top:1px solid #232A36;margin-top:10px;padding-top:10px;display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:12px;color:#8A93A6}
+    .foot a{color:#8A93A6}
     .between{justify-content:space-between}
     .between a{color:#22D3EE;font-weight:600;text-decoration:none}
-    .wm{font:900 12px Montserrat,Inter,sans-serif;letter-spacing:.02em}
-    .wm .cl{color:transparent;-webkit-text-stroke:1px #E8EDF2}
-    .wm .au{color:#22D3EE}
+    .wm{display:inline-flex;align-items:center;gap:4px;font:600 12.5px "Space Grotesk",Inter,sans-serif;letter-spacing:-.01em;color:#F2F5F9;vertical-align:-2px}
+    .wm svg{width:14px;height:14px;display:block}
     .check{margin-left:auto;color:#22D3EE;font-weight:800}
     .bell{position:relative}
-    .badge{position:absolute;top:5px;right:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#EF4444;color:#fff;font:700 10.5px/17px Inter,sans-serif;text-align:center;border:2px solid #0D1014}
+    .badge{position:absolute;top:5px;right:4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#EF4444;color:#fff;font:700 10.5px/17px Inter,sans-serif;text-align:center;border:2px solid #12161E}
     .news{max-height:min(420px,70vh);overflow:auto;margin:0 -6px;padding:0 6px}
-    .note{display:block;padding:10px;border-radius:10px;color:#E8EDF2;text-decoration:none}
-    .note + .note{border-top:1px solid #1E252E;border-radius:0}
-    a.note:hover{background:#1A2029}
+    .note{display:block;padding:10px;border-radius:10px;color:#F2F5F9;text-decoration:none}
+    .note + .note{border-top:1px solid #232A36;border-radius:0}
+    a.note:hover{background:#161B25}
     .note .t{font-weight:600;font-size:14px}
-    .note .m{font-size:12px;color:#8B96A5;margin-top:2px}
-    .note .b{font-size:13px;color:#C4CDD8;margin-top:6px;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+    .note .m{font-size:12px;color:#8A93A6;margin-top:2px}
+    .note .b{font-size:13px;color:#C9D0DC;margin-top:6px;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
     .new{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#EF4444;color:#fff;font-size:10.5px;font-weight:700;vertical-align:1px}
-    .ver{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#1A2029;border:1px solid #2A323D;color:#C4CDD8;font:600 11px ui-monospace,Menlo,monospace}
-    .empty{padding:18px 6px;text-align:center;color:#8B96A5;font-size:13px}
+    .ver{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:#161B25;border:1px solid #2E3644;color:#C9D0DC;font:600 11px ui-monospace,Menlo,monospace}
+    .empty{padding:18px 6px;text-align:center;color:#8A93A6;font-size:13px}
     @media (max-width:520px){.name{max-width:110px}.org{max-width:130px}.orgname{display:none}}
   `;
 
@@ -206,7 +205,7 @@
           <a class="item" role="menuitem" href="${esc(safeUrl(d.links.account))}">My account — password, 2-step, devices</a>
           ${logout ? `<a class="item" role="menuitem" href="${esc(safeUrl(logout))}">Sign out of ${esc(d.app.name)}</a>` : ''}
           <a class="item danger" role="menuitem" href="${esc(safeUrl(d.links.signout_everywhere))}">Sign out everywhere</a>
-          <div class="foot"><span>Powered by <span class="wm"><span class="cl">CL</span><span class="au">AUTH</span></span></span><a href="${esc(safeUrl(d.links.privacy))}">Privacy</a><a href="${esc(safeUrl(d.links.terms))}">Terms</a></div>
+          <div class="foot"><span>Powered by <span class="wm" aria-label="Clauth"><svg viewBox="0 0 120 120" aria-hidden="true"><path d="M84.51 39.43A32 32 0 1 0 84.51 80.57" fill="none" stroke="#F2F5F9" stroke-width="14"/><circle cx="60" cy="54" r="9" fill="#22D3EE"/><path d="M55 57h10l2.5 17h-15z" fill="#22D3EE"/></svg>clauth</span></span><a href="${esc(safeUrl(d.links.privacy))}">Privacy</a><a href="${esc(safeUrl(d.links.terms))}">Terms</a></div>
         </div>`;
 
       this.root.querySelectorAll('[data-menu]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(b.dataset.menu); }));

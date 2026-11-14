@@ -39,7 +39,7 @@
       <div class="card-h"><h2>Clauth admins</h2></div>
       <div class="list">
         @foreach($admins as $a)
-          <a class="row" href="{{ route('admin.users.show', $a->id) }}" style="color:#E8EDF2"><span class="avatar">{{ $a->initials() }}</span>
+          <a class="row" href="{{ route('admin.users.show', $a->id) }}" style="color:var(--text)"><span class="avatar">{{ $a->initials() }}</span>
             <span class="grow"><b>{{ $a->name }}</b><br><span class="small muted">{{ $a->email }}</span></span>
             <span class="chip {{ $a->isOwner() ? 'info' : '' }}">{{ $a->isOwner() ? 'Owner' : $a->organizations->map(fn ($o) => (\App\Models\Organization::ROLES[$o->pivot->role] ?? $o->pivot->role).' · '.$o->name)->implode(', ') }}</span></a>
         @endforeach

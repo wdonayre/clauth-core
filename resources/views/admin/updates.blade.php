@@ -16,7 +16,7 @@
       </select></div>
     <div class="f"><label for="uv">Version (optional)</label><input class="in mono" id="uv" name="version" value="{{ old('version', $n?->version) }}" placeholder="v0.17.0"></div>
     <div class="f"><label for="ut">Title</label><input class="in" id="ut" name="title" value="{{ old('title', $n?->title) }}" placeholder="Receipts upload faster on mobile" required maxlength="160"></div>
-    <div class="f"><label for="ub">What changed (optional)</label><textarea class="in" id="ub" name="body" style="font-family:Inter,sans-serif;font-size:14px" placeholder="One change per line. Keep it short: people read this in a small panel.">{{ old('body', $n?->body) }}</textarea></div>
+    <div class="f"><label for="ub">What changed (optional)</label><textarea class="in" id="ub" name="body" style="font-family:var(--cl-font-body);font-size:14px" placeholder="One change per line. Keep it short: people read this in a small panel.">{{ old('body', $n?->body) }}</textarea></div>
     <div class="f"><label for="ul">Link (optional)</label><input class="in mono" id="ul" name="link" value="{{ old('link', $n?->link) }}" placeholder="https://…/changelog"></div>
     <div class="f"><label for="up">Publish at (optional — blank = now)</label><input class="in" id="up" type="datetime-local" name="published_at" value="{{ old('published_at', $n?->published_at?->format('Y-m-d\TH:i')) }}"></div>
     <div class="actions"><button class="btn pri">{{ $n ? 'Save' : 'Post update' }}</button>@if($n)<a class="btn" href="{{ route('admin.updates') }}">Cancel</a>@endif</div>

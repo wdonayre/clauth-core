@@ -55,7 +55,7 @@
 <section class="card">
   <div class="list">
     @forelse($users as $u)
-      <a class="row" href="{{ route('admin.users.show', $u->id) }}" style="color:#E8EDF2">
+      <a class="row" href="{{ route('admin.users.show', $u->id) }}" style="color:var(--text)">
         <span class="avatar">{{ $u->initials() }}</span>
         <span class="grow"><b>{{ $u->name }}</b><br><span class="small muted">{{ $u->email }} · {{ $u->organizations->pluck('name')->implode(', ') ?: 'No organization' }}</span></span>
         <span class="pills">@foreach($u->grants->unique('app_id')->take(4) as $g)<span class="chip">{{ $g->app?->name }} · {{ $g->role?->name }}</span>@endforeach</span>

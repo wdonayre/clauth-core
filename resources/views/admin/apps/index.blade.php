@@ -36,7 +36,7 @@
 </header>
 <section class="grid3">
   @forelse($apps as $a)
-    <a class="card pad" href="{{ route('admin.apps.show', $a->key) }}" style="display:flex;flex-direction:column;gap:12px;color:#E8EDF2">
+    <a class="card pad" href="{{ route('admin.apps.show', $a->key) }}" style="display:flex;flex-direction:column;gap:12px;color:var(--text)">
       <span style="display:flex;gap:12px;align-items:center"><span class="ico lg" style="background:{{ $a->color }}">{{ $a->letter() }}</span>
         <span class="grow"><b style="font-size:16px">{{ $a->name }}</b><br><span class="small muted mono">{{ $a->key }}</span></span>
         <span class="chip {{ ['live' => 'ok', 'paused' => 'warn'][$a->status] ?? '' }}">{{ ['live' => 'Live', 'paused' => 'Paused', 'not_connected' => 'Not connected'][$a->status] }}</span></span>

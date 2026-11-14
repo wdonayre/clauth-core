@@ -6,15 +6,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>@yield('title') · Clauth</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0B0D12">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/clauth.css?v={{ filemtime(public_path('css/clauth.css')) }}">
 <script src="/js/clauth.js?v={{ filemtime(public_path('js/clauth.js')) }}" defer></script>
 </head>
 <body>
 <div class="console">
   <nav class="side" aria-label="Main">
-    <a class="logo" href="{{ $me->isAdmin() ? route('admin.dashboard') : route('account') }}"><img src="/img/clauth-logo.jpg" alt="Clauth"></a>
+    <a class="logo" href="{{ $me->isAdmin() ? route('admin.dashboard') : route('account') }}"><img src="/img/brand/logo-on-dark.svg" alt="Clauth" width="96" height="32"></a>
     @php($nav = fn ($r) => request()->routeIs($r) ? 'nav on' : 'nav')
     @if($me->isAdmin())
       @php($people = $me->isOwner() || $me->adminOrgIds() !== [])
