@@ -146,6 +146,26 @@ class AccountFlowsTest extends ClauthTestCase
         $this->keep($this->post('/login', ['email' => $user->email, 'password' => self::PASSWORD]))->assertRedirect('/account');
     }
 
+    public function test_lost_phone_help_and_break_glass_reset_command(): void
+    {
+        $user = $this->makeUser(attrs: ['clauth_role' => 'owner']);
+        $user->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now(), 'two_factor_recovery_codes' => ['aaaaa-bbbbb']])->save();
+        $this->keep($this->post('/login', ['email' => $user->email, 'password' => self::PASSWORD]))->assertRedirect('/login/2fa');
+        $this->keep($this->get('/login/2fa'))->assertOk()->assertSee('Lost your phone?')->assertSee('reset your 2-step verification');
+        $this->flushSession();
+        $this->defaultCookies = [];
+
+        $this->artisan('clauth:reset-2fa', ['email' => 'nobody@example.com'])->assertFailed();
+        $this->artisan('clauth:reset-2fa', ['email' => $user->email])->expectsConfirmation('Reset their 2-step verification and sign them out everywhere?', 'no')->assertFailed();
+        $this->assertTrue($user->fresh()->hasTwoFactor());
+        $this->artisan('clauth:reset-2fa', ['email' => strtoupper($user->email), '--force' => true])->assertSuccessful();
+        $this->assertFalse($user->fresh()->hasTwoFactor());
+        $this->assertDatabaseHas('audit_events', ['event' => 'security.mfa_reset']);
+
+        // Owner must set up 2-step again on the new phone.
+        $this->keep($this->post('/login', ['email' => $user->email, 'password' => self::PASSWORD]))->assertRedirect('/login/2fa/setup');
+    }
+
     public function test_login_requires_code_when_2fa_enabled(): void
     {
         $user = $this->makeUser();

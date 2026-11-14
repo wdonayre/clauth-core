@@ -24,4 +24,11 @@
     @if($recovery)<a class="link" href="{{ route('login.mfa') }}">Use my authenticator app</a>
     @else<a class="link" href="{{ route('login.mfa', ['recovery' => 1]) }}">Use a recovery code</a>@endif
   </p>
+  <details style="margin-top:14px;font-size:13px;color:var(--muted)">
+    <summary style="cursor:pointer;text-align:center">Lost your phone?</summary>
+    <ol style="margin:10px 0 0;padding-left:20px;line-height:1.5">
+      <li>Use one of the recovery codes you saved when you set up 2-step (choose <b>Use a recovery code</b> above). Then link your new phone in <b>My account</b>.</li>
+      <li>No codes? Ask your organization’s admin to <b>reset your 2-step verification</b>. They’ll confirm it’s really you — by a call, video or in person — before they do. Next time you sign in you scan a new QR code.</li>
+    </ol>
+  </details>
 @endsection
