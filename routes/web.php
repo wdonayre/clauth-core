@@ -47,6 +47,7 @@ Route::get('/login/2fa', [TwoFactorController::class, 'challenge'])->name('login
 Route::post('/login/2fa', [TwoFactorController::class, 'verify'])->middleware('throttle:mfa');
 Route::get('/login/2fa/setup', [TwoFactorController::class, 'setup'])->name('login.mfa.setup');
 Route::post('/login/2fa/setup', [TwoFactorController::class, 'confirm'])->middleware('throttle:mfa');
+Route::post('/login/2fa/skip', [TwoFactorController::class, 'skip'])->name('login.mfa.skip');
 Route::get('/login/2fa/codes', [TwoFactorController::class, 'codes'])->name('login.mfa.codes');
 Route::post('/login/2fa/codes', [TwoFactorController::class, 'finish']);
 

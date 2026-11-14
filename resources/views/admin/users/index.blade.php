@@ -26,7 +26,7 @@
           @empty<span class="small muted">No apps registered yet.</span>@endforelse
           <span class="small muted">Only apps enabled for the chosen organization can be granted.</span>
         </div>
-        <label class="cb"><input type="checkbox" name="require_mfa" value="1" checked> Require 2-step verification</label>
+        <label class="cb"><input type="checkbox" name="require_mfa" value="1"> Require 2-step verification (otherwise they can skip it when setting up)</label>
         @if(auth()->user()->isOwner() || auth()->user()->ownedOrgIds() !== [])<label class="cb"><input type="checkbox" name="is_org_admin" value="1"> Make them an admin of this organization</label>@endif
         <label class="cb"><input type="checkbox" name="send" value="1" checked> Email the invite now</label>
         <div class="actions"><button class="btn pri">Send invite</button></div>

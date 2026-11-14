@@ -62,6 +62,42 @@ class AccountFlowsTest extends ClauthTestCase
         $this->get($path)->assertStatus(410);
     }
 
+    public function test_onboarding_offers_2fa_and_can_skip_unless_required(): void
+    {
+        Mail::fake();
+        $admin = $this->owner();
+        $invite = function (string $email, bool $require) use ($admin) {
+            $this->actingAs($admin)->withSession(['auth.mfa' => true])->post('/admin/users/invite', ['name' => 'New Person', 'email' => $email,
+                'organization_id' => $this->cbg->id, 'roles' => [$this->xp->id => $this->role('member')->id], 'require_mfa' => $require ? 1 : 0, 'send' => 1]);
+            $link = session('invite_link')['link'];
+            auth()->logout();
+            $this->flushSession();
+            $this->defaultCookies = [];
+
+            return parse_url($link, PHP_URL_PATH);
+        };
+        $accept = fn ($path) => $this->keep($this->post($path, ['name' => 'New Person', 'password' => 'a long enough password', 'password_confirmation' => 'a long enough password', 'terms' => 1]));
+
+        // Not required: setup is offered with a Skip button, and skipping signs them in without 2-step.
+        $path = $invite('optional@cakesbygrace.ph', false);
+        $this->keep($this->get($path))->assertOk();
+        $accept($path)->assertRedirect('/login/2fa/setup');
+        $this->keep($this->get('/login/2fa/setup'))->assertOk()->assertSee('Skip for now');
+        $this->keep($this->post('/login/2fa/skip'))->assertRedirect('https://xpenses.test');
+        $this->assertFalse(User::where('email', 'optional@cakesbygrace.ph')->first()->hasTwoFactor());
+
+        // Required by the invite: no Skip button, and the skip endpoint refuses.
+        auth()->logout();
+        $this->flushSession();
+        $this->defaultCookies = [];
+        $path = $invite('required@cakesbygrace.ph', true);
+        $this->keep($this->get($path))->assertOk();
+        $accept($path)->assertRedirect('/login/2fa/setup');
+        $this->keep($this->get('/login/2fa/setup'))->assertOk()->assertDontSee('Skip for now');
+        $this->keep($this->post('/login/2fa/skip'))->assertRedirect('/login/2fa/setup');
+        $this->assertGuest();
+    }
+
     public function test_admin_can_turn_off_2fa_for_one_user_even_when_invite_and_app_require_it(): void
     {
         Mail::fake();

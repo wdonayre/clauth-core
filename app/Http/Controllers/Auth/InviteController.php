@@ -79,10 +79,11 @@ class InviteController
             $request->session()->put('invite_require_mfa', true);
         }
 
-        if (Claims::mfaRequired($user, $app)) {
+        // Onboarding always offers 2-step; it can be skipped unless a rule requires it.
+        if (! $user->mfa_exempt) {
             return redirect()->route('login.mfa.setup');
         }
-        $request->session()->forget('invite.flow');
+        $request->session()->forget(['invite.flow', 'invite_require_mfa']);
 
         return $this->completeLogin($request, $user, ['pwd'], false);
     }

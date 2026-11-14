@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Models\User;
 use App\Services\Audit;
+use App\Services\Claims;
 use App\Services\TwoFactor;
 use Illuminate\Http\Request;
 
@@ -64,7 +66,29 @@ class TwoFactorController
         return view('auth.mfa-setup', [
             'theme' => $this->theme($request), 'user' => $user, 'secret' => $secret,
             'qr' => TwoFactor::qrSvg($user, $secret), 'invite' => $request->session()->get('invite.flow'),
+            'canSkip' => $this->canSkipSetup($request, $user),
         ]);
+    }
+
+    /** Onboarding only: skip 2-step setup when no rule requires it (they can turn it on later in My account). */
+    public function skip(Request $request)
+    {
+        $user = $this->pendingUser($request);
+        if (! $user) {
+            return redirect()->route('login');
+        }
+        if (! $this->canSkipSetup($request, $user)) {
+            return redirect()->route('login.mfa.setup')->withErrors(['code' => '2-step verification is required for your account.']);
+        }
+        Audit::log('security.mfa_skipped', 'security', $user, actorId: $user->id, actorType: 'user');
+        $request->session()->forget(['invite.flow', 'invite_require_mfa', 'login.mfa_secret']);
+
+        return $this->completeLogin($request, $user, ['pwd'], false);
+    }
+
+    private function canSkipSetup(Request $request, User $user): bool
+    {
+        return $request->session()->get('invite.flow') && ! $user->hasTwoFactor() && ! Claims::mfaRequired($user, $this->flowApp($request));
     }
 
     public function confirm(Request $request)
