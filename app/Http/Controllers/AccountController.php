@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Auth\SocialController;
 use App\Models\Application;
 use App\Models\ClientSession;
 use App\Models\Consent;
@@ -36,6 +37,7 @@ class AccountController
         return view('account.show', [
             'user' => $user, 'apps' => $apps, 'web' => $web, 'appSessions' => $appSessions,
             'currentSession' => $request->session()->getId(), 'mfaRequired' => Claims::policyRequiresMfa($user),
+            'google' => SocialController::enabled('google') ? ['identity' => $user->socialIdentities()->where('provider', 'google')->first()] : null,
             'codesLeft' => count($user->two_factor_recovery_codes ?? []),
             'newCodes' => $request->session()->get('new_codes'),
             // Apps outside your own organizations that you've allowed to receive your details (SPEC-organizations §6.1).

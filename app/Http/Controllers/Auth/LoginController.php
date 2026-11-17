@@ -26,6 +26,10 @@ class LoginController
 
         // On an app's own domain: first ask the main domain whether this browser is already signed in.
         $domain = $request->attributes->get('clauth.domain');
+        if ($domain && $request->query('sso')) {
+            // Back from "Continue with Google" on the main domain: ask main again so the new sign-in is picked up.
+            $request->session()->forget(['sso.checked', 'login.prompted']);
+        }
         if ($domain && ! $request->user() && ! $request->session()->get('sso.checked') && ! $request->session()->get('login.prompted')) {
             $state = Str::random(40);
             $request->session()->put(['sso.state' => $state, 'sso.return' => $request->session()->get('url.intended') ?: '/login']);
@@ -33,7 +37,10 @@ class LoginController
             return redirect()->away(Domains::mainUrl('sso/check?'.http_build_query(['host' => $domain->host, 'state' => $state])));
         }
 
-        return view('auth.login', ['theme' => $this->theme($request), 'app' => $this->flowApp($request)]);
+        $socialError = SocialController::ERRORS[(string) $request->query('social_error')] ?? null;
+
+        return view('auth.login', ['theme' => $this->theme($request), 'app' => $this->flowApp($request),
+            'google' => SocialController::enabled('google'), 'socialError' => $socialError]);
     }
 
     public function store(Request $request)
@@ -72,6 +79,7 @@ class LoginController
 
         $request->session()->regenerate();
         $request->session()->put(['login.user_id' => $user->id, 'login.remember' => $request->boolean('remember')]);
+        $request->session()->forget('login.amr'); // first factor = password
         $app = $this->flowApp($request);
 
         if (Claims::mfaRequired($user, $app)) {

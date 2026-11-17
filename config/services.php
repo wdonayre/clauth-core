@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // "Continue with Google" — one OAuth client; the callback is always on the main domain.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => null, // set per request (main domain)
+    ],
+
 ];

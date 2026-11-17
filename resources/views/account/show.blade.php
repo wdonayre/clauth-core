@@ -58,6 +58,18 @@
           <form method="post" action="{{ route('account.2fa') }}">@csrf<button class="btn sm pri">Turn on</button></form>
         @endif
       </div>
+      @if($google)
+      <div class="row">
+        <div class="grow"><b>Google</b><br><span class="small muted">
+          @if($google['identity']) Linked{{ $google['identity']->email ? ' · '.$google['identity']->email : '' }} — use “Continue with Google” to sign in
+          @else Not linked — link it to sign in with “Continue with Google” @endif</span></div>
+        @if($google['identity'])
+          <form method="post" action="{{ route('account.social.unlink', 'google') }}" data-confirm="Unlink Google? You'll sign in with your password instead.">@csrf @method('delete')<button class="btn sm danger">Unlink</button></form>
+        @else
+          <a class="btn sm" href="{{ \App\Services\Domains::mainUrl('account/link/google') }}">Link Google</a>
+        @endif
+      </div>
+      @endif
       @if($newCodes)
         <div class="row"><div class="grow"><b>Your new recovery codes</b> <span class="small muted">— shown once. The old ones no longer work.</span>
           <pre class="json" id="newcodes" style="margin-top:8px">{{ implode("\n", $newCodes) }}</pre>

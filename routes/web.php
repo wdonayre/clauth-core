@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\UserController as ApiUserController;
 use App\Http\Controllers\Auth\InviteController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Auth\SocialController;
 use App\Http\Controllers\Auth\SsoController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\OAuth\AuthorizeController;
@@ -40,6 +41,8 @@ Route::withoutMiddleware([ValidateCsrfToken::class])->group(function () {
 Route::get('/', fn () => auth()->check() ? redirect()->route('account') : redirect()->route('login'));
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:login');
+Route::get('/login/{provider}', [SocialController::class, 'redirect'])->whereIn('provider', SocialController::PROVIDERS)->middleware('throttle:login')->name('login.social');
+Route::get('/login/{provider}/callback', [SocialController::class, 'callback'])->whereIn('provider', SocialController::PROVIDERS)->middleware('throttle:login')->name('login.social.callback');
 Route::get('/login/locked', [LoginController::class, 'locked'])->name('login.locked');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
@@ -90,6 +93,8 @@ Route::middleware('auth')->prefix('account')->name('account')->group(function ()
     Route::delete('/sessions/web/{id}', [AccountController::class, 'revokeWeb'])->name('.sessions.web');
     Route::delete('/sessions/app/{id}', [AccountController::class, 'revokeApp'])->name('.sessions.app');
     Route::post('/sessions/revoke-all', [AccountController::class, 'revokeAll'])->name('.sessions.all');
+    Route::get('/link/{provider}', [SocialController::class, 'link'])->whereIn('provider', SocialController::PROVIDERS)->name('.social.link');
+    Route::delete('/link/{provider}', [SocialController::class, 'unlink'])->whereIn('provider', SocialController::PROVIDERS)->name('.social.unlink');
     Route::delete('/consents/{app}', [AccountController::class, 'revokeConsent'])->name('.consents.revoke');
 });
 

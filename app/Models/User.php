@@ -57,6 +57,11 @@ class User extends Authenticatable
         return $this->hasMany(Grant::class);
     }
 
+    public function socialIdentities(): HasMany
+    {
+        return $this->hasMany(SocialIdentity::class);
+    }
+
     public function devices(): HasMany
     {
         return $this->hasMany(UserDevice::class);

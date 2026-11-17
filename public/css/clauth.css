@@ -170,3 +170,4 @@ details.modal[open]>.sheet{position:fixed;inset:0;background:rgba(5,7,10,.7);dis
   .nav{flex:1 1 auto}
   .head h1{font-size:26px}
 }
+.or{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:13px}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--in-border)}

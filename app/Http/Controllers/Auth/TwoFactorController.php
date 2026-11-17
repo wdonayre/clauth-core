@@ -45,14 +45,14 @@ class TwoFactorController
             }
             Audit::log('security.recovery_code_used', 'security', $user, after: ['left' => count($user->two_factor_recovery_codes ?? [])], actorId: $user->id, actorType: 'user');
 
-            return $this->completeLogin($request, $user, ['pwd', 'otp'], true);
+            return $this->completeLogin($request, $user, [...$request->session()->get('login.amr', ['pwd']), 'otp'], true);
         }
 
         if (! TwoFactor::verify($user->two_factor_secret, (string) $request->input('code'), $user->id)) {
             return back()->withErrors(['code' => 'That code isn’t right. Check your authenticator app and try again.']);
         }
 
-        return $this->completeLogin($request, $user, ['pwd', 'otp'], true, $request->boolean('trust') && ! $user->isAdmin());
+        return $this->completeLogin($request, $user, [...$request->session()->get('login.amr', ['pwd']), 'otp'], true, $request->boolean('trust') && ! $user->isAdmin());
     }
 
     public function setup(Request $request)
@@ -130,6 +130,6 @@ class TwoFactorController
         }
         $request->session()->forget(['invite.flow', 'invite_require_mfa']);
 
-        return $this->completeLogin($request, $user, ['pwd', 'otp'], true);
+        return $this->completeLogin($request, $user, [...$request->session()->get('login.amr', ['pwd']), 'otp'], true);
     }
 }
