@@ -428,7 +428,7 @@ class AppController
         $host = str_contains($raw, '://') ? (string) parse_url($raw, PHP_URL_HOST) : explode('/', $raw)[0];
         $request->merge(['host' => strtolower(trim($host, " .\t\n\r"))]);
         $data = $request->validate([
-            'host' => ['required', 'max:190', 'regex:/^(?=.{4,190}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/', Rule::notIn([Domains::mainHost()])],
+            'host' => ['required', 'max:190', 'regex:/^(?=.{4,190}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/', Rule::notIn([Domains::mainHost(), ...Domains::mainAliases(), ...(array) config('clauth.previous_hosts')])],
             'organization_id' => ['nullable', 'string'],
             'share' => ['nullable', 'boolean'],
         ], ['host.regex' => 'Enter a domain like auth.example.com (no https://, no path).', 'host.not_in' => 'That is Clauth’s main address.']);

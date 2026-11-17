@@ -21,6 +21,18 @@ class Domains
         return rtrim(config('clauth.issuer'), '/').'/'.ltrim($path, '/');
     }
 
+    /** Hostnames of the main app the server job must serve with their own certificate (see config clauth.main_aliases). */
+    public static function mainAliases(): array
+    {
+        return array_values(array_filter((array) config('clauth.main_aliases'),
+            fn ($h) => preg_match('/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/', $h) && ! in_array($h, (array) config('clauth.previous_hosts'), true)));
+    }
+
+    public static function isPrevious(string $host): bool
+    {
+        return in_array(strtolower($host), (array) config('clauth.previous_hosts'), true);
+    }
+
     public static function isMain(string $host): bool
     {
         return strtolower($host) === self::mainHost();

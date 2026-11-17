@@ -3,6 +3,12 @@
 return [
     // The issuer is final — every app trusts tokens by this exact value (SPEC §15.1).
     'issuer' => rtrim(env('CLAUTH_ISSUER', env('APP_URL', 'http://localhost')), '/'),
+    // Moving the main domain (e.g. auth.thecakelabs.com → auth.cebos.tech):
+    //  main_aliases   = extra hostnames for the main app the server job gives their own certificate + nginx block
+    //                   (set the new host here BEFORE switching the issuer, so its certificate is ready);
+    //  previous_hosts = former main hostnames; every request there is forwarded (308) to the same path on the issuer.
+    'main_aliases' => array_values(array_filter(array_map(fn ($h) => strtolower(trim($h)), explode(',', (string) env('CLAUTH_MAIN_ALIASES', ''))))),
+    'previous_hosts' => array_values(array_filter(array_map(fn ($h) => strtolower(trim($h)), explode(',', (string) env('CLAUTH_PREVIOUS_HOSTS', ''))))),
     'access_token_minutes' => (int) env('CLAUTH_ACCESS_TOKEN_MINUTES', 15),
     'id_token_minutes' => (int) env('CLAUTH_ID_TOKEN_MINUTES', 15),
     'refresh_token_days' => (int) env('CLAUTH_REFRESH_TOKEN_DAYS', 30),
@@ -28,7 +34,7 @@ return [
     'terms_version' => '2026-11',
 
     'reserved_parent_domains' => array_filter(explode(',', env('CLAUTH_RESERVED_PARENT_DOMAINS',
-        'thecakelabs.com,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
+        'thecakelabs.com,cebos.tech,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
     // Custom-domain certificates: "san" = one certificate shared with the main domain (CloudPanel on h1, today);
     // "per-host" = one certificate per custom domain (deploy/domains-perhost.sh, the dedicated server).
     'cert_mode' => env('CLAUTH_CERT_MODE', 'san'),

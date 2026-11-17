@@ -26,10 +26,12 @@ class DomainsCommand extends Command
     {
         switch ($this->argument('action')) {
             case 'hosts':
+                collect(Domains::mainAliases())->each(fn ($h) => $this->line($h));
                 AppDomain::whereIn('status', AppDomain::IN_NGINX)->orderBy('host')->pluck('host')->each(fn ($h) => $this->line($h));
                 break;
             case 'cert-hosts':
                 // A domain broken for over a week leaves the certificate, so it can't block renewing the main domain's.
+                collect(Domains::mainAliases())->each(fn ($h) => $this->line($h));
                 AppDomain::whereIn('status', AppDomain::IN_CERT)
                     ->where(fn ($q) => $q->where('status', '!=', 'problem')->orWhere('fail_count', '<', 9))
                     ->orderBy('host')->pluck('host')->each(fn ($h) => $this->line($h));
@@ -56,7 +58,7 @@ class DomainsCommand extends Command
                 break;
             case 'nginx-conf':
                 $host = strtolower((string) $this->argument('host'));
-                if (! AppDomain::where('host', $host)->whereIn('status', AppDomain::IN_NGINX)->exists()) {
+                if (! in_array($host, Domains::mainAliases(), true) && ! AppDomain::where('host', $host)->whereIn('status', AppDomain::IN_NGINX)->exists()) {
                     $this->error("$host is not a domain nginx should serve.");
 
                     return self::FAILURE;
@@ -74,6 +76,11 @@ class DomainsCommand extends Command
     /** One domain's certificate result (per-host mode); a success moves it on to the strict HTTPS check. */
     private function hostCertResult(string $host): int
     {
+        if (in_array($host, Domains::mainAliases(), true)) {
+            $this->line("$host: main address — certificate ".($this->option('ok') ? 'issued' : 'failed'));
+
+            return self::SUCCESS;
+        }
         $d = AppDomain::where('host', $host)->first();
         if (! $d) {
             $this->error("Unknown domain $host");
