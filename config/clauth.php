@@ -34,7 +34,7 @@ return [
     'terms_version' => '2026-11',
 
     'reserved_parent_domains' => array_filter(explode(',', env('CLAUTH_RESERVED_PARENT_DOMAINS',
-        'thecakelabs.com,cebos.tech,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
+        'thecakelabs.com,helloclauth.com,cebos.tech,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
     // Custom-domain certificates: "san" = one certificate shared with the main domain (CloudPanel on h1, today);
     // "per-host" = one certificate per custom domain (deploy/domains-perhost.sh, the dedicated server).
     'cert_mode' => env('CLAUTH_CERT_MODE', 'san'),
