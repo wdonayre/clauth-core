@@ -24,7 +24,7 @@ class AccountFlowsTest extends ClauthTestCase
 
     private function owner(): User
     {
-        $u = $this->makeUser('owner@thecakelabs.com', ['name' => 'William Donayre', 'clauth_role' => 'owner']);
+        $u = $this->makeUser('owner@clauth.test', ['name' => 'William Donayre', 'clauth_role' => 'owner']);
         $u->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now(), 'two_factor_recovery_codes' => TwoFactor::recoveryCodes()])->save();
 
         return $u;
@@ -268,8 +268,8 @@ class AccountFlowsTest extends ClauthTestCase
 
     public function test_owner_command_prints_setup_link(): void
     {
-        $this->artisan('clauth:owner', ['email' => 'william@thecakelabs.com', '--name' => 'William Donayre'])
+        $this->artisan('clauth:owner', ['email' => 'owner2@clauth.test', '--name' => 'William Donayre'])
             ->expectsOutputToContain('/invite/')->assertSuccessful();
-        $this->assertSame('invited', User::where('email', 'william@thecakelabs.com')->value('status'));
+        $this->assertSame('invited', User::where('email', 'owner2@clauth.test')->value('status'));
     }
 }

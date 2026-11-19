@@ -35,7 +35,7 @@ class ConsentTest extends ClauthTestCase
             'visibility' => 'installable', 'privacy_url' => 'https://foo.test/privacy', 'terms_url' => 'https://foo.test/terms', 'support_email' => 'help@foo.test']);
         $role = AppRole::create(['app_id' => $this->roster->id, 'key' => 'member', 'name' => 'Member']);
         // Installed in CakesbyGrace (approved by William), Maria has access there.
-        Installations::add($this->roster, $this->cbg, $this->makeUser('owner@thecakelabs.com', ['clauth_role' => 'owner']));
+        Installations::add($this->roster, $this->cbg, $this->makeUser('owner@clauth.test', ['clauth_role' => 'owner']));
         $this->maria = $this->makeUser('maria@cakesbygrace.ph');
         $this->maria->organizations()->attach($this->cbg->id);
         Grant::create(['user_id' => $this->maria->id, 'app_id' => $this->roster->id, 'organization_id' => $this->cbg->id, 'app_role_id' => $role->id]);

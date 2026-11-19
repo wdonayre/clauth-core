@@ -25,6 +25,7 @@ class OnboardingTest extends ClauthTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['clauth.reserved_parent_domains' => ['reserved.test']]);
         Mail::fake();
         $this->app->instance(Dns::class, new class extends Dns
         {
@@ -40,7 +41,7 @@ class OnboardingTest extends ClauthTestCase
                 return 'none';
             }
         });
-        $this->owner = $this->makeUser('owner@thecakelabs.com', ['name' => 'William', 'clauth_role' => 'owner']);
+        $this->owner = $this->makeUser('owner@clauth.test', ['name' => 'William', 'clauth_role' => 'owner']);
         $this->owner->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now()])->save();
     }
 
@@ -127,7 +128,7 @@ class OnboardingTest extends ClauthTestCase
         $this->as($olga)->post('/admin/apps', ['name' => 'Rota', 'key' => 'rota', 'type' => 'web', 'redirect_uri' => 'https://foo.test/cb', 'publisher' => $foo->id] + $policy)->assertSessionHasNoErrors();
 
         // Domain proof.
-        $this->as($olga)->post('/admin/orgs/'.$foo->id.'/domain', ['domain' => 'thecakelabs.com'])->assertSessionHasErrors('domain');
+        $this->as($olga)->post('/admin/orgs/'.$foo->id.'/domain', ['domain' => 'reserved.test'])->assertSessionHasErrors('domain');
         $this->as($olga)->post('/admin/orgs/'.$foo->id.'/domain', ['domain' => 'foo.test'])->assertSessionHasNoErrors();
         $foo->refresh();
         $this->as($olga)->get('/admin/orgs')->assertSee(OrgLifecycle::txtValue($foo));

@@ -17,7 +17,7 @@ class Settings
         'session_idle_hours' => 8,
         'trusted_device_days' => 30,
         'new_device_email' => true,
-        'support_email' => 'support@thecakelabs.com',
+        'support_email' => null, // from config('clauth.support_email') unless set in Admin › Settings
         // Outside organizations can only request to join once a lawyer has reviewed the Terms, Privacy Policy and
         // Data Processing Agreement and William ticks this (SPEC-organizations §10.5).
         'legal_reviewed' => false,
@@ -27,7 +27,7 @@ class Settings
     {
         $stored = Cache::remember('clauth.settings', 300, fn () => Setting::pluck('value', 'key')->all());
 
-        return array_merge(self::DEFAULTS, $stored);
+        return array_merge(self::DEFAULTS, ['support_email' => config('clauth.support_email')], $stored);
     }
 
     public static function get(string $key): mixed

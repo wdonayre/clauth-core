@@ -35,6 +35,7 @@ class SafetyTest extends ClauthTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['clauth.reserved_parent_domains' => ['reserved.test']]);
         // No real DNS or HTTP from these tests.
         Http::preventStrayRequests();
         $this->app->instance(Dns::class, new class extends Dns
@@ -51,7 +52,7 @@ class SafetyTest extends ClauthTestCase
         });
         $this->foo = Organization::create(['slug' => 'foo-ltd', 'name' => 'Foo Ltd', 'terms_version' => config('clauth.terms_version')]);
         $this->bob = $this->staff('bob@foo.test', $this->foo, 'admin');
-        $this->owner = $this->makeUser('owner@thecakelabs.com', ['name' => 'William', 'clauth_role' => 'owner']);
+        $this->owner = $this->makeUser('owner@clauth.test', ['name' => 'William', 'clauth_role' => 'owner']);
         $this->owner->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now()])->save();
     }
 
@@ -138,8 +139,8 @@ class SafetyTest extends ClauthTestCase
         Mail::fake();
         $this->as($this->owner)->put('/admin/orgs/'.$this->foo->id, ['name' => 'Foo Ltd', 'status' => 'active', 'verified' => 1]);
         $app = Application::create(['key' => 'rota', 'name' => 'Rota', 'status' => 'live', 'owner_organization_id' => $this->foo->id] + $this->policy);
-        $this->as($this->bob)->post('/admin/apps/rota/domain', ['host' => 'login.thecakelabs.com'])->assertSessionHasErrors('host');
-        $this->as($this->bob)->post('/admin/apps/rota/domain', ['host' => 'thecakelabs.com'])->assertSessionHasErrors('host');
+        $this->as($this->bob)->post('/admin/apps/rota/domain', ['host' => 'login.reserved.test'])->assertSessionHasErrors('host');
+        $this->as($this->bob)->post('/admin/apps/rota/domain', ['host' => 'reserved.test'])->assertSessionHasErrors('host');
 
         // Another org's stale claim (never verified for two days) is taken over; its owners get an email.
         $other = Organization::create(['slug' => 'old-co', 'name' => 'Old Co']);

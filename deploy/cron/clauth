@@ -1,6 +1,7 @@
 # /etc/cron.d/clauth — install the newest v* tag from GitHub (checked every minute) + Laravel scheduler
 * * * * * root bash /root/clauth-deploy/server-autodeploy.sh >/dev/null 2>&1
-* * * * * thecakelabs-auth cd /home/thecakelabs-auth/htdocs/auth.thecakelabs.com/current && php8.5 artisan schedule:run >> /dev/null 2>&1
+# Replace SITE_USER and the path with your own (the same values as /etc/clauth/deploy.env).
+* * * * * SITE_USER cd /home/SITE_USER/htdocs/auth.example.com/current && php artisan schedule:run >> /dev/null 2>&1
 15 2 * * * root bash /root/clauth-deploy/backup.sh >/dev/null 2>&1
 45 2 * * * root bash /root/clauth-deploy/backup-offsite.sh >/dev/null 2>&1
 # One certificate per custom domain (v0.9.0+). The old shared-certificate job was domains.sh.

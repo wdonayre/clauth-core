@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Clauth uptime check, run from ANOTHER server (s2) every minute by cron. SPEC-organizations §10.5.
+# Clauth uptime check, run from ANOTHER server every minute by cron. SPEC-organizations §10.5.
 # Checks the health endpoint, discovery document and a sign-in page (main + custom domains listed in CHECK_URLS).
 # After 3 failures in a row it emails ALERT_TO once; when everything passes again it emails "recovered".
 #
 # Config: /root/.clauth-monitor.env (chmod 600)
-#   CHECK_URLS="https://auth.thecakelabs.com/up https://auth.thecakelabs.com/.well-known/openid-configuration https://auth.thecakelabs.com/login https://auth.alabapparel.com/login"
-#   SMTP_URL=smtp://mail.smtp2go.com:2525  SMTP_USER=…  SMTP_PASS=…  ALERT_FROM=no-reply@thecakelabs.com  ALERT_TO=…
+#   CHECK_URLS="https://auth.example.com/up https://auth.example.com/.well-known/openid-configuration https://auth.example.com/login"
+#   SMTP_URL=smtp://mail.smtp2go.com:2525  SMTP_USER=…  SMTP_PASS=…  ALERT_FROM=no-reply@example.com  ALERT_TO=…
 set -uo pipefail
 . /root/.clauth-monitor.env
 STATE=/var/lib/clauth-monitor; mkdir -p "$STATE"

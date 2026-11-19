@@ -1,7 +1,7 @@
 /*!
  * Clauth bar v1 — the same top bar in every app that signs in with Clauth.
  *
- *   <script src="https://auth.thecakelabs.com/bar/v1" defer></script>
+ *   <script src="https://auth.example.com/bar/v1" defer></script>
  *   <clauth-bar src="/auth/clauth/bar" logout="/auth/clauth/logout" org="cakesbygrace"></clauth-bar>
  *
  * src     same-origin URL on the APP that returns Clauth's /api/v1/bar JSON for the signed-in person

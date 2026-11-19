@@ -1,84 +1,83 @@
 # Deploying Clauth
 
-Live at **https://auth.thecakelabs.com** on h1.gelomedia.com (CloudPanel, `ssh root@h1.gelomedia.com -p 22022`),
-site user `thecakelabs-auth`, PHP 8.5. Same pull-based pattern as Alab Studio.
+These scripts run Clauth from release folders on a Linux server with nginx, PHP-FPM and MySQL, installing the newest
+`v*` tag automatically. They were written for a [CloudPanel](https://www.cloudpanel.io/) server but only assume the
+layout below; adapt the paths for other setups.
 
-## Releasing
+## Settings
 
-Push a version tag. The server checks GitHub every minute and installs the highest `v*` tag:
-
-```bash
-git tag v0.2.0 && git push origin v0.2.0
-```
-
-Pushing to `main` alone deploys nothing. Log: `shared/storage/logs/autodeploy.log`, ending with
-`live: v0.2.0 (health /up → HTTP 200)`. Each release: composer install, DB dump to `backups/`, unpack to
-`releases/<tag>`, migrate, switch `current`, reload PHP-FPM. A failed step leaves the previous release live.
-
-## Rolling back
+Create `/etc/clauth/deploy.env` (root-only) — every script reads it:
 
 ```bash
-sudo -u thecakelabs-auth bash /root/clauth-deploy/deploy.sh --base /home/thecakelabs-auth/htdocs/auth.thecakelabs.com --list
-sudo -u thecakelabs-auth bash /root/clauth-deploy/deploy.sh --base /home/thecakelabs-auth/htdocs/auth.thecakelabs.com --tag v0.1.0
+APP_HOST=auth.example.com          # Clauth's main domain
+SITE_USER=clauth                   # Linux user that owns the site
+# BASE=/home/clauth/htdocs/auth.example.com   # optional; this is the default
 ```
 
-Migrations aren't undone: restore the matching `backups/*.sql.gz` if the schema changed. Pause releases with
-`ENABLED=0` in `shared/autodeploy.conf`.
+Copy the scripts to `/root/clauth-deploy/` and install `deploy/cron/clauth` as `/etc/cron.d/clauth` (replace
+`SITE_USER` and the path in it). Cron runs those copies, so re-copy a script after changing it here.
 
-## Layout on the server
+## Layout
 
 ```
-/home/thecakelabs-auth/htdocs/auth.thecakelabs.com/
+$BASE/
   current -> releases/<tag>     nginx root is current/public
   releases/<tag>/               last 5 kept
   shared/.env                   the only config (not in git). APP_KEY here decrypts the token signing keys.
   shared/storage/               logs, sessions, uploaded app logos, Passport key files
   backups/                      DB dumps before each release + nightly DB and .env (30 days, root only)
-/root/clauth-deploy/            server-autodeploy.sh, deploy.sh, backup.sh (copied from this folder)
-/root/.ssh/clauth-github-deploy read-only deploy key on wdonayre/clauth
-/etc/cron.d/clauth              autodeploy (every minute), Laravel scheduler, nightly backup
 ```
 
-If you change a script here, copy it to `/root/clauth-deploy/` on the server too: cron runs that copy.
+**Losing APP_KEY or the database signs everyone out of every app.** Keep off-box copies of the newest
+`backups/clauth-env-*.tar.gz` and `clauth-nightly-*.sql.gz`.
 
-## Custom sign-in domains (apps' own addresses, e.g. auth.cebpos.com)
+## Releasing
 
-`/root/clauth-deploy/domains.sh` (+ `vhost.py`) runs every minute as root. It asks Clauth which hosts are verified
-(`artisan clauth:domains hosts`) and keeps both `server_name` lines of the vhost **and** CloudPanel's stored
-`site.vhost_template` in sync, then reissues the Let's Encrypt certificate with the wanted SANs
-(`clpctl lets-encrypt:install:certificate --domainName=auth.thecakelabs.com --subjectAlternativeName=…`) whenever the
-set changes (at most hourly per set). Log: `shared/storage/logs/domains.log`. Domains broken for over a week drop out of
-the certificate so they can't block renewing auth.thecakelabs.com itself. The session cookie is host-only
-(`SESSION_DOMAIN=` empty, `SESSION_COOKIE=clauth_sid`) — required for app domains.
+Push a version tag. `server-autodeploy.sh` checks GitHub every minute and installs the highest `v*` tag:
 
-**Losing APP_KEY or the database logs everyone out of every app.** Keep an off-box copy of the newest
-`backups/clauth-env-*.tar.gz` and `clauth-nightly-*.sql.gz` (SPEC §10.1).
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
 
-## Owners
+Each release: composer install, DB dump to `backups/`, unpack to `releases/<tag>`, migrate, switch `current`, reload
+PHP-FPM. A failed step leaves the previous release live. Log: `shared/storage/logs/autodeploy.log`. Pause releases with
+`ENABLED=0` in `shared/autodeploy.conf`.
+
+## Rolling back
+
+```bash
+sudo -u $SITE_USER bash /root/clauth-deploy/deploy.sh --base $BASE --list
+sudo -u $SITE_USER bash /root/clauth-deploy/deploy.sh --base $BASE --tag v1.0.0
+```
+
+Migrations aren't undone: restore the matching `backups/*.sql.gz` if the schema changed.
+
+## First owner
 
 Never put a password in a file or terminal. Create an owner with a one-time setup link (password + 2-step):
 
 ```bash
-cd /home/thecakelabs-auth/htdocs/auth.thecakelabs.com/current && sudo -u thecakelabs-auth php8.5 artisan clauth:owner you@example.com --name="Your Name"
+cd $BASE/current && sudo -u $SITE_USER php artisan clauth:owner you@example.com --name="Your Name"
 ```
 
-Other admin commands: `clauth:seed-orgs`, `clauth:keys status|stage|activate --kid=…`.
+Other admin commands: `clauth:keys status|stage|activate --kid=…`, `clauth:domains`, `clauth:reset-2fa`.
 
-## Since v0.9.0 (M10)
+## Custom sign-in domains
 
-**One certificate per custom domain on h1** — `domains-h1.sh` replaces `domains.sh` in cron. CloudPanel's PHP backend
-block (port 8080) answers for every verified domain; certbot issues each domain its own certificate (HTTP-01, webroot
-`current/public`, still served by CloudPanel's front block), then the domain gets its own front block
-`/etc/nginx/sites-enabled/clauth-domain-<host>.conf` (generated by `artisan clauth:domains nginx-conf <host> --tls`
-with `CLAUTH_PERHOST_UPSTREAM=http://127.0.0.1:8080`) and leaves CloudPanel's front block (`vhost.py --own-cert=`).
-`nginx -t` failures restore the previous files. **The settings `CLAUTH_PERHOST_UPSTREAM=http://127.0.0.1:8080`, `CLAUTH_ACME_ROOT=<base>/current/public` and `CLAUTH_CERT_DIR=/etc/letsencrypt/live` must be in `shared/.env`** — config is cached, so environment variables set by the job are ignored (that caused a 70-second 502 on the first switch, 2026-11-13). Renewal: `certbot.timer` + `/etc/letsencrypt/renewal-hooks/deploy/
-reload-nginx.sh`. The main domain keeps CloudPanel's own certificate. Own server later: `domains-perhost.sh`.
+- `domains-h1.sh` (CloudPanel, cron every minute): one Let's Encrypt certificate per custom domain via certbot, each
+  with its own nginx front block generated by `artisan clauth:domains nginx-conf <host> --tls`. `nginx -t` failures
+  restore the previous files. Set `CLAUTH_PERHOST_UPSTREAM`, `CLAUTH_ACME_ROOT` and `CLAUTH_CERT_DIR` in
+  `shared/.env` — config is cached, so variables set only in the job's environment are ignored.
+- `domains.sh` (older): one shared certificate with the custom domains as SANs.
+- `domains-perhost.sh`: per-domain certificates on a plain nginx server (no CloudPanel).
 
-**Off-box backups** — `backup-offsite.sh` (02:45, after `backup.sh`) encrypts the newest dump + `.env` with
-`/root/.clauth-backup-passphrase` (also in William's password manager — without it backups can't be read) and
-uploads to the private R2 bucket in `/root/.clauth-offsite.env`; 30 days kept. **Monthly restore drill:**
-`bash /root/clauth-deploy/restore-drill.sh --import` (downloads, checks, imports into a scratch DB, drops it).
+Keep the session cookie host-only (`SESSION_DOMAIN=` empty) — required for custom domains.
 
-**Monitoring** — `monitor.sh` runs on s2 every minute (`/etc/cron.d/clauth-monitor`), config
-`/root/.clauth-monitor.env`; emails after 3 failed minutes and again on recovery. Log `/var/log/clauth-monitor.log`.
+## Backups and monitoring
 
+- `backup.sh` — nightly DB dump + `.env`, kept 30 days in `backups/`.
+- `backup-offsite.sh` — encrypts the newest dump and `.env` with `/root/.clauth-backup-passphrase` (keep a copy in
+  your password manager; without it backups can't be read) and uploads to S3-compatible storage configured in
+  `/root/.clauth-offsite.env`.
+- `restore-drill.sh --import` — downloads, checks and imports the latest backup into a scratch database. Run monthly.
+- `monitor.sh` — run it from a different server every minute; emails after 3 failed minutes and again on recovery.

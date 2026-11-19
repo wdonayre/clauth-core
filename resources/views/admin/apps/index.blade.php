@@ -17,9 +17,9 @@
             <option value="public" @selected(old('type') === 'public')>Mobile app or SPA (no secret, PKCE)</option>
             <option value="m2m" @selected(old('type') === 'm2m')>Server-to-server (client credentials)</option>
           </select></div>
-        <div class="f"><label for="ar">Redirect URL</label><input class="in mono" id="ar" name="redirect_uri" value="{{ old('redirect_uri') }}" placeholder="https://expenses.thecakelabs.com/auth/callback">
+        <div class="f"><label for="ar">Redirect URL</label><input class="in mono" id="ar" name="redirect_uri" value="{{ old('redirect_uri') }}" placeholder="https://app.example.com/auth/callback">
           <span class="small muted">Exact match only. Not needed for server-to-server.</span></div>
-        <div class="f"><label for="ah">Home URL</label><input class="in mono" id="ah" name="home_url" value="{{ old('home_url') }}" placeholder="https://expenses.thecakelabs.com"></div>
+        <div class="f"><label for="ah">Home URL</label><input class="in mono" id="ah" name="home_url" value="{{ old('home_url') }}" placeholder="https://app.example.com"></div>
         <div class="f"><label for="apub">Owned by</label><select class="in" id="apub" name="publisher" required>
           @foreach($publishers as $o)<option value="{{ $o->id }}" @selected(old('publisher') === $o->id)>{{ $o->name }}</option>@endforeach</select>
           <span class="small muted">The organization that publishes the app. Its owners, admins and developers manage it.</span></div>

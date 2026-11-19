@@ -81,7 +81,7 @@ class CustomDomainTest extends ClauthTestCase
 
     private function owner(): User
     {
-        $owner = $this->makeUser('owner@thecakelabs.com', ['name' => 'William', 'clauth_role' => 'owner']);
+        $owner = $this->makeUser('owner@clauth.test', ['name' => 'William', 'clauth_role' => 'owner']);
         $owner->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now()])->save();
 
         return $owner;

@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Off-box copy of Clauth's nightly backup (cron as root, after backup.sh). SPEC §10.1 / SPEC-organizations §10.5.
 # The newest DB dump + .env (APP_KEY decrypts the signing keys) are tarred, ENCRYPTED with a passphrase that only
-# lives on this server and in William's password manager, then uploaded to a private Cloudflare R2 bucket.
+# lives on this server and in your password manager, then uploaded to a private Cloudflare R2 bucket.
 # Remote copies older than 30 days are deleted.
 #
 # Needs /root/.clauth-offsite.env (chmod 600):
 #   R2_ACCOUNT_ID=…  R2_ACCESS_KEY_ID=…  R2_SECRET_ACCESS_KEY=…  R2_BUCKET=clauth-backups
 # and /root/.clauth-backup-passphrase (chmod 600, created by setup; copy it to the password manager).
 set -Eeuo pipefail
-BASE="/home/thecakelabs-auth/htdocs/auth.thecakelabs.com"
+# Server settings: /etc/clauth/deploy.env (shell syntax) — APP_HOST, SITE_USER and optionally BASE. See deploy/README.md.
+[ -f /etc/clauth/deploy.env ] && . /etc/clauth/deploy.env
+APP_HOST="${APP_HOST:-auth.example.com}"
+SITE_USER="${SITE_USER:-clauth}"
+BASE="${BASE:-/home/${SITE_USER}/htdocs/${APP_HOST}}"
 OUT="$BASE/backups"
 LOG="$BASE/shared/storage/logs/backup-offsite.log"
 PASS="/root/.clauth-backup-passphrase"

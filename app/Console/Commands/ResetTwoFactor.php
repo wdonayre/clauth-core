@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 /**
  * Break-glass: removes a user's 2-step setup from the server (for an owner who lost their phone AND their
  * recovery codes — nobody above them can reset it in the console). Needs SSH to the server, not just a password.
- *   php artisan clauth:reset-2fa william@thecakelabs.com
+ *   php artisan clauth:reset-2fa person@example.com
  * They sign in with their password and set up 2-step again on the new phone (owners must).
  */
 class ResetTwoFactor extends Command

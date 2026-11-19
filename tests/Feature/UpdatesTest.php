@@ -55,7 +55,7 @@ class UpdatesTest extends ClauthTestCase
 
     public function test_owner_posts_update_from_admin(): void
     {
-        $owner = $this->makeUser('owner@thecakelabs.com', ['name' => 'William Donayre', 'clauth_role' => 'owner']);
+        $owner = $this->makeUser('owner@clauth.test', ['name' => 'William Donayre', 'clauth_role' => 'owner']);
         $owner->forceFill(['two_factor_secret' => TwoFactor::newSecret(), 'two_factor_confirmed_at' => now()])->save();
         $as = $this->actingAs($owner)->withSession(['auth.mfa' => true]);
         $as->get('/admin/updates')->assertOk()->assertSee('Post an update');

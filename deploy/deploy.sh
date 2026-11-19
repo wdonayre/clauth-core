@@ -2,7 +2,7 @@
 # Activates one release of Clauth. Run by server-autodeploy.sh as the site user, never by hand on a live box
 # unless you mean it:
 #
-#   deploy.sh --base /home/thecakelabs-auth/htdocs/auth.thecakelabs.com --tag v0.1.0 --archive incoming/clauth-v0.1.0.tar.gz
+#   deploy.sh --base /home/clauth/htdocs/auth.example.com --tag v0.1.0 --archive incoming/clauth-v0.1.0.tar.gz
 #   deploy.sh --base … --tag v0.1.0            # re-activate a release that's already on the server (rollback)
 #   deploy.sh --base … --list                  # what's there, * = live
 #

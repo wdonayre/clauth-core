@@ -3,7 +3,7 @@
 return [
     // The issuer is final — every app trusts tokens by this exact value (SPEC §15.1).
     'issuer' => rtrim(env('CLAUTH_ISSUER', env('APP_URL', 'http://localhost')), '/'),
-    // Moving the main domain (e.g. auth.thecakelabs.com → auth.cebos.tech):
+    // Moving the main domain (e.g. auth.old-example.com → auth.example.com):
     //  main_aliases   = extra hostnames for the main app the server job gives their own certificate + nginx block
     //                   (set the new host here BEFORE switching the issuer, so its certificate is ready);
     //  previous_hosts = former main hostnames; every request there is forwarded (308) to the same path on the issuer.
@@ -19,7 +19,8 @@ return [
     'reserved_app_keys' => ['xpenses', 'cebpos', 'cakepricer', 'alab-studio', 'alab-erp', 'studio', 'erp', 'clauth', 'auth', 'admin',
         'api', 'www', 'login', 'account', 'google', 'apple', 'microsoft', 'facebook', 'gcash', 'maya', 'paymaya', 'paypal', 'stripe',
         'bdo', 'bpi', 'metrobank', 'landbank', 'unionbank', 'security-bank', 'rcbc', 'pnb', 'chinabank'],
-    'reserved_key_prefixes' => ['clauth', 'bank', 'thecakelabs', 'alab', 'cebucake', 'cakesbygrace'],
+    // Comma-separated in .env; add your own brands so outside organizations can't use them.
+    'reserved_key_prefixes' => array_values(array_filter(array_map('trim', explode(',', (string) env('CLAUTH_RESERVED_KEY_PREFIXES', 'clauth,bank'))))),
     'reserved_name_words' => ['clauth', 'google', 'apple', 'microsoft', 'facebook', 'gcash', 'paymaya', 'paypal', 'bdo', 'bpi',
         'metrobank', 'landbank', 'unionbank', 'xpenses', 'cebpos', 'cakepricer', 'alab', 'cake labs', 'cakesbygrace'],
 
@@ -33,8 +34,10 @@ return [
     // Version of the Terms + Data Processing Agreement outside organizations accept (bump to ask everyone again).
     'terms_version' => '2026-11',
 
-    'reserved_parent_domains' => array_filter(explode(',', env('CLAUTH_RESERVED_PARENT_DOMAINS',
-        'thecakelabs.com,helloclauth.com,cebos.tech,alabapparel.com,cebpos.com,cakesbygrace.ph,cebucake.com,alabsports.fit,veritak.net,gelomedia.com'))),
+    'reserved_parent_domains' => array_values(array_filter(array_map(fn ($d) => strtolower(trim($d)),
+        explode(',', (string) env('CLAUTH_RESERVED_PARENT_DOMAINS', 'helloclauth.com'))))),
+    // Shown on Help, legal pages and organization emails; can be changed in Admin › Settings.
+    'support_email' => env('CLAUTH_SUPPORT_EMAIL', env('MAIL_FROM_ADDRESS', 'support@example.com')),
     // Custom-domain certificates: "san" = one certificate shared with the main domain (CloudPanel on h1, today);
     // "per-host" = one certificate per custom domain (deploy/domains-perhost.sh, the dedicated server).
     'cert_mode' => env('CLAUTH_CERT_MODE', 'san'),

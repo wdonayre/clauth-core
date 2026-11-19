@@ -5,9 +5,11 @@
 # Clauth (as the site user) decides which hosts: `artisan clauth:domains hosts|cert-hosts`. Log: shared/storage/logs/domains.log
 set -Eeuo pipefail
 
-APP_HOST="auth.thecakelabs.com"
-SITE_USER="thecakelabs-auth"
-BASE="/home/${SITE_USER}/htdocs/${APP_HOST}"
+# Server settings: /etc/clauth/deploy.env (shell syntax) — APP_HOST, SITE_USER and optionally BASE. See deploy/README.md.
+[ -f /etc/clauth/deploy.env ] && . /etc/clauth/deploy.env
+APP_HOST="${APP_HOST:-auth.example.com}"
+SITE_USER="${SITE_USER:-clauth}"
+BASE="${BASE:-/home/${SITE_USER}/htdocs/${APP_HOST}}"
 CUR="$BASE/current"
 VHOST="/etc/nginx/sites-enabled/${APP_HOST}.conf"
 CLPDB="/home/clp/htdocs/app/data/db.sq3"

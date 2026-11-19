@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 /**
  * Bootstraps a Clauth owner without anyone typing a password into a terminal or file:
  * prints a one-time account-setup link (password + 2-step) valid 7 days.
- *   php artisan clauth:owner william@thecakelabs.com --name="William Donayre" [--send]
+ *   php artisan clauth:owner you@example.com --name="Your Name" [--send]
  */
 class MakeOwner extends Command
 {

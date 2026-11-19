@@ -7,13 +7,15 @@
 #     dir, served by CloudPanel's front block until the domain has its own block).
 #  3. Once its certificate exists, the domain gets its own front block /etc/nginx/sites-enabled/clauth-domain-<host>.conf
 #     (80 + 443, its certificate, proxying to the backend) and leaves CloudPanel's front block.
-#  4. Domains Clauth no longer wants lose their block. One failing domain never touches another, nor auth.thecakelabs.com.
+#  4. Domains Clauth no longer wants lose their block. One failing domain never touches another, nor the main domain.
 # Renewal: certbot.timer (renewal-hooks/deploy reloads nginx). Log: shared/storage/logs/domains.log
 set -Eeuo pipefail
 
-APP_HOST="auth.thecakelabs.com"
-SITE_USER="thecakelabs-auth"
-BASE="/home/${SITE_USER}/htdocs/${APP_HOST}"
+# Server settings: /etc/clauth/deploy.env (shell syntax) — APP_HOST, SITE_USER and optionally BASE. See deploy/README.md.
+[ -f /etc/clauth/deploy.env ] && . /etc/clauth/deploy.env
+APP_HOST="${APP_HOST:-auth.example.com}"
+SITE_USER="${SITE_USER:-clauth}"
+BASE="${BASE:-/home/${SITE_USER}/htdocs/${APP_HOST}}"
 CUR="$BASE/current"
 WEBROOT="$CUR/public"                      # stable path (symlink), the same in both phases
 VHOST="/etc/nginx/sites-enabled/${APP_HOST}.conf"

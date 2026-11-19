@@ -1,7 +1,7 @@
 # Clauth
 
 Central sign-in (OpenID Connect) for The Cake Labs apps — Xpenses, Alab Studio, CebPOS, CakePricer and later ones.
-Spec and decisions: `../SPEC.md` (in the Everyday Framework workspace). Production: https://auth.thecakelabs.com.
+Spec and decisions: `../SPEC.md` (in the Everyday Framework workspace). Project site: https://helloclauth.com.
 
 - Laravel 12 + Passport (OAuth2 core). Discovery, JWKS, ID tokens, access-token claims and key rotation are Clauth's
   own code (`app/OAuth`, `app/Services/SigningKeys.php`): RS256 keys live in the DB, encrypted with APP_KEY.

@@ -13,9 +13,11 @@
 # Before each release the database is dumped to $BASE/backups (last 10 kept).
 set -Eeuo pipefail
 
-APP_HOST="auth.thecakelabs.com"
-SITE_USER="thecakelabs-auth"
-BASE="/home/${SITE_USER}/htdocs/${APP_HOST}"
+# Server settings: /etc/clauth/deploy.env (shell syntax) — APP_HOST, SITE_USER and optionally BASE. See deploy/README.md.
+[ -f /etc/clauth/deploy.env ] && . /etc/clauth/deploy.env
+APP_HOST="${APP_HOST:-auth.example.com}"
+SITE_USER="${SITE_USER:-clauth}"
+BASE="${BASE:-/home/${SITE_USER}/htdocs/${APP_HOST}}"
 PHP_BIN="$(command -v php8.5)"
 REPO="git@github.com:wdonayre/clauth.git"
 GIT_KEY="/root/.ssh/clauth-github-deploy"  # read-only deploy key on the repo
