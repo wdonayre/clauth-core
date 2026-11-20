@@ -14,7 +14,17 @@
           <select class="in" id="iorg" name="organization_id" required data-org-filter>
             @foreach($orgs as $o)<option value="{{ $o->id }}" @selected(old('organization_id') === $o->id)>{{ $o->name }}</option>@endforeach
           </select></div>
-        <div class="f"><span>Apps and role</span>
+        <div class="f"><span>Access profiles</span>
+          @foreach($orgs as $o)
+            <div class="pills" data-app-orgs="{{ $o->id }}">
+              @forelse($profiles->get($o->id, collect()) as $p)
+                <label class="pill"><input type="checkbox" name="profiles[]" value="{{ $p->id }}" @checked(in_array($p->id, (array) old('profiles', []))) ><span>{{ $p->name }}</span></label>
+              @empty<span class="small muted">{{ $o->name }} has no access profiles yet — set roles per app below.</span>@endforelse
+            </div>
+          @endforeach
+          <span class="small muted">A profile gives the right role in every app. Pick one or more.</span>
+        </div>
+        <div class="f"><span>Or a role per app (exception to the profiles)</span>
           @forelse($apps as $a)
             <div class="card" style="padding:12px;background:#0D1014" data-app-orgs="{{ $a->organizations->pluck('id')->implode(' ') }}">
               <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><span class="ico" style="background:{{ $a->color }};width:28px;height:28px;font-size:12px">{{ $a->letter() }}</span><b>{{ $a->name }}</b></div>

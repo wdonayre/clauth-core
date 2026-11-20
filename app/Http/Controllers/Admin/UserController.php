@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\AccessProfile;
 use App\Models\Application;
 use App\Models\AppRole;
 use App\Models\AuditEvent;
@@ -9,6 +10,7 @@ use App\Models\Grant;
 use App\Models\Invite;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Access;
 use App\Services\Audit;
 use App\Services\Claims;
 use App\Services\Invites;
@@ -56,6 +58,7 @@ class UserController
             'apps' => Application::with(['roles', 'organizations' => fn ($q) => $q->when($this->orgIds() !== null, fn ($w) => $w->whereIn('organizations.id', $this->orgIds()))])
                 ->when($this->orgIds() !== null, fn ($q) => $q->whereHas('organizations', fn ($o) => $o->whereIn('organizations.id', $this->orgIds())))->orderBy('name')->get(),
             'invited' => session('invite_link'),
+            'profiles' => AccessProfile::whereIn('organization_id', $this->orgs()->pluck('id'))->orderBy('name')->get()->groupBy('organization_id'),
         ]);
     }
 
@@ -68,6 +71,8 @@ class UserController
             'organization_id' => ['required', Rule::in($orgIds)],
             'roles' => 'array',
             'roles.*' => 'nullable|integer',
+            'profiles' => 'array',
+            'profiles.*' => 'integer',
             'require_mfa' => 'boolean',
             'is_org_admin' => 'boolean',
             'send' => 'boolean',
@@ -90,6 +95,15 @@ class UserController
             abort_unless($role->app->organizations->contains('id', $data['organization_id']), 422, 'App not enabled for this organization.');
             $grants[] = ['app_id' => $appId, 'role_id' => $role->id];
         }
+        // Profiles of the chosen organization only; one with an Owner-tier role needs an owner of it (SPEC-roles §10.1).
+        $profiles = AccessProfile::where('organization_id', $org->id)->whereIn('id', $data['profiles'] ?? [])->get();
+        foreach ($profiles as $p) {
+            abort_if($p->hasOwnerTier() && ! Access::canTouchOwnerTier(auth()->user(), $org->id), 403, "Only an owner of {$org->name} can invite someone as {$p->name}.");
+        }
+        foreach ($grants as $g) {
+            abort_if(AppRole::find($g['role_id'])?->tier === 'owner' && ! Access::canTouchOwnerTier(auth()->user(), $org->id), 403, "Only an owner of {$org->name} can give an Owner-tier role.");
+        }
+        $data['profiles'] = $profiles->pluck('id')->all();
         if (! empty($data['is_org_admin']) && ! auth()->user()->isOwner() && ! in_array($data['organization_id'], auth()->user()->ownedOrgIds(), true)) {
             $data['is_org_admin'] = false; // only Clauth owners and the organization's owners hand out admin
         }
@@ -116,6 +130,11 @@ class UserController
 
         return view('admin.users.show', [
             'user' => $user, 'orgs' => $orgs, 'org' => $org, 'apps' => $apps, 'grants' => $grants,
+            'access' => $org ? Access::explain($user, $org) : [],
+            'profiles' => $org ? $org->accessProfiles()->get() : collect(),
+            'held' => $org ? $user->accessProfiles()->where('organization_id', $org->id)->pluck('access_profiles.id')->all() : [],
+            'canOwner' => $org && Access::canTouchOwnerTier(auth()->user(), $org->id),
+            'tiers' => AppRole::TIERS,
             'allOrgs' => $this->orgs()->whereNotIn('id', $orgs->pluck('id')),
             'previewApp' => $previewApp,
             'preview' => $previewApp ? ['sub' => $user->sub(), 'aud' => $previewApp->key, 'email' => $user->email, 'name' => $user->name, 'orgs' => (object) Claims::orgs($user, $previewApp)] : null,
@@ -129,32 +148,25 @@ class UserController
         ]);
     }
 
-    /** Save access + role for every app of one org. */
+    /** Save profiles, per-app exceptions and the org role for one org, then work out the grants (SPEC-roles §6, §9.3). */
     public function grants(Request $request, string $id)
     {
         $user = $this->visibleUser($id);
         $orgId = $request->input('organization_id');
         abort_unless($orgId && $this->canManageOrg($orgId) && $user->organizations->contains('id', $orgId), 404);
         $org = $user->organizations->firstWhere('id', $orgId);
+        $request->validate(['profiles' => 'array', 'roles' => 'array', 'reason' => 'nullable|string|max:190']);
+        $me = $request->user();
+        Access::setProfiles($user, $org, $request->has('profiles_shown') ? (array) $request->input('profiles', []) : $user->accessProfiles()->where('organization_id', $org->id)->pluck('access_profiles.id')->all(), $me);
+        $changed = false;
         foreach ($org->apps as $app) {
-            $roleId = $request->input("roles.{$app->id}");
-            $old = Grant::with('role')->where(['user_id' => $user->id, 'app_id' => $app->id, 'organization_id' => $orgId])->first();
-            if (! $roleId) {
-                if ($old) {
-                    $old->delete();
-                    Sessions::revokeApp($user, $app->id);
-                    Audit::log('grant.removed', 'role', $user, ['app' => $app->key, 'role' => $old->role->key], null, $app->id, $orgId);
-                }
-
-                continue;
+            $choice = $request->input("roles.{$app->id}");
+            if ($choice !== null) {
+                $changed = Access::setOverride($user, $org, $app->id, (string) $choice, $request->input('reason'), $me) || $changed;
             }
-            $role = AppRole::where('app_id', $app->id)->findOrFail($roleId);
-            if ($old?->app_role_id == $role->id) {
-                continue;
-            }
-            Grant::updateOrCreate(['user_id' => $user->id, 'app_id' => $app->id, 'organization_id' => $orgId],
-                ['app_role_id' => $role->id, 'granted_by' => auth()->id(), 'granted_at' => now()]);
-            Audit::log('grant.changed', 'role', $user, $old ? ['app' => $app->key, 'role' => $old->role->key] : null, ['app' => $app->key, 'role' => $role->key], $app->id, $orgId);
+        }
+        if ($changed) {
+            Access::resolve($user, $org, 'exceptions changed', $me);
         }
         $newRole = $request->input('org_role');
         if ($newRole && isset(Organization::ROLES[$newRole]) && (auth()->user()->isOwner() || in_array($orgId, auth()->user()->ownedOrgIds(), true))) {
@@ -187,10 +199,7 @@ class UserController
         $user = $this->visibleUser($id);
         $orgId = $request->input('organization_id');
         abort_unless($orgId && $this->canManageOrg($orgId), 404);
-        foreach (Grant::where(['user_id' => $user->id, 'organization_id' => $orgId])->get() as $g) {
-            $g->delete();
-            Sessions::revokeApp($user, $g->app_id);
-        }
+        Access::forgetMember($user, Organization::findOrFail($orgId));
         $user->organizations()->detach($orgId);
         Audit::log('user.updated', 'admin', $user, after: ['left_org' => $orgId], orgId: $orgId);
 
@@ -268,7 +277,7 @@ class UserController
                 $last->update(['revoked_at' => now()]);
                 [$invite, $token] = Invites::create([
                     'name' => $user->name, 'email' => $user->email, 'organization_id' => $last->organization_id,
-                    'grants' => $last->grants, 'require_mfa' => $last->require_mfa, 'is_org_admin' => $last->is_org_admin, 'clauth_role' => $last->clauth_role,
+                    'grants' => $last->grants, 'profiles' => $last->profiles, 'require_mfa' => $last->require_mfa, 'is_org_admin' => $last->is_org_admin, 'clauth_role' => $last->clauth_role,
                 ], auth()->user());
                 $sent = rescue(fn () => Invites::send($invite, $token) ?? true, false, report: true);
 

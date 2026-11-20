@@ -62,7 +62,10 @@ function filterApps() {
   document.querySelectorAll('[data-app-orgs]').forEach((card) => {
     const ok = card.dataset.appOrgs.split(' ').includes(orgSel.value);
     card.style.display = ok ? '' : 'none';
-    if (!ok) { const none = card.querySelector('input[value=""]'); if (none) none.checked = true; }
+    if (!ok) {
+      const none = card.querySelector('input[value=""]'); if (none) none.checked = true;
+      card.querySelectorAll('input[type=checkbox]').forEach((c) => { c.checked = false; });
+    }
   });
 }
 if (orgSel) { orgSel.addEventListener('change', filterApps); filterApps(); }

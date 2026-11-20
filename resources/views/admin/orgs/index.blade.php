@@ -43,6 +43,7 @@
           @if($o->is_platform)<span class="chip info" title="One of William's own businesses">Own business</span>@elseif($o->verified_at)<span class="chip ok">Verified</span>@else<span class="chip warn">Unverified</span>@endif
           @if($o->suspended_at)<span class="chip bad" title="{{ $o->suspend_reason }}">Suspended</span>@endif
           <span class="chip {{ $o->status === 'active' ? 'ok' : 'bad' }}">{{ ucfirst($o->status) }}</span>
+          <a class="btn sm" href="{{ route('admin.profiles.index', $o->id) }}">Access profiles</a>
         </div>
       </div>
       @if($o->suspended_at)<div class="flash bad" style="margin-top:12px">Suspended {{ $o->suspended_at->diffForHumans() }}: {{ $o->suspend_reason }}</div>@endif

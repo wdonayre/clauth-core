@@ -124,6 +124,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs/{org}/apps', [Admin\OrgController::class, 'addApp'])->name('orgs.apps.store');
         Route::delete('/orgs/{org}/apps/{app}', [Admin\OrgController::class, 'removeApp'])->name('orgs.apps.destroy');
         Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
+        Route::get('/orgs/{org}/profiles', [Admin\ProfileController::class, 'index'])->name('profiles.index');
+        Route::post('/orgs/{org}/profiles', [Admin\ProfileController::class, 'store'])->name('profiles.store');
+        Route::get('/orgs/{org}/profiles/{profile}', [Admin\ProfileController::class, 'show'])->name('profiles.show');
+        Route::put('/orgs/{org}/profiles/{profile}', [Admin\ProfileController::class, 'update'])->name('profiles.update');
+        Route::delete('/orgs/{org}/profiles/{profile}', [Admin\ProfileController::class, 'destroy'])->name('profiles.destroy');
+        Route::post('/orgs/{org}/profiles/{profile}/people', [Admin\ProfileController::class, 'addPerson'])->name('profiles.people.add');
+        Route::delete('/orgs/{org}/profiles/{profile}/people/{user}', [Admin\ProfileController::class, 'removePerson'])->name('profiles.people.remove');
         Route::get('/audit', [Admin\AuditController::class, 'index'])->name('audit');
         Route::get('/audit.csv', [Admin\AuditController::class, 'export'])->name('audit.export');
     });

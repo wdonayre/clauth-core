@@ -57,6 +57,11 @@ class User extends Authenticatable
         return $this->hasMany(Grant::class);
     }
 
+    public function accessProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(AccessProfile::class, 'access_profile_user')->withPivot('assigned_by', 'assigned_at');
+    }
+
     public function socialIdentities(): HasMany
     {
         return $this->hasMany(SocialIdentity::class);

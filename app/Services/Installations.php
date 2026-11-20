@@ -79,6 +79,10 @@ class Installations
                 Sessions::revokeApp($g->user, $app->id);
             }
         }
+        // The organization's profile mappings and exceptions for this app go with it (SPEC-roles §10.3).
+        DB::table('access_profile_roles')->where('app_id', $app->id)
+            ->whereIn('access_profile_id', DB::table('access_profiles')->where('organization_id', $org->id)->pluck('id'))->delete();
+        DB::table('grant_overrides')->where('app_id', $app->id)->where('organization_id', $org->id)->delete();
         DB::table('app_installations')->where('app_id', $app->id)->where('organization_id', $org->id)->delete();
         Audit::log($was === 'active' ? 'app.uninstalled' : 'app.install_declined', 'app', $app, before: ['org' => $org->slug], appId: $app->id, orgId: $org->id);
     }

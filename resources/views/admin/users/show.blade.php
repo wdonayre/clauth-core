@@ -39,23 +39,48 @@
       <form method="post" action="{{ route('admin.users.grants', $user->id) }}">@csrf
         <input type="hidden" name="organization_id" value="{{ $org->id }}">
         <div class="list">
-          <div class="row"><span class="lbl">{{ $org->name }}</span></div>
+          <div class="row"><span class="lbl">{{ $org->name }}</span>
+            <a class="small" href="{{ route('admin.profiles.index', $org->id) }}" style="margin-left:auto">Manage profiles</a></div>
+          <div class="row" style="align-items:flex-start"><div class="grow"><b>Profiles</b>
+            <input type="hidden" name="profiles_shown" value="1">
+            <div class="pills" style="margin-top:8px">
+              @forelse($profiles as $p)
+                @php($ownerP = $p->hasOwnerTier())
+                <label class="pill"><input type="checkbox" name="profiles[]" value="{{ $p->id }}" @checked(in_array($p->id, $held, true)) @disabled($ownerP && ! $canOwner)><span>{{ $p->name }}</span></label>
+                @if($ownerP && ! $canOwner && in_array($p->id, $held, true))<input type="hidden" name="profiles[]" value="{{ $p->id }}">@endif
+              @empty<span class="small muted">{{ $org->name }} has no access profiles yet.</span>@endforelse
+            </div></div></div>
           @forelse($apps as $a)
+            @php($e = $access[$a->id] ?? null)
+            @php($ov = $e['override'] ?? null)
+            @php($cur = $ov ? ($ov->app_role_id ? (string) $ov->app_role_id : 'none') : 'profile')
+            @php($ownerLocked = ! $canOwner && (($e['role'] ?? null)?->tier === 'owner'))
             <div class="row" style="align-items:flex-start">
               <span class="ico" style="background:{{ $a->color }}">{{ $a->letter() }}</span>
               <div class="grow"><b>{{ $a->name }}</b>
+                <span class="small muted"> — @if($e['role'])<b>{{ $e['role']->name }}</b>@else no access @endif</span>
+                @if($ov)<span class="chip warn" title="{{ $ov->reason }}">exception</span>
+                @elseif($e['role'])<span class="chip">from {{ implode(', ', $e['via']) }}</span>@endif
+                @if($e['conflict'])<span class="chip warn" title="Profiles give: {{ $e['candidates']->pluck('name')->implode(', ') }}">profiles disagree</span>@endif
+                @if($e['unmapped'])<span class="chip bad" title="Not set for {{ $a->name }} in: {{ implode(', ', $e['unmapped']) }}">profile not set for this app</span>@endif
                 <div class="pills" style="margin-top:8px">
-                  <label class="pill"><input type="radio" name="roles[{{ $a->id }}]" value="" @checked(! $grants->has($a->id))><span>No access</span></label>
+                  <label class="pill"><input type="radio" name="roles[{{ $a->id }}]" value="profile" @checked($cur === 'profile') @disabled($ownerLocked)><span>From profiles{{ $e['profileRole'] ? ' ('.$e['profileRole']->name.')' : '' }}</span></label>
+                  <label class="pill"><input type="radio" name="roles[{{ $a->id }}]" value="none" @checked($cur === 'none') @disabled($ownerLocked)><span>No access</span></label>
                   @foreach($a->roles as $r)
-                    <label class="pill"><input type="radio" name="roles[{{ $a->id }}]" value="{{ $r->id }}" @checked($grants->get($a->id)?->app_role_id == $r->id)><span>{{ $r->name }}</span></label>
+                    @if($r->assignable || $cur === (string) $r->id)
+                      <label class="pill"><input type="radio" name="roles[{{ $a->id }}]" value="{{ $r->id }}" @checked($cur === (string) $r->id) @disabled($ownerLocked || ($r->tier === 'owner' && ! $canOwner))><span>{{ $r->name }}</span></label>
+                    @endif
                   @endforeach
                 </div>
-                @if($g = $grants->get($a->id))
-                  <div class="pills" style="margin-top:8px">@foreach($a->roles->firstWhere('id', $g->app_role_id)?->permissionKeys() ?? [] as $p)<span class="chip mono">{{ $p }}</span>@endforeach</div>
+                @if($ownerLocked)<div class="small muted" style="margin-top:6px">Only an owner of {{ $org->name }} can change an Owner-tier role.</div>@endif
+                @if($ov && $ov->reason)<div class="small muted" style="margin-top:6px">Exception: {{ $ov->reason }}</div>@endif
+                @if($e['role'])
+                  <div class="pills" style="margin-top:8px">@foreach($e['role']->permissionKeys() as $perm)<span class="chip mono">{{ $perm }}</span>@endforeach</div>
                 @endif
               </div>
             </div>
           @empty<div class="empty">No apps are enabled for {{ $org->name }}.</div>@endforelse
+          <div class="row"><label for="oreason" class="small">Reason for a new exception</label><input class="in grow" id="oreason" name="reason" maxlength="190" placeholder="e.g. covering for Ana until March"></div>
           @if($canSetRole)
             <div class="row"><label for="orole">Role in {{ $org->name }}</label>
               <select class="in" id="orole" name="org_role" style="max-width:200px">@foreach($roles as $k => $label)<option value="{{ $k }}" @selected($orgRole === $k)>{{ $label }}</option>@endforeach</select>

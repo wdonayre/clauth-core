@@ -16,6 +16,7 @@ class Invite extends Model
     {
         return [
             'grants' => 'array',
+            'profiles' => 'array',
             'require_mfa' => 'bool',
             'is_org_admin' => 'bool',
             'expires_at' => 'datetime',

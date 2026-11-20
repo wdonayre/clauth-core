@@ -50,6 +50,11 @@ class Organization extends Model
         return $this->belongsToMany(User::class)->withPivot('role', 'joined_at');
     }
 
+    public function accessProfiles(): HasMany
+    {
+        return $this->hasMany(AccessProfile::class)->orderBy('position')->orderBy('name');
+    }
+
     /** Apps usable in this organization (active installations). */
     public function apps(): BelongsToMany
     {

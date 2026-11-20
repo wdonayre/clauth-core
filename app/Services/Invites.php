@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Mail\InviteMail;
-use App\Models\Grant;
+use App\Models\AccessProfile;
+use App\Models\GrantOverride;
+use App\Models\Organization;
 use App\Models\Invite;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
@@ -20,6 +22,7 @@ class Invites
             'name' => $data['name'],
             'organization_id' => $data['organization_id'] ?? null,
             'grants' => array_values($data['grants'] ?? []),
+            'profiles' => array_values(array_map('intval', $data['profiles'] ?? [])) ?: null,
             'clauth_role' => $data['clauth_role'] ?? null,
             'is_org_admin' => (bool) ($data['is_org_admin'] ?? false),
             'org_role' => $data['org_role'] ?? null,
@@ -53,12 +56,18 @@ class Invites
             if ($invite->org_role || $invite->is_org_admin) {
                 $user->organizations()->updateExistingPivot($invite->organization_id, ['role' => $invite->org_role ?: 'admin']);
             }
+            // Profiles first, then any per-app roles picked in the invite as exceptions; then work out the grants.
+            $org = Organization::find($invite->organization_id);
+            foreach (AccessProfile::where('organization_id', $org->id)->whereIn('id', $invite->profiles ?? [])->pluck('id') as $pid) {
+                $user->accessProfiles()->syncWithoutDetaching([$pid => ['assigned_by' => $invite->invited_by, 'assigned_at' => now()]]);
+            }
             foreach ($invite->grants ?? [] as $g) {
-                Grant::updateOrCreate(
+                GrantOverride::updateOrCreate(
                     ['user_id' => $user->id, 'app_id' => $g['app_id'], 'organization_id' => $invite->organization_id],
-                    ['app_role_id' => $g['role_id'], 'granted_by' => $invite->invited_by, 'granted_at' => now()],
+                    ['app_role_id' => $g['role_id'], 'reason' => 'Chosen in the invite', 'set_by' => $invite->invited_by, 'set_at' => now()],
                 );
             }
+            Access::resolve($user, $org, 'invite accepted', User::find($invite->invited_by));
         }
         if ($invite->clauth_role === 'owner') {
             $user->forceFill(['clauth_role' => 'owner'])->save();
