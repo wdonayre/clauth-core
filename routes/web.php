@@ -148,6 +148,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/apps/{app}/matrix', [Admin\AppController::class, 'matrix'])->name('apps.matrix');
         Route::post('/apps/{app}/roles', [Admin\AppController::class, 'storeRole'])->name('apps.roles.store');
         Route::delete('/apps/{app}/roles/{role}', [Admin\AppController::class, 'destroyRole'])->name('apps.roles.destroy');
+        Route::patch('/apps/{app}/roles/{role}', [Admin\AppController::class, 'updateRole'])->name('apps.roles.update');
+        Route::post('/apps/{app}/roles-access', [Admin\AppController::class, 'accessRole'])->name('apps.roles.access');
         Route::post('/apps/{app}/permissions', [Admin\AppController::class, 'storePermission'])->name('apps.permissions.store');
         Route::post('/apps/{app}/clients', [Admin\AppController::class, 'addClient'])->name('apps.clients.store');
         Route::put('/apps/{app}/clients/{client}', [Admin\AppController::class, 'updateClient'])->name('apps.clients.update');

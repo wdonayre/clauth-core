@@ -7,6 +7,11 @@
     <h2>Sign-in &amp; security</h2>
     <label class="cb"><input type="checkbox" name="require_mfa_everyone" value="1" @checked($s['require_mfa_everyone'])> Require 2-step verification for everyone</label>
     <p class="small muted" style="margin:-8px 0 0">Admins always need it. Apps can also require it per role.</p>
+    <label class="cb"><input type="checkbox" name="require_mfa_admin_tiers" value="1" @checked($s['require_mfa_admin_tiers'])> Require 2-step for anyone with an Owner- or Admin-tier role in any app</label>
+    @unless($s['require_mfa_admin_tiers'])
+      <p class="small muted" style="margin:-8px 0 0">@if($tierPreview->isEmpty())Turning this on changes nothing for anyone today.@else Turning this on asks {{ $tierPreview->count() }} {{ Str::plural('person', $tierPreview->count()) }} to set up 2-step at their next sign-in:
+        @foreach($tierPreview as $u)<br><a href="{{ route('admin.users.show', $u->id) }}">{{ $u->name }}</a> — {{ $u->grants->filter(fn ($g) => in_array($g->role?->tier, \App\Models\AppRole::MFA_TIERS, true))->map(fn ($g) => $g->app?->name.' '.$g->role->name)->unique()->implode(', ') }}@if($u->hasTwoFactor()) <span class="chip">already uses 2-step</span>@endif @endforeach @endif</p>
+    @endunless
     <div class="f"><label for="pm">Minimum password length</label><input class="in" id="pm" type="number" name="password_min_length" value="{{ $s['password_min_length'] }}" min="8" max="64"></div>
     <label class="cb"><input type="checkbox" name="breached_password_check" value="1" @checked($s['breached_password_check'])> Block passwords found in data breaches</label>
     <div class="f"><label for="la">Lock account after this many wrong passwords</label><input class="in" id="la" type="number" name="lockout_attempts" value="{{ $s['lockout_attempts'] }}" min="3" max="20"></div>

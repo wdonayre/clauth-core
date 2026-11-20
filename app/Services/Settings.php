@@ -10,6 +10,8 @@ class Settings
 {
     public const DEFAULTS = [
         'require_mfa_everyone' => false,
+        // Anyone holding an owner- or admin-tier role in any app must use 2-step (SPEC-roles §10.2).
+        'require_mfa_admin_tiers' => false,
         'password_min_length' => 12,
         'breached_password_check' => true,
         'lockout_attempts' => 5,

@@ -15,8 +15,11 @@
 @endif
 @if($app->manifest_diff)
   <div class="flash info">The manifest wants different permissions for role(s) you edited in Clauth:
-    @foreach($app->manifest_diff as $role => $d)<br><b>{{ $role }}</b> — manifest: <code>{{ implode(', ', $d['manifest']) ?: 'none' }}</code>; Clauth: <code>{{ implode(', ', $d['clauth']) ?: 'none' }}</code>@endforeach
-    <br><span class="small">Clauth keeps your version. Save the matrix to dismiss.</span></div>
+    @foreach($app->manifest_diff as $role => $d)
+      @isset($d['manifest'])<br><b>{{ $role }}</b> — manifest: <code>{{ implode(', ', $d['manifest']) ?: 'none' }}</code>; Clauth: <code>{{ implode(', ', $d['clauth']) ?: 'none' }}</code>@endisset
+      @isset($d['tier'])<br><b>{{ $role }}</b> tier — manifest: <code>{{ $d['tier']['manifest'] }}</code>; Clauth: <code>{{ $d['tier']['clauth'] ?? 'none' }}</code>@endisset
+    @endforeach
+    <br><span class="small">Clauth keeps your version. Save the matrix (permissions) or the role's tier to dismiss.</span></div>
 @endif
 
 <nav class="tabs" aria-label="App sections">
@@ -34,7 +37,7 @@
       </div></div>
     <form method="post" action="{{ route('admin.apps.matrix', $app->key) }}">@csrf
       <div class="scroll"><table class="t matrix">
-        <thead><tr><th scope="col">Permission</th>@foreach($app->roles as $r)<th scope="col">{{ $r->name }}@if($r->edited)<br><span class="small muted" style="text-transform:none;letter-spacing:0">edited</span>@endif</th>@endforeach</tr></thead>
+        <thead><tr><th scope="col">Permission</th>@foreach($app->roles as $r)<th scope="col">{{ $r->name }}@if($r->tier)<br><span class="chip">{{ \App\Models\AppRole::TIERS[$r->tier] }}</span>@endif @if($r->edited)<br><span class="small muted" style="text-transform:none;letter-spacing:0">edited</span>@endif</th>@endforeach</tr></thead>
         <tbody>
           @forelse($permissions as $p)
             <tr @if($p->deprecated_at) style="opacity:.5" @endif>
@@ -54,6 +57,8 @@
       <h2>New role</h2>
       <div class="f"><label for="rn">Name</label><input class="in" id="rn" name="name" placeholder="Finance" required></div>
       <div class="f"><label for="rk">Key</label><input class="in mono" id="rk" name="key" placeholder="finance" required></div>
+      <div class="f"><label for="rt">Tier</label><select class="in" id="rt" name="tier"><option value="">Choose later</option>
+        @foreach(\App\Models\AppRole::TIERS as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
       <div class="actions"><button class="btn">Add role</button></div>
     </form>
     <form class="card pad form" method="post" action="{{ route('admin.apps.permissions.store', $app->key) }}">@csrf
@@ -69,12 +74,27 @@
     </form>
   </div>
   @if($app->roles->isNotEmpty())
-  <section class="card"><div class="card-h"><h2>Roles</h2></div><div class="list">
+  <section class="card"><div class="card-h"><div><h2>Roles</h2><p class="small muted" style="margin:4px 0 0">Every role needs a tier — Clauth's shared scale across apps (Owner › Admin › Member › Viewer). It drives 2-step rules and, later, access profiles. Old keys keep a renamed role working: tokens send them too.</p></div></div><div class="list">
     @foreach($app->roles as $r)
-      <div class="row"><div class="grow"><b>{{ $r->name }}</b> <code class="muted">{{ $r->key }}</code> <span class="chip">{{ $r->source }}</span></div>
+      <div class="row">
+        <div class="grow"><b>{{ $r->name }}</b> <code class="muted">{{ $r->key }}</code> <span class="chip">{{ $r->source }}</span>
+          @unless($r->tier)<span class="chip warn">no tier</span>@endunless
+          @unless($r->assignable)<span class="chip">not assignable</span>@endunless
+          @if($r->aliases)<span class="small muted">also sent as {{ implode(', ', $r->aliases) }}</span>@endif</div>
+        <form class="actions" method="post" action="{{ route('admin.apps.roles.update', [$app->key, $r->id]) }}">@csrf @method('patch')
+          <select class="in" name="tier" aria-label="Tier of {{ $r->name }}" style="width:auto"><option value="">No tier</option>
+            @foreach(\App\Models\AppRole::TIERS as $k => $l)<option value="{{ $k }}" @selected($r->tier === $k)>{{ $l }}</option>@endforeach</select>
+          @if($r->source !== 'manifest')
+            <input class="in mono" name="aliases" value="{{ implode(', ', $r->aliases ?? []) }}" placeholder="old keys" aria-label="Old keys of {{ $r->name }}" style="width:9em">
+            <label class="cb"><input type="checkbox" name="assignable" value="1" @checked($r->assignable)> Can be assigned</label>
+          @endif
+          <button class="btn sm">Save</button></form>
         <form method="post" action="{{ route('admin.apps.roles.destroy', [$app->key, $r->id]) }}" data-confirm="Delete role {{ $r->name }}?">@csrf @method('delete')<button class="btn sm">Delete</button></form></div>
     @endforeach
   </div></section>
+  @else
+  <section class="card pad"><h2>This app has no roles</h2><p class="small muted">If the app doesn't use roles at all, add a single <b>Access</b> role: giving someone that role lets them in, and Clauth decides who gets it.</p>
+    <form method="post" action="{{ route('admin.apps.roles.access', $app->key) }}">@csrf<button class="btn">Add Access role</button></form></section>
   @endif
 @endif
 

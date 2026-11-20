@@ -58,10 +58,15 @@ class Manifest
                 $wanted = in_array('*', $r['permissions'] ?? [], true)
                     ? $all->values()->all()
                     : $all->only($r['permissions'] ?? [])->values()->all();
+                // Tier, aliases and "assignable" (SPEC-roles §7). An unknown tier is ignored (role shows "No tier").
+                $tier = isset($r['tier']) && array_key_exists($r['tier'], AppRole::TIERS) ? $r['tier'] : null;
+                $extras = ['aliases' => AppRole::cleanAliases($r['aliases'] ?? [], $r['key']) ?: null,
+                    'assignable' => ! array_key_exists('assignable', $r) || (bool) $r['assignable']];
                 $role = AppRole::where('app_id', $app->id)->where('key', $r['key'])->first();
                 if (! $role) {
                     $role = AppRole::create(['app_id' => $app->id, 'key' => $r['key'], 'name' => $r['name'] ?? ucfirst($r['key']),
-                        'description' => $r['description'] ?? null, 'source' => 'manifest', 'position' => $i]);
+                        'description' => $r['description'] ?? null, 'source' => 'manifest', 'position' => $i,
+                        'tier' => $tier, 'tier_source' => $tier ? 'manifest' : null] + $extras);
                     $role->permissions()->sync($wanted);
                     $summary['roles_created'][] = $r['key'];
                 } elseif ($role->edited) {
@@ -70,11 +75,24 @@ class Manifest
                     if ($have !== $want) {
                         $summary['diffs'][$r['key']] = ['manifest' => $want, 'clauth' => $have];
                     }
+                    $role->update($extras);
                 } else {
-                    $role->update(['name' => $r['name'] ?? $role->name, 'position' => $i]);
+                    $role->update(['name' => $r['name'] ?? $role->name, 'position' => $i] + $extras);
                     $role->permissions()->sync($wanted);
                     $summary['roles_updated'][] = $r['key'];
                 }
+                // A tier set by hand in Clauth wins; the sync only reports the difference.
+                if ($tier && $role->tier_source === 'manual' && $role->tier !== $tier) {
+                    $summary['diffs'][$r['key']]['tier'] = ['manifest' => $tier, 'clauth' => $role->tier];
+                } elseif ($tier && $role->tier_source !== 'manual' && $role->tier !== $tier) {
+                    $role->update(['tier' => $tier, 'tier_source' => 'manifest']);
+                }
+            }
+
+            // An app with no roles at all gets one "Access" role, so profiles can simply turn it on or off (SPEC-roles §7).
+            if (array_key_exists('roles', $manifest) && $manifest['roles'] === [] && ! AppRole::where('app_id', $app->id)->exists()) {
+                self::ensureAccessRole($app);
+                $summary['roles_created'][] = 'access';
             }
 
             $app->update([
@@ -87,5 +105,14 @@ class Manifest
         Audit::log('app.manifest_synced', 'app', $app, after: $summary, appId: $app->id);
 
         return $summary;
+    }
+
+    /** The single role of an app that has none of its own: tier member, no permissions, source system. */
+    public static function ensureAccessRole(Application $app): AppRole
+    {
+        return AppRole::firstOrCreate(['app_id' => $app->id, 'key' => 'access'], [
+            'name' => 'Access', 'description' => 'Can use the app (it has no roles of its own).',
+            'source' => 'system', 'tier' => 'member', 'tier_source' => 'manual', 'position' => 0,
+        ]);
     }
 }

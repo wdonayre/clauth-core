@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AppRole;
 use App\Models\Application;
 use App\Models\Grant;
 use App\Models\User;
@@ -32,7 +33,8 @@ class Claims
         $out = [];
         foreach (self::grants($user, $app) as $grant) {
             $slug = $grant->organization->slug;
-            $out[$slug]['roles'][] = $grant->role->key;
+            // The role's key plus any old keys it replaced, so an app still checking an old name keeps working.
+            $out[$slug]['roles'] = array_values(array_unique(array_merge($out[$slug]['roles'] ?? [], $grant->role->tokenKeys())));
             $out[$slug]['permissions'] = array_values(array_unique(array_merge(
                 $out[$slug]['permissions'] ?? [],
                 $grant->role->permissionKeys(),
@@ -65,8 +67,49 @@ class Claims
         if (session('invite_require_mfa')) {
             return true;
         }
+        if (Settings::get('require_mfa_admin_tiers') && self::holdsMfaTier($user, $app)) {
+            return true;
+        }
         $apps = $app ? collect([$app]) : Application::whereNotNull('require_mfa_roles')->get();
         foreach ($apps as $a) {
+            $roles = $a->require_mfa_roles ?? [];
+            if ($roles && Grant::where('user_id', $user->id)->where('app_id', $a->id)
+                ->whereHas('role', fn ($q) => $q->whereIn('key', $roles))->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Does the user hold an owner- or admin-tier role (in this app, or in any app)? (SPEC-roles §10.2) */
+    public static function holdsMfaTier(User $user, ?Application $app = null): bool
+    {
+        return Grant::where('user_id', $user->id)
+            ->when($app, fn ($q) => $q->where('app_id', $app->id))
+            ->whereHas('role', fn ($q) => $q->whereIn('tier', AppRole::MFA_TIERS))
+            ->exists();
+    }
+
+    /**
+     * People who would newly have to use 2-step if the tier rule were turned on: they hold an owner/admin-tier role,
+     * no current rule requires 2-step for them yet, and they are not exempt. Used for the preview in Settings.
+     */
+    public static function tierRulePreview()
+    {
+        return User::where('status', '!=', 'disabled')->where('mfa_exempt', false)
+            ->whereHas('grants', fn ($g) => $g->whereHas('role', fn ($q) => $q->whereIn('tier', AppRole::MFA_TIERS)))
+            ->with(['grants.role', 'grants.app'])->orderBy('name')->get()
+            ->filter(fn (User $u) => ! self::policyWithoutTierRule($u))
+            ->values();
+    }
+
+    private static function policyWithoutTierRule(User $user): bool
+    {
+        if ($user->isAdmin() || Settings::get('require_mfa_everyone')) {
+            return true;
+        }
+        foreach (Application::whereNotNull('require_mfa_roles')->get() as $a) {
             $roles = $a->require_mfa_roles ?? [];
             if ($roles && Grant::where('user_id', $user->id)->where('app_id', $a->id)
                 ->whereHas('role', fn ($q) => $q->whereIn('key', $roles))->exists()) {

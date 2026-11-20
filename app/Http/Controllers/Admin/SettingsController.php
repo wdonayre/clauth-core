@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Models\SigningKey;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\Claims;
 use App\Services\Settings;
 use App\Services\SigningKeys;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ class SettingsController
     {
         return view('admin.settings', [
             's' => Settings::all(),
+            // Who would newly need 2-step if the tier rule were turned on (shown before turning it on).
+            'tierPreview' => Settings::get('require_mfa_admin_tiers') ? collect() : Claims::tierRulePreview(),
             'keys' => SigningKey::orderByDesc('id')->limit(10)->get(),
             'admins' => User::where('clauth_role', 'owner')->orWhereHas('organizations', fn ($q) => $q->whereIn('organization_user.role', ['owner', 'admin', 'developer']))
                 ->with(['organizations' => fn ($q) => $q->wherePivotIn('role', ['owner', 'admin', 'developer'])])->orderBy('name')->get(),
@@ -26,6 +29,7 @@ class SettingsController
     {
         $data = $request->validate([
             'require_mfa_everyone' => 'boolean',
+            'require_mfa_admin_tiers' => 'boolean',
             'password_min_length' => 'required|integer|min:8|max:64',
             'breached_password_check' => 'boolean',
             'lockout_attempts' => 'required|integer|min:3|max:20',
@@ -36,7 +40,7 @@ class SettingsController
             'support_email' => 'required|email',
             'legal_reviewed' => 'boolean',
         ]);
-        foreach (['require_mfa_everyone', 'breached_password_check', 'new_device_email', 'legal_reviewed'] as $b) {
+        foreach (['require_mfa_everyone', 'require_mfa_admin_tiers', 'breached_password_check', 'new_device_email', 'legal_reviewed'] as $b) {
             $data[$b] = $request->boolean($b);
         }
         $before = array_intersect_key(Settings::all(), $data);

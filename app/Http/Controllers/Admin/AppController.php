@@ -234,18 +234,56 @@ class AppController
                 Audit::log('app.role_changed', 'role', $role, ['permissions' => $have], ['permissions' => $want], $app->id);
             }
         }
-        $app->update(['manifest_diff' => null]);
+        // Saving the matrix settles permission differences; tier differences stay until a tier is saved.
+        $tierDiffs = collect($app->manifest_diff ?? [])->map(fn ($d) => array_intersect_key($d, ['tier' => 1]))->filter()->all();
+        $app->update(['manifest_diff' => $tierDiffs ?: null]);
 
         return back()->with('status', 'Roles saved. Tokens issued from now on carry the new permissions.');
     }
 
     public function storeRole(Request $request, Application $app)
     {
-        $data = $request->validate(['name' => 'required|string|max:60', 'key' => ['required', 'regex:/^[a-z][a-z0-9_-]{0,40}$/', Rule::unique('app_roles')->where('app_id', $app->id)], 'description' => 'nullable|string|max:190']);
-        $role = AppRole::create($data + ['app_id' => $app->id, 'source' => 'manual', 'edited' => true, 'position' => $app->roles()->count()]);
+        $data = $request->validate(['tier' => ['nullable', Rule::in(array_keys(AppRole::TIERS))], 'name' => 'required|string|max:60', 'key' => ['required', 'regex:/^[a-z][a-z0-9_-]{0,40}$/', Rule::unique('app_roles')->where('app_id', $app->id)], 'description' => 'nullable|string|max:190']);
+        $role = AppRole::create($data + ['app_id' => $app->id, 'source' => 'manual', 'edited' => true, 'position' => $app->roles()->count(),
+            'tier_source' => ! empty($data['tier']) ? 'manual' : null]);
         Audit::log('app.role_changed', 'role', $role, after: ['created' => $role->key], appId: $app->id);
 
         return back()->with('status', "Role “{$role->name}” added.");
+    }
+
+    /** Tier for any role; old keys and "can be assigned" only for roles not owned by a manifest (SPEC-roles §7, §9.6). */
+    public function updateRole(Request $request, Application $app, int $role)
+    {
+        $r = $app->roles()->findOrFail($role);
+        $data = $request->validate(['tier' => ['nullable', Rule::in(array_keys(AppRole::TIERS))], 'aliases' => 'nullable|string|max:300', 'assignable' => 'boolean']);
+        $before = $r->only('tier', 'aliases', 'assignable');
+        $changes = [];
+        if (($data['tier'] ?? null) !== $r->tier) {
+            $changes += ['tier' => $data['tier'] ?? null, 'tier_source' => ($data['tier'] ?? null) ? 'manual' : null];
+        }
+        if ($r->source !== 'manifest') {
+            $changes += ['aliases' => AppRole::cleanAliases($data['aliases'] ?? '', $r->key) ?: null, 'assignable' => $request->boolean('assignable')];
+        }
+        $r->update($changes);
+        // Saving a tier settles a tier difference the manifest reported for this role.
+        if ($diff = $app->manifest_diff) {
+            unset($diff[$r->key]['tier']);
+            $diff = array_filter($diff);
+            $app->update(['manifest_diff' => $diff ?: null]);
+        }
+        Audit::log('app.role_changed', 'role', $r, $before, $r->only('tier', 'aliases', 'assignable'), $app->id);
+
+        return back()->with('status', "Role “{$r->name}” saved.");
+    }
+
+    /** For an app with no roles of its own: one "Access" role so people can simply be given access (SPEC-roles §7). */
+    public function accessRole(Application $app)
+    {
+        abort_if($app->roles()->exists(), 422, 'This app already has roles.');
+        $role = Manifest::ensureAccessRole($app);
+        Audit::log('app.role_changed', 'role', $role, after: ['created' => 'access'], appId: $app->id);
+
+        return back()->with('status', 'Access role added.');
     }
 
     public function destroyRole(Application $app, int $role)
