@@ -93,10 +93,39 @@ class OidcFlowTest extends ClauthTestCase
         $first = $this->exchange($code, $verifier)->json();
         $second = $this->refresh($first['refresh_token'])->assertOk()->json();
 
+        $this->travel(31)->seconds(); // past the renewal grace
         $this->refresh($first['refresh_token'])->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
         $this->assertTrue(AuditEvent::where('event', 'security.refresh_reuse')->exists());
         // The legitimate newer token is dead too.
         $this->refresh($second['refresh_token'])->assertStatus(400);
+    }
+
+    public function test_simultaneous_renewal_gets_same_tokens_without_signing_out(): void
+    {
+        $user = $this->makeUser();
+        $this->grant($user, $this->cbg, 'member');
+        [$code, , $verifier] = $this->authorizeCode($user);
+        $first = $this->exchange($code, $verifier)->json();
+
+        $a = $this->refresh($first['refresh_token'])->assertOk()->json();
+        $b = $this->refresh($first['refresh_token'])->assertOk()->json(); // the slower of two parallel requests
+        $this->assertSame($a['access_token'], $b['access_token']);
+        $this->assertSame($a['refresh_token'], $b['refresh_token']);
+        $this->assertFalse(AuditEvent::where('event', 'security.refresh_reuse')->exists());
+        $this->refresh($a['refresh_token'])->assertOk(); // the session carries on
+    }
+
+    public function test_renewal_grace_needs_the_client_secret(): void
+    {
+        $user = $this->makeUser();
+        $this->grant($user, $this->cbg, 'member');
+        [$code, , $verifier] = $this->authorizeCode($user);
+        $first = $this->exchange($code, $verifier)->json();
+        $this->refresh($first['refresh_token'])->assertOk();
+
+        $this->post('/oauth/token', ['grant_type' => 'refresh_token', 'client_id' => $this->client->id, 'client_secret' => 'wrong',
+            'refresh_token' => $first['refresh_token']])->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
+        $this->assertTrue(AuditEvent::where('event', 'security.refresh_reuse')->exists());
     }
 
     public function test_disabled_user_cannot_refresh(): void
