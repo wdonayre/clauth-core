@@ -126,6 +126,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
         Route::get('/orgs/{org}/profiles', [Admin\ProfileController::class, 'index'])->name('profiles.index');
         Route::post('/orgs/{org}/profiles', [Admin\ProfileController::class, 'store'])->name('profiles.store');
+        Route::get('/orgs/{org}/profiles/suggest', [Admin\ProfileController::class, 'suggest'])->name('profiles.suggest');
+        Route::post('/orgs/{org}/profiles/suggest', [Admin\ProfileController::class, 'acceptSuggestion'])->name('profiles.suggest.accept');
+        Route::get('/orgs/{org}/profiles/apps/{app}', [Admin\ProfileController::class, 'app'])->name('profiles.app');
+        Route::put('/orgs/{org}/profiles/apps/{app}', [Admin\ProfileController::class, 'saveApp'])->name('profiles.app.save');
+        Route::get('/orgs/{org}/alignment', [Admin\ProfileController::class, 'alignment'])->name('profiles.alignment');
+        Route::get('/orgs/{org}/alignment.csv', [Admin\ProfileController::class, 'alignmentCsv'])->name('profiles.alignment.csv');
         Route::get('/orgs/{org}/profiles/{profile}', [Admin\ProfileController::class, 'show'])->name('profiles.show');
         Route::put('/orgs/{org}/profiles/{profile}', [Admin\ProfileController::class, 'update'])->name('profiles.update');
         Route::delete('/orgs/{org}/profiles/{profile}', [Admin\ProfileController::class, 'destroy'])->name('profiles.destroy');

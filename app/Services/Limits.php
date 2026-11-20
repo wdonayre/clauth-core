@@ -16,7 +16,7 @@ class Limits
 {
     private const LABELS = [
         'apps' => 'apps', 'people' => 'people', 'invites_per_day' => 'invites today', 'domains' => 'sign-in domains',
-        'installs' => 'installations in other organizations',
+        'installs' => 'installations in other organizations', 'profiles' => 'access profiles',
     ];
 
     public static function used(Organization $org, string $key): int
@@ -28,6 +28,7 @@ class Limits
             'domains' => AppDomain::where('organization_id', $org->id)->count(),
             'installs' => DB::table('app_installations')->join('apps', 'apps.id', '=', 'app_installations.app_id')
                 ->where('apps.owner_organization_id', $org->id)->where('app_installations.organization_id', '!=', $org->id)->count(),
+            'profiles' => DB::table('access_profiles')->where('organization_id', $org->id)->count(),
             default => 0,
         };
     }

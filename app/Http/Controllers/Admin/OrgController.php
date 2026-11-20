@@ -7,6 +7,7 @@ use App\Models\Application;
 use App\Models\Organization;
 use App\Models\OrganizationRequest;
 use App\Models\User;
+use App\Services\Access;
 use App\Services\Audit;
 use App\Services\Installations;
 use App\Services\Invites;
@@ -49,6 +50,7 @@ class OrgController
         $org = Organization::create(['name' => $data['name'], 'slug' => $data['slug'], 'is_platform' => $request->boolean('is_platform'),
             'verified_at' => $request->boolean('is_platform') ? now() : null]);
         Audit::log('org.created', 'admin', $org, after: $org->only('name', 'slug', 'is_platform'), orgId: $org->id);
+        Access::starterProfiles($org, auth()->user());
 
         return back()->with('status', "{$org->name} created.");
     }
@@ -81,8 +83,9 @@ class OrgController
         }
         $org = Organization::create(['name' => $orgRequest->org_name, 'slug' => $orgRequest->slug, 'is_platform' => false,
             'terms_accepted_at' => now(), 'terms_version' => config('clauth.terms_version')]);
+        [$ownerProfile] = Access::starterProfiles($org, auth()->user());
         [$invite, $token] = Invites::create(['name' => $orgRequest->contact_name, 'email' => $orgRequest->contact_email,
-            'organization_id' => $org->id, 'org_role' => 'owner', 'require_mfa' => true, 'grants' => []], auth()->user());
+            'organization_id' => $org->id, 'org_role' => 'owner', 'require_mfa' => true, 'grants' => [], 'profiles' => [$ownerProfile->id]], auth()->user());
         rescue(fn () => Invites::send($invite, $token), report: true);
         $orgRequest->update(['status' => 'approved', 'decided_by' => auth()->id(), 'decided_at' => now(), 'organization_id' => $org->id]);
         Audit::log('org.request_approved', 'admin', $org, after: ['slug' => $org->slug, 'contact' => $orgRequest->contact_email], orgId: $org->id);

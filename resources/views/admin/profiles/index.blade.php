@@ -3,7 +3,17 @@
 @section('content')
 <header class="head"><div><h1>Access profiles</h1>
   <p>{{ $org->name }}'s job roles. Each profile gives one role in every app {{ $org->name }} uses; give people a profile instead of setting each app by hand.</p></div>
-  <div class="actions"><a class="btn" href="{{ route('admin.orgs.index') }}">Organizations</a></div></header>
+  <div class="actions">
+    <a class="btn" href="{{ route('admin.profiles.alignment', $org->id) }}">Who has what</a>
+    <a class="btn" href="{{ route('admin.profiles.suggest', $org->id) }}">Suggest profiles @if($suggestionCount)<span class="chip info">{{ $suggestionCount }}</span>@endif</a>
+    <a class="btn" href="{{ route('admin.orgs.index') }}">Organizations</a></div></header>
+
+@if($profiles->isNotEmpty())
+  @foreach($unmapped as $u)
+    <div class="flash info"><b>{{ $u['app']->name }}</b> isn't set in {{ $u['profiles']->count() }} {{ Str::plural('profile', $u['profiles']->count()) }} ({{ $u['profiles']->pluck('name')->implode(', ') }}). People with only those profiles get no access to it yet.
+      <a class="btn sm pri" href="{{ route('admin.profiles.app', [$org->id, $u['app']->key]) }}" style="margin-left:8px">Set {{ $u['app']->name }} for every profile</a></div>
+  @endforeach
+@endif
 
 <div class="grid2">
   <section class="card">

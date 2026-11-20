@@ -27,8 +27,8 @@ return [
     // Per-organization limits (SPEC-organizations §10.1). Platform organizations (William's) have none. Per-org
     // overrides live in organizations.limits.
     'limits' => [
-        'unverified' => ['apps' => 2, 'people' => 50, 'invites_per_day' => 50, 'domains' => 0, 'installs' => 0, 'token_per_minute' => 30],
-        'verified' => ['apps' => 20, 'people' => 5000, 'invites_per_day' => 1000, 'domains' => 5, 'installs' => 50, 'token_per_minute' => 120],
+        'unverified' => ['apps' => 2, 'people' => 50, 'invites_per_day' => 50, 'domains' => 0, 'installs' => 0, 'token_per_minute' => 30, 'profiles' => 10],
+        'verified' => ['apps' => 20, 'people' => 5000, 'invites_per_day' => 1000, 'domains' => 5, 'installs' => 50, 'token_per_minute' => 120, 'profiles' => 50],
     ],
     // Hosts under these parent domains can only be claimed by platform organizations (SPEC-organizations §7.2).
     // Version of the Terms + Data Processing Agreement outside organizations accept (bump to ask everyone again).

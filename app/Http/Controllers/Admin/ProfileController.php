@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Access;
 use App\Services\Audit;
+use App\Services\Limits;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -39,13 +40,17 @@ class ProfileController
         $mapped = DB::table('access_profile_roles')->whereIn('access_profile_id', $profiles->pluck('id'))
             ->select('access_profile_id', DB::raw('count(*) as n'))->groupBy('access_profile_id')->pluck('n', 'access_profile_id');
 
-        return view('admin.profiles.index', ['org' => $org, 'profiles' => $profiles, 'apps' => $apps, 'mapped' => $mapped]);
+        return view('admin.profiles.index', ['org' => $org, 'profiles' => $profiles, 'apps' => $apps, 'mapped' => $mapped,
+            'unmapped' => Access::unmappedApps($org), 'suggestionCount' => count(Access::suggestions($org, auth()->user()))]);
     }
 
     public function store(Request $request, string $org)
     {
         $org = $this->org($org);
         $data = $request->validate(['name' => 'required|string|max:80', 'description' => 'nullable|string|max:190']);
+        if ($msg = Limits::exceeded($org, 'profiles')) {
+            return back()->withErrors(['name' => $msg])->withInput();
+        }
         $base = Str::slug($data['name']) ?: 'profile';
         $key = $base;
         for ($i = 2; AccessProfile::where('organization_id', $org->id)->where('key', $key)->exists(); $i++) {
@@ -82,34 +87,11 @@ class ProfileController
         $p = $this->profile($org, $profile);
         $data = $request->validate(['name' => 'required|string|max:80', 'description' => 'nullable|string|max:190', 'map' => 'array']);
         $me = $request->user();
-        $canOwner = Access::canTouchOwnerTier($me, $org->id);
-        $before = $p->mapping();
         $changes = [];
         foreach ($org->apps()->with('roles')->get() as $app) {
-            if (! array_key_exists($app->id, $data['map'] ?? [])) {
-                continue;
+            if (array_key_exists($app->id, $data['map'] ?? []) && ($c = Access::mapApp($p, $app, (string) $data['map'][$app->id], $me))) {
+                $changes[$app->key] = $c;
             }
-            $choice = (string) $data['map'][$app->id];   // '' = not mapped, 'none' = No access, else a role id
-            $had = array_key_exists($app->id, $before) ? ($before[$app->id] ?? 'none') : '';
-            $role = ctype_digit($choice) ? $app->roles->firstWhere('id', (int) $choice) : null;
-            abort_if(ctype_digit($choice) && ! $role, 422, 'That role is not one of the app’s roles.');
-            $now = $role?->id ?? ($choice === 'none' ? 'none' : '');
-            if ((string) $now === (string) $had) {
-                continue;
-            }
-            $oldRole = is_numeric($had) ? $app->roles->firstWhere('id', (int) $had) : null;
-            abort_if(($role?->tier === 'owner' || $oldRole?->tier === 'owner') && ! $canOwner, 403, "Only an owner of {$org->name} can map an Owner-tier role.");
-            if ($role) {
-                abort_if(! $role->tier, 422, "Set a tier on {$app->name}’s {$role->name} role first (App › Roles).");
-                abort_if(! $role->assignable, 422, "{$app->name}’s {$role->name} role can no longer be given to people.");
-            }
-            if ($now === '') {
-                DB::table('access_profile_roles')->where('access_profile_id', $p->id)->where('app_id', $app->id)->delete();
-            } else {
-                DB::table('access_profile_roles')->updateOrInsert(['access_profile_id' => $p->id, 'app_id' => $app->id],
-                    ['app_role_id' => $role?->id, 'updated_by' => $me->id, 'updated_at' => now()]);
-            }
-            $changes[$app->key] = ['from' => $oldRole?->key ?? ($had === 'none' ? 'none' : null), 'to' => $role?->key ?? ($now === 'none' ? 'none' : null)];
         }
         $p->update(['name' => $data['name'], 'description' => $data['description'] ?? null]);
         if ($changes) {
@@ -155,5 +137,107 @@ class ProfileController
         Access::setProfiles($u, $org, $ids, $request->user());
 
         return back()->with('status', "{$u->name} no longer has the {$p->name} profile.");
+    }
+
+    /** One app × every profile, pre-filled with suggestions for the profiles that haven't set it (SPEC-roles §9.2). */
+    public function app(string $org, string $app)
+    {
+        $org = $this->org($org);
+        $a = $org->apps()->with(['roles' => fn ($q) => $q->orderBy('position')])->where('apps.key', $app)->firstOrFail();
+        $rows = $org->accessProfiles()->get()->map(function (AccessProfile $p) use ($a) {
+            $m = $p->mapping();
+            $set = array_key_exists($a->id, $m);
+
+            return ['profile' => $p, 'set' => $set, 'value' => $set ? (string) ($m[$a->id] ?? 'none') : (string) (Access::suggestFor($p, $a)?->id ?? '')];
+        });
+
+        return view('admin.profiles.app', ['org' => $org, 'app' => $a, 'rows' => $rows, 'canOwner' => Access::canTouchOwnerTier(auth()->user(), $org->id), 'tiers' => AppRole::TIERS]);
+    }
+
+    public function saveApp(Request $request, string $org, string $app)
+    {
+        $org = $this->org($org);
+        $a = $org->apps()->with('roles')->where('apps.key', $app)->firstOrFail();
+        $request->validate(['map' => 'array']);
+        $n = 0;
+        foreach ($org->accessProfiles()->get() as $p) {
+            if (! array_key_exists($p->id, $request->input('map', []))) {
+                continue;
+            }
+            if ($c = Access::mapApp($p, $a, (string) $request->input("map.{$p->id}"), $request->user())) {
+                Audit::log('profile.mapping_changed', 'role', $p, null, [$a->key => $c], orgId: $org->id);
+                $n += Access::resolveHolders($p, "profile {$p->key} changed", $request->user());
+            }
+        }
+
+        return redirect()->route('admin.profiles.index', $org->id)->with('status', "{$a->name} saved for every profile. {$n} access change(s).");
+    }
+
+    /** Suggest profiles from current access (SPEC-roles §11 step 3). */
+    public function suggest(string $org)
+    {
+        $org = $this->org($org);
+
+        return view('admin.profiles.suggest', ['org' => $org, 'suggestions' => Access::suggestions($org, auth()->user()), 'tiers' => AppRole::TIERS]);
+    }
+
+    public function acceptSuggestion(Request $request, string $org)
+    {
+        $org = $this->org($org);
+        $data = $request->validate(['key' => 'required|string|size:40', 'name' => 'required|string|max:80']);
+        if ($msg = Limits::exceeded($org, 'profiles')) {
+            return back()->withErrors(['name' => $msg]);
+        }
+        $p = Access::acceptSuggestion($org, $data['key'], $data['name'], $request->user());
+
+        return back()->with('status', "Profile “{$p->name}” created and given to {$p->users()->count()} ".Str::plural('person', $p->users()->count()).'. Their access is unchanged; the matching exceptions are gone.');
+    }
+
+    /** People × apps, with where each role comes from (SPEC-roles §9.4). */
+    public function alignment(Request $request, string $org)
+    {
+        $org = $this->org($org);
+        [$apps, $rows] = $this->matrix($org);
+        $filter = $request->query('filter', 'all');
+        $rows = $rows->filter(fn ($r) => match ($filter) {
+            'exceptions' => collect($r['cells'])->contains(fn ($c) => $c['override']),
+            'conflicts' => collect($r['cells'])->contains(fn ($c) => $c['conflict']),
+            'notset' => collect($r['cells'])->contains(fn ($c) => $c['unmapped']),
+            'noprofile' => $r['profiles']->isEmpty(),
+            default => true,
+        })->values();
+
+        return view('admin.profiles.alignment', ['org' => $org, 'apps' => $apps, 'rows' => $rows, 'filter' => $filter]);
+    }
+
+    public function alignmentCsv(string $org)
+    {
+        $org = $this->org($org);
+        [$apps, $rows] = $this->matrix($org);
+        $out = fopen('php://temp', 'r+');
+        fputcsv($out, array_merge(['Name', 'Email', 'Profiles'], $apps->pluck('name')->all()));
+        foreach ($rows as $r) {
+            fputcsv($out, array_merge([$r['user']->name, $r['user']->email, $r['profiles']->pluck('name')->implode(', ')],
+                $apps->map(fn ($a) => ($r['cells'][$a->id]['role']?->name ?? 'No access').($r['cells'][$a->id]['override'] ? ' (exception)' : ''))->all()));
+        }
+        rewind($out);
+
+        return response(stream_get_contents($out), 200, ['Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="'.$org->slug.'-access-'.now()->format('Y-m-d').'.csv"']);
+    }
+
+    private function matrix(Organization $org): array
+    {
+        $apps = $org->apps()->orderBy('name')->get();
+        $rows = $org->users()->where('status', '!=', 'disabled')->orderBy('name')->get()->map(fn (User $u) => [
+            'user' => $u,
+            'profiles' => $u->accessProfiles()->where('organization_id', $org->id)->orderBy('name')->get(),
+            'cells' => collect(Access::explain($u, $org))->map(fn ($e) => [
+                'role' => $e['role'], 'override' => $e['override'] !== null, 'conflict' => $e['conflict'], 'unmapped' => $e['unmapped'] !== [],
+                'via' => $e['via'], 'reason' => $e['override']?->reason,
+            ])->all(),
+        ]);
+
+        return [$apps, $rows];
     }
 }

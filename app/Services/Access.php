@@ -189,4 +189,170 @@ class Access
             Sessions::revokeApp($user, $g->app_id);
         }
     }
+
+    /** New organizations start with an Owner and a Member profile (SPEC-roles §9.1). Returns [owner, member]. */
+    public static function starterProfiles(Organization $org, ?User $actor = null): array
+    {
+        $out = [];
+        foreach (['owner' => ['Owner', 'Runs the organization: the top role in every app.'], 'member' => ['Member', 'Everyday access in every app.']] as $key => [$name, $desc]) {
+            $p = AccessProfile::firstOrCreate(['organization_id' => $org->id, 'key' => $key],
+                ['name' => $name, 'description' => $desc, 'position' => count($out), 'created_by' => $actor?->id]);
+            foreach ($org->apps()->with('roles')->get() as $app) {
+                if (! array_key_exists($app->id, $p->mapping()) && ($role = self::suggestFor($p, $app))) {
+                    DB::table('access_profile_roles')->insert(['access_profile_id' => $p->id, 'app_id' => $app->id, 'app_role_id' => $role->id, 'updated_at' => now()]);
+                }
+            }
+            $out[] = $p;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Suggested role in $app for $profile (SPEC-roles §9.2): the app's first assignable role at the profile's highest
+     * tier so far (or the tier its key names, e.g. the starter "owner"); if the app has none at that tier, its best
+     * role below it. Null = no suggestion.
+     */
+    public static function suggestFor(AccessProfile $profile, \App\Models\Application $app): ?AppRole
+    {
+        $ranks = array_keys(AppRole::TIERS);
+        $mapped = AppRole::whereIn('id', array_filter($profile->mapping()))->whereNotNull('tier')->get();
+        $tier = $mapped->isNotEmpty() ? self::rank($mapped)->first()->tier : (in_array($profile->key, $ranks, true) ? $profile->key : null);
+        if (! $tier) {
+            return null;
+        }
+        $want = array_search($tier, $ranks, true);
+
+        return self::rank($app->roles->filter(fn (AppRole $r) => $r->assignable && $r->tier && $r->tierRank() >= $want))->first();
+    }
+
+    /**
+     * Set one profile × app cell. $choice: '' = not set, 'none' = No access, or an app_role_id.
+     * Returns ['from' => ..., 'to' => ...] when it changed, else null. Does not resolve holders.
+     */
+    public static function mapApp(AccessProfile $p, \App\Models\Application $app, string $choice, User $actor): ?array
+    {
+        $org = $p->organization;
+        $before = $p->mapping();
+        $had = array_key_exists($app->id, $before) ? ($before[$app->id] ?? 'none') : '';
+        $role = ctype_digit($choice) ? $app->roles->firstWhere('id', (int) $choice) : null;
+        abort_if(ctype_digit($choice) && ! $role, 422, 'That role is not one of the app’s roles.');
+        $now = $role?->id ?? ($choice === 'none' ? 'none' : '');
+        if ((string) $now === (string) $had) {
+            return null;
+        }
+        $oldRole = is_numeric($had) ? $app->roles->firstWhere('id', (int) $had) : null;
+        abort_if(($role?->tier === 'owner' || $oldRole?->tier === 'owner') && ! self::canTouchOwnerTier($actor, $org->id), 403, "Only an owner of {$org->name} can map an Owner-tier role.");
+        if ($role) {
+            abort_if(! $role->tier, 422, "Set a tier on {$app->name}’s {$role->name} role first (App › Roles).");
+            abort_if(! $role->assignable, 422, "{$app->name}’s {$role->name} role can no longer be given to people.");
+        }
+        if ($now === '') {
+            DB::table('access_profile_roles')->where('access_profile_id', $p->id)->where('app_id', $app->id)->delete();
+        } else {
+            DB::table('access_profile_roles')->updateOrInsert(['access_profile_id' => $p->id, 'app_id' => $app->id],
+                ['app_role_id' => $role?->id, 'updated_by' => $actor->id, 'updated_at' => now()]);
+        }
+
+        return ['from' => $oldRole?->key ?? ($had === 'none' ? 'none' : null), 'to' => $role?->key ?? ($now === 'none' ? 'none' : null)];
+    }
+
+    /** Installed apps that at least one of the org's profiles hasn't set yet: [app_id => [app, profiles (not set)]]. */
+    public static function unmappedApps(Organization $org): array
+    {
+        $profiles = $org->accessProfiles()->get();
+        $rows = DB::table('access_profile_roles')->whereIn('access_profile_id', $profiles->pluck('id'))->get();
+        $out = [];
+        foreach ($org->apps()->orderBy('name')->get() as $app) {
+            $missing = $profiles->reject(fn ($p) => $rows->contains(fn ($r) => $r->access_profile_id === $p->id && $r->app_id === $app->id))->values();
+            if ($missing->isNotEmpty()) {
+                $out[$app->id] = ['app' => $app, 'profiles' => $missing];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Suggest profiles from today's access (SPEC-roles §11 step 3): people in $org with no profile yet, grouped by
+     * identical app → role sets. Each: ['key' (signature hash), 'name', 'map' [app_id => role_id|null], 'roles', 'people',
+     * 'blocked' (why it can't be accepted yet, or null)]. Biggest groups first.
+     */
+    public static function suggestions(Organization $org, User $actor): array
+    {
+        $apps = $org->apps()->with('roles')->orderBy('name')->get();
+        $withProfiles = DB::table('access_profile_user')->join('access_profiles', 'access_profiles.id', '=', 'access_profile_user.access_profile_id')
+            ->where('access_profiles.organization_id', $org->id)->pluck('user_id')->unique();
+        $people = $org->users()->where('status', '!=', 'disabled')->whereNotIn('users.id', $withProfiles)->orderBy('name')->get();
+        $grants = Grant::where('organization_id', $org->id)->whereIn('user_id', $people->pluck('id'))->get()->groupBy('user_id');
+        $groups = [];
+        foreach ($people as $u) {
+            $map = [];
+            foreach ($apps as $app) {
+                $map[$app->id] = optional($grants->get($u->id)?->firstWhere('app_id', $app->id))->app_role_id;
+            }
+            if (! array_filter($map)) {
+                continue; // no access anywhere: nothing to suggest
+            }
+            $sig = sha1(json_encode($map));
+            $groups[$sig] ??= ['key' => $sig, 'map' => $map, 'people' => collect()];
+            $groups[$sig]['people']->push($u);
+        }
+        $out = [];
+        foreach ($groups as $g) {
+            $roles = collect();
+            foreach ($apps as $app) {
+                if ($id = $g['map'][$app->id]) {
+                    $r = $app->roles->firstWhere('id', $id);
+                    $r?->setRelation('app', $app);
+                    $roles->push($r);
+                }
+            }
+            $roles = self::rank($roles->filter());
+            $top = $roles->filter(fn ($r) => $r->tier === $roles->first()->tier)->take(2);
+            $blocked = $roles->first(fn ($r) => ! $r->tier) ? 'Set a tier on '.$roles->first(fn ($r) => ! $r->tier)->app->name.'’s '.$roles->first(fn ($r) => ! $r->tier)->name.' role first.'
+                : ($roles->contains(fn ($r) => $r->tier === 'owner') && ! self::canTouchOwnerTier($actor, $org->id) ? 'Includes an Owner-tier role: only an owner of '.$org->name.' can accept it.' : null);
+            $out[] = $g + ['roles' => $roles, 'blocked' => $blocked,
+                'name' => $top->map(fn ($r) => $r->app->name.' '.$r->name)->implode(' + ')];
+        }
+        usort($out, fn ($a, $b) => [$b['people']->count(), $a['name']] <=> [$a['people']->count(), $b['name']]);
+
+        return $out;
+    }
+
+    /**
+     * Accept a suggestion: create the profile with that mapping (other apps: No access), give it to the group, and drop
+     * each person's exceptions that the profile now covers. Nobody's access changes. Returns the profile.
+     */
+    public static function acceptSuggestion(Organization $org, string $key, string $name, User $actor): AccessProfile
+    {
+        $s = collect(self::suggestions($org, $actor))->firstWhere('key', $key);
+        abort_unless($s, 404, 'That suggestion no longer applies — someone’s access changed. Refresh the page.');
+        abort_if($s['blocked'], 422, $s['blocked']);
+        $base = \Illuminate\Support\Str::slug($name) ?: 'profile';
+        $pkey = $base;
+        for ($i = 2; AccessProfile::where('organization_id', $org->id)->where('key', $pkey)->exists(); $i++) {
+            $pkey = "$base-$i";
+        }
+
+        return DB::transaction(function () use ($org, $s, $name, $pkey, $actor) {
+            $p = AccessProfile::create(['organization_id' => $org->id, 'key' => $pkey, 'name' => $name, 'created_by' => $actor->id,
+                'description' => 'Suggested from current access', 'position' => AccessProfile::where('organization_id', $org->id)->count()]);
+            foreach ($s['map'] as $appId => $roleId) {
+                DB::table('access_profile_roles')->insert(['access_profile_id' => $p->id, 'app_id' => $appId, 'app_role_id' => $roleId, 'updated_by' => $actor->id, 'updated_at' => now()]);
+            }
+            Audit::log('profile.created', 'role', $p, after: ['key' => $p->key, 'name' => $p->name, 'from_suggestion' => true, 'people' => $s['people']->count()], orgId: $org->id);
+            foreach ($s['people'] as $u) {
+                $u->accessProfiles()->attach($p->id, ['assigned_by' => $actor->id, 'assigned_at' => now()]);
+                foreach ($s['map'] as $appId => $roleId) {
+                    GrantOverride::where(['user_id' => $u->id, 'organization_id' => $org->id, 'app_id' => $appId])
+                        ->where(fn ($q) => $roleId ? $q->where('app_role_id', $roleId) : $q->whereNull('app_role_id'))->delete();
+                }
+                Audit::log('profile.assigned', 'role', $u, after: ['profile' => $p->key], orgId: $org->id);
+                self::resolve($u, $org, 'suggested profile accepted', $actor);
+            }
+
+            return $p;
+        });
+    }
 }
