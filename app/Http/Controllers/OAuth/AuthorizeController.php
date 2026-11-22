@@ -81,6 +81,12 @@ class AuthorizeController
 
             return redirect()->route('login');
         }
+        if (! $verified && $this->onTrustedDevice($request, $user)) {
+            // Clauth's own session restarted from "Keep me signed in": the 2-step flag is gone, but a device the
+            // person trusted after a 2-step code stays trusted (same rule as the password sign-in; never for admins).
+            $request->session()->put('auth.mfa', true);
+            $verified = true;
+        }
         if (! $verified) {
             $request->session()->put('url.intended', $request->fullUrl());
 
@@ -152,6 +158,18 @@ class AuthorizeController
         $request->session()->forget('login.client_id');
 
         return $this->convertResponse($psr);
+    }
+
+    /** Same check as Auth\Concerns::isTrustedDevice: a trusted, unexpired device cookie, and not a Clauth admin. */
+    private function onTrustedDevice(Request $request, $user): bool
+    {
+        $token = $request->cookie('clauth_dev');
+        if (! $token || $user->isAdmin()) {
+            return false;
+        }
+        $device = \App\Models\UserDevice::where('user_id', $user->id)->where('cookie_hash', hash('sha256', $token))->first();
+
+        return (bool) ($device?->trusted_until?->isFuture());
     }
 
     private function deny(AuthorizationServer $server, $authRequest, Request $request, string $error, ?string $hint = null)

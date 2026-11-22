@@ -23,7 +23,7 @@
       <div class="row-between"><label for="password">Password</label><a class="link" href="{{ route('password.request') }}">Forgot password?</a></div>
       <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
     </div>
-    <label class="check"><input type="checkbox" name="remember" value="1" @checked(old('remember'))> Keep me signed in on this device</label>
+    <label class="check"><input type="checkbox" name="remember" value="1" @checked(session()->hasOldInput() ? old('remember') : true)> Keep me signed in on this device</label>
     <div style="height:12px"></div>
     <button class="btn-auth pri" type="submit">Sign in</button>
   </form>
