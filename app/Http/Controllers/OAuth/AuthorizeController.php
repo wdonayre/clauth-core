@@ -8,6 +8,7 @@ use App\Services\Audit;
 use App\Services\Claims;
 use App\Services\Consents;
 use App\Services\Domains;
+use App\Services\SigninPolicies;
 use App\Services\Theme;
 use Defuse\Crypto\Crypto;
 use GuzzleHttp\Psr7\Response as PsrResponse;
@@ -30,6 +31,15 @@ class AuthorizeController
 
     public function __invoke(Request $request, ServerRequestInterface $psrRequest, AuthorizationServer $server)
     {
+        // Pushed request (RFC 9126): swap the request_uri for the parameters the app sent, then continue as usual.
+        if ($request->filled('request_uri')) {
+            $p = ParController::take((string) $request->query('request_uri'), (string) $request->query('client_id'));
+            if (! $p) {
+                return response()->view('auth.error', ['title' => 'Sign-in request expired', 'message' => 'Go back to the app and start signing in again.'], 400);
+            }
+
+            return redirect('/oauth/authorize?'.http_build_query($p));
+        }
         try {
             $authRequest = $server->validateAuthorizationRequest($psrRequest);
         } catch (OAuthServerException $e) {
@@ -81,6 +91,17 @@ class AuthorizeController
 
             return redirect()->route('login');
         }
+        // The app's sign-in policy may not accept the way this person signed in (SPEC-platform §8.1): sign in again.
+        if (! SigninPolicies::allowsVia($app, $request->session()->get('auth.via'))) {
+            if ($prompt->contains('none')) {
+                return $this->deny($server, $authRequest, $request, 'login_required');
+            }
+            auth()->logout();
+            $request->session()->put(['url.intended' => $request->fullUrl(), 'login.client_id' => $client->id,
+                'login.policy_notice' => "{$app->name} asks you to sign in another way."]);
+
+            return redirect()->route('login');
+        }
         if (! $verified && $this->onTrustedDevice($request, $user)) {
             // Clauth's own session restarted from "Keep me signed in": the 2-step flag is gone, but a device the
             // person trusted after a 2-step code stays trusted (same rule as the password sign-in; never for admins).
@@ -97,6 +118,11 @@ class AuthorizeController
             Audit::log('signin.denied', 'signin', $user, after: ['app' => $app->key], appId: $app->id, actorId: $user->id, actorType: 'user');
 
             return $this->deny($server, $authRequest, $request, 'access_denied', 'You don’t have access to this app.');
+        }
+        if ($why = SigninPolicies::check($app, $user)) {
+            Audit::log('signin.denied', 'signin', $user, after: ['app' => $app->key, 'by' => 'policy check'], appId: $app->id, actorId: $user->id, actorType: 'user');
+
+            return $this->deny($server, $authRequest, $request, 'access_denied', $why);
         }
 
         // Consent (SPEC-organizations §6): apps outside the person's own organizations ask once.

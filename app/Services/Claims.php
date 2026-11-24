@@ -68,6 +68,9 @@ class Claims
         if ($user->mfa_exempt) {
             return false; // an admin turned 2-step off for this user (overrides every policy below)
         }
+        if (SigninPolicies::alwaysTwoStep($app)) {
+            return true; // the app's sign-in policy (SPEC-platform §8.1)
+        }
         if (Settings::get('require_mfa_everyone')) {
             return true;
         }

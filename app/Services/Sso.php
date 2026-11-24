@@ -57,6 +57,7 @@ class Sso
         return [
             'user' => $user->id,
             'amr' => $request->session()->get('auth.amr', ['pwd']),
+            'via' => $request->session()->get('auth.via'),
             'time' => $request->session()->get('auth.time', time()),
             'mfa' => (bool) $request->session()->get('auth.mfa', false),
             'family' => self::family($request),
@@ -68,7 +69,7 @@ class Sso
     {
         auth()->login($user);
         $request->session()->regenerate();
-        $request->session()->put(['auth.amr' => $t['amr'] ?? ['pwd'], 'auth.time' => $t['time'] ?? time(), 'auth.mfa' => (bool) ($t['mfa'] ?? false), 'sso.family' => $t['family'] ?? Str::random(40)]);
+        $request->session()->put(['auth.amr' => $t['amr'] ?? ['pwd'], 'auth.time' => $t['time'] ?? time(), 'auth.mfa' => (bool) ($t['mfa'] ?? false), 'sso.family' => $t['family'] ?? Str::random(40), 'auth.via' => $t['via'] ?? null]);
         self::register($request, $user);
     }
 

@@ -24,6 +24,7 @@
     <div class="f"><label for="sc">Text messages per day, whole platform (stops runaway costs)</label><input class="in" id="sc" type="number" name="sms_daily_cap" value="{{ $s['sms_daily_cap'] }}" min="0" max="100000"></div>
     <label class="cb"><input type="checkbox" name="legal_reviewed" value="1" @checked($s['legal_reviewed'])> A lawyer has reviewed the <a href="{{ route('terms') }}" target="_blank">Terms</a>, <a href="{{ route('privacy') }}" target="_blank">Privacy Policy</a> and <a href="{{ route('dpa') }}" target="_blank">Data Processing Agreement</a>. Outside organizations can request to join.</label>
     <div class="f"><label for="se">Support email (shown on Help)</label><input class="in" id="se" type="email" name="support_email" value="{{ $s['support_email'] }}"></div>
+    <p class="small muted"><a href="{{ route('admin.settings.policy') }}">Default sign-in rules for every app</a> (methods, 2-step, sign-up, checks).</p>
     <div class="actions"><button class="btn pri">Save settings</button></div>
   </form>
   <div style="display:flex;flex-direction:column;gap:20px">

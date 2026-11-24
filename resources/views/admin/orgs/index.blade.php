@@ -47,6 +47,7 @@
           <a class="btn sm" href="{{ route('admin.profiles.index', $o->id) }}">Access profiles</a>
           <a class="btn sm" href="{{ route('admin.org-data.index', $o->id) }}">Teams &amp; fields</a>
           <a class="btn sm" href="{{ route('admin.connections.index', $o->id) }}">Sign-in &amp; senders</a>
+          <a class="btn sm" href="{{ route('admin.orgs.policy', $o->id) }}">Sign-in rules</a>
           <a class="btn sm" href="{{ route('admin.api-clients.index', $o->id) }}">API clients</a>
         </div>
       </div>

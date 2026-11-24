@@ -19,19 +19,28 @@ class LoginCodeController
 {
     use Concerns;
 
-    public static function available(): bool
+    public static function available(?\App\Models\Application $app = null): bool
     {
-        return (bool) Settings::get('email_code_signin') || ((bool) Settings::get('sms_signin') && Sms::available());
+        return self::channelsFor($app) !== [];
+    }
+
+    /** Settings switch a channel on for everyone; the app's sign-in policy can narrow it. */
+    public static function channelsFor(?\App\Models\Application $app): array
+    {
+        $r = \App\Services\SigninPolicies::rules($app);
+
+        return array_keys(array_filter(['email' => Settings::get('email_code_signin') && $r['email_code'],
+            'sms' => Settings::get('sms_signin') && Sms::available() && $r['sms_code']]));
     }
 
     private function channels(): array
     {
-        return array_keys(array_filter(['email' => (bool) Settings::get('email_code_signin'), 'sms' => Settings::get('sms_signin') && Sms::available()]));
+        return self::channelsFor($this->flowApp(request()));
     }
 
     public function show(Request $request)
     {
-        abort_unless(self::available(), 404);
+        abort_unless(self::available($this->flowApp($request)), 404);
 
         return view('auth.login-code', ['theme' => $this->theme($request), 'app' => $this->flowApp($request), 'channels' => $this->channels(),
             'sent' => $request->session()->get('login.code')]);
@@ -39,7 +48,7 @@ class LoginCodeController
 
     public function send(Request $request)
     {
-        abort_unless(self::available(), 404);
+        abort_unless(self::available($this->flowApp($request)), 404);
         $data = $request->validate(['email' => 'required|email', 'via' => 'required|in:'.implode(',', $this->channels())]);
         $email = mb_strtolower(trim($data['email']));
         $user = User::where('email', $email)->first();
@@ -89,7 +98,7 @@ class LoginCodeController
         Audit::log('signin.code', 'signin', $user, after: ['via' => $channel], actorId: $user->id, actorType: 'user');
         $remember = (bool) $request->session()->get('login.remember', false);
         $request->session()->regenerate();
-        $request->session()->put(['login.user_id' => $user->id, 'login.remember' => $remember, 'login.amr' => $amr]);
+        $request->session()->put(['login.user_id' => $user->id, 'login.remember' => $remember, 'login.amr' => $amr, 'login.via' => $channel === 'sms' ? 'sms_code' : 'email_code']);
         if (Claims::mfaRequired($user, $this->flowApp($request))) {
             $smsLeft = $user->hasSmsTwoStep() && $channel !== 'sms';
             if (! $user->hasTwoFactor() && ! $smsLeft) {

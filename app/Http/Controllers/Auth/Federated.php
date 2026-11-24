@@ -87,6 +87,7 @@ trait Federated
         $request->session()->regenerate();
         $request->session()->put(['login.user_id' => $user->id, 'login.remember' => $remember]);
         $request->session()->put('login.amr', ['fed']);
+        $request->session()->put('login.via', $provider);
         if ($back) {
             $request->session()->put('url.intended', "https://$back/login?sso=1");
         }

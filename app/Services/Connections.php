@@ -29,6 +29,7 @@ class Connections
         'meta' => 'Facebook',
         'sms' => 'SMS gateway',
         'email-smtp' => 'Email sender (SMTP)',
+        'http' => 'Your own system (asked before each sign-in)',
     ];
 
     public const PLATFORM_ONLY = ['meta', 'sms'];
@@ -78,6 +79,10 @@ class Connections
                 'api_key' => ['API key / Account SID', 'required|string|max:255', true],
                 'api_secret' => ['API secret / Auth token (Twilio, Vonage)', 'nullable|string|max:255', true],
                 'sender' => ['Sender name or number', 'nullable|string|max:20'],
+            ],
+            'http' => [
+                'url' => ['URL Clauth posts to (HTTPS)', 'required|url|starts_with:https://'],
+                'secret' => ['Signing secret (HMAC-SHA256 of the body, header X-Clauth-Signature)', 'required|string|min:16|max:255', true],
             ],
             'email-smtp' => [
                 'host' => ['SMTP host', 'required|string|max:190'],

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Audit;
 use App\Services\Claims;
 use App\Services\Connections;
+use App\Services\SigninPolicies;
 use App\Services\Domains;
 use App\Services\Settings;
 use App\Services\Sso;
@@ -40,10 +41,14 @@ class LoginController
 
         $socialError = SocialController::errors()[(string) $request->query('social_error')] ?? null;
 
-        return view('auth.login', ['theme' => $this->theme($request), 'app' => $this->flowApp($request),
-            'google' => SocialController::enabled('google'), 'socialError' => $socialError,
-            'connections' => Connections::buttons($this->flowApp($request), $request->attributes->get('clauth.domain')),
-            'codeSignIn' => LoginCodeController::available()]);
+        $app = $this->flowApp($request);
+        $rules = SigninPolicies::rules($app);
+
+        return view('auth.login', ['theme' => $this->theme($request), 'app' => $app,
+            'google' => SocialController::enabled('google') && $rules['google'], 'socialError' => $socialError,
+            'connections' => Connections::buttons($app, $request->attributes->get('clauth.domain'))->filter(fn ($c) => SigninPolicies::allowsVia($app, $c->key))->values(),
+            'codeSignIn' => LoginCodeController::available($app), 'passwordForm' => $rules['password'],
+            'signup' => $app && $rules['registration'] === 'open', 'policyNotice' => $request->session()->pull('login.policy_notice')]);
     }
 
     public function store(Request $request)
@@ -51,6 +56,9 @@ class LoginController
         // People whose organization requires its own sign-in (e.g. Microsoft 365) go there, whatever they typed.
         if ($request->filled('email') && filter_var($request->input('email'), FILTER_VALIDATE_EMAIL) && ($c = Connections::required((string) $request->input('email')))) {
             return redirect()->route('login.connection', ['key' => $c->key, 'login_hint' => mb_strtolower(trim($request->input('email'))), 'remember' => $request->boolean('remember') ? 1 : null]);
+        }
+        if (! SigninPolicies::rules($this->flowApp($request))['password']) {
+            return back()->withErrors(['email' => 'This app doesn’t use passwords. Use one of the buttons above.']);
         }
         $data = $request->validate(['email' => 'required|email', 'password' => 'required|string']);
         $user = User::where('email', mb_strtolower(trim($data['email'])))->first();

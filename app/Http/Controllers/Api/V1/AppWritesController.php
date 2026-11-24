@@ -137,7 +137,7 @@ class AppWritesController
     public function addClient(Request $request, string $app)
     {
         $a = $this->managed($app);
-        $data = $request->validate(['type' => 'required|in:web,public,m2m', 'redirect_uri' => 'required_unless:type,m2m|nullable|string|max:500', 'name' => 'required|string|max:80']);
+        $data = $request->validate(['type' => 'required|in:web,public,m2m,device', 'redirect_uri' => 'required_if:type,web,public|nullable|string|max:500', 'name' => 'required|string|max:80']);
         [$client, $secret] = AppController::makeClient($a, $data['type'], $data['redirect_uri'] ?? null, $data['name']);
         Audit::log('app.client_added', 'app', $a, after: ['client' => $client->id, 'type' => $data['type']], appId: $a->id);
 

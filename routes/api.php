@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\LegacyUserLookup;
 use App\Http\Controllers\Api\V1\MiscController;
 use App\Http\Controllers\Api\V1\OpenApiController;
 use App\Http\Controllers\Api\V1\OrgsController;
+use App\Http\Controllers\Api\V1\PolicyController;
 use App\Http\Controllers\Api\V1\ProfilesController;
 use App\Http\Controllers\Api\V1\TeamsController;
 use App\Http\Controllers\Api\V1\UsersController;
@@ -132,6 +133,35 @@ Route::middleware(['api.client:connections:write', 'api.idempotent'])->group(fun
     Route::post('connections', [ConnectionsController::class, 'store']);
     Route::patch('connections/{key}', [ConnectionsController::class, 'update']);
     Route::delete('connections/{key}', [ConnectionsController::class, 'destroy']);
+});
+
+// Sign-in rules (SPEC-platform §8.1)
+Route::middleware('api.client:apps:read')->group(function () {
+    Route::get('apps/{app}/policy', [PolicyController::class, 'showApp']);
+    Route::get('apps/{app}/policy/versions', [PolicyController::class, 'versionsApp']);
+});
+Route::middleware(['api.client:apps:write', 'api.idempotent'])->group(function () {
+    Route::put('apps/{app}/policy', [PolicyController::class, 'updateApp']);
+    Route::post('apps/{app}/policy/restore', [PolicyController::class, 'restoreApp']);
+    Route::delete('apps/{app}/policy', [PolicyController::class, 'destroyApp']);
+});
+Route::middleware('api.client:orgs:read')->group(function () {
+    Route::get('orgs/{org}/policy', [PolicyController::class, 'showOrg']);
+    Route::get('orgs/{org}/policy/versions', [PolicyController::class, 'versionsOrg']);
+});
+Route::middleware(['api.client:orgs:write', 'api.idempotent'])->group(function () {
+    Route::put('orgs/{org}/policy', [PolicyController::class, 'updateOrg']);
+    Route::post('orgs/{org}/policy/restore', [PolicyController::class, 'restoreOrg']);
+    Route::delete('orgs/{org}/policy', [PolicyController::class, 'destroyOrg']);
+});
+Route::middleware('api.client:settings:read')->group(function () {
+    Route::get('policy', [PolicyController::class, 'showPlatform']);
+    Route::get('policy/versions', [PolicyController::class, 'versionsPlatform']);
+});
+Route::middleware(['api.client:settings:write', 'api.idempotent'])->group(function () {
+    Route::put('policy', [PolicyController::class, 'updatePlatform']);
+    Route::post('policy/restore', [PolicyController::class, 'restorePlatform']);
+    Route::delete('policy', [PolicyController::class, 'destroyPlatform']);
 });
 
 Route::middleware('api.client:audit:read')->get('audit', [MiscController::class, 'audit']);

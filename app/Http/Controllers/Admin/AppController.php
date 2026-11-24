@@ -167,7 +167,7 @@ class AppController
 
     public function addClient(Request $request, Application $app)
     {
-        $data = $request->validate(['type' => 'required|in:web,public,m2m', 'redirect_uri' => 'required_unless:type,m2m|nullable|string', 'name' => 'required|string|max:80']);
+        $data = $request->validate(['type' => 'required|in:web,public,m2m,device', 'redirect_uri' => 'required_if:type,web,public|nullable|string', 'name' => 'required|string|max:80']);
         [$client, $secret] = self::makeClient($app, $data['type'], $data['redirect_uri'] ?? null, $data['name']);
         Audit::log('app.client_added', 'app', $app, after: ['client' => $client->id, 'type' => $data['type']], appId: $app->id);
 
@@ -609,13 +609,17 @@ class AppController
 
     public static function makeClient(Application $app, string $type, ?string $redirect, string $name): array
     {
-        $secret = $type === 'public' ? null : Str::random(48);
+        $secret = in_array($type, ['public', 'device'], true) ? null : Str::random(48);
         $client = new OAuthClient;
         $client->forceFill([
             'app_id' => $app->id, 'type' => $type, 'name' => $name, 'secret' => $secret,
             'redirect_uris' => $redirect ? [$redirect] : [],
             'post_logout_redirect_uris' => $redirect ? [rtrim(preg_replace('#^(https?://[^/]+).*$#', '$1', $redirect), '/').'/'] : [],
-            'grant_types' => $type === 'm2m' ? ['client_credentials'] : ['authorization_code', 'refresh_token'],
+            'grant_types' => match ($type) {
+                'm2m' => ['client_credentials'],
+                'device' => ['urn:ietf:params:oauth:grant-type:device_code', 'refresh_token'],
+                default => ['authorization_code', 'refresh_token'],
+            },
             'revoked' => false,
             'secret_expires_at' => $secret ? now()->addDays(config('clauth.client_secret_days')) : null,
         ])->save();

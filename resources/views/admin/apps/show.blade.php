@@ -25,6 +25,7 @@
 <nav class="tabs" aria-label="App sections">
   @foreach(['roles' => 'Permissions & roles', 'brand' => 'Sign-in page', 'settings' => 'Settings', 'users' => 'Users', 'integration' => 'Integration'] as $k => $l)
     <a class="{{ $tab === $k ? 'on' : '' }}" href="{{ route('admin.apps.show', [$app->key, 'tab' => $k]) }}">{{ $l }}</a>
+    @if($k === 'brand')<a href="{{ route('admin.apps.policy', $app->key) }}">Sign-in rules</a>@endif
   @endforeach
 </nav>
 
@@ -270,7 +271,7 @@
         <h2>Add a client</h2>
         <p class="small muted" style="margin:0">E.g. a mobile app next to the web app.</p>
         <div class="f"><label for="cn">Name</label><input class="in" id="cn" name="name" placeholder="{{ $app->name }} mobile" required></div>
-        <div class="f"><label for="ct">Type</label><select class="in" id="ct" name="type"><option value="public">Mobile app or SPA</option><option value="web">Web app</option><option value="m2m">Server-to-server</option></select></div>
+        <div class="f"><label for="ct">Type</label><select class="in" id="ct" name="type"><option value="public">Mobile app or SPA</option><option value="web">Web app</option><option value="m2m">Server-to-server</option><option value="device">TV, POS terminal or CLI (device code)</option></select></div>
         <div class="f"><label for="cr">Redirect URL</label><input class="in mono" id="cr" name="redirect_uri" placeholder="{{ $app->key }}://auth/callback"></div>
         <div class="actions"><button class="btn">Add client</button></div>
       </form>

@@ -35,6 +35,8 @@ Route::withoutMiddleware([ValidateCsrfToken::class])->group(function () {
     Route::post('/oauth/token', TokenController::class)->middleware('throttle:token')->name('oauth.token');
     Route::post('/oauth/revoke', [OidcController::class, 'revoke'])->middleware('throttle:token');
     Route::match(['get', 'post'], '/userinfo', [OidcController::class, 'userinfo']);
+    Route::post('/oauth/device', [\App\Http\Controllers\OAuth\DeviceController::class, 'code'])->middleware('throttle:token');
+    Route::post('/oauth/par', [\App\Http\Controllers\OAuth\ParController::class, '__invoke'])->middleware('throttle:token');
     Route::post('/oauth/introspect', [OidcController::class, 'introspect'])->middleware('throttle:token');
     Route::post('/access/v1/evaluation', [AuthzenController::class, 'evaluation']);
     Route::post('/access/v1/evaluations', [AuthzenController::class, 'evaluations']);
@@ -60,6 +62,12 @@ Route::post('/login/2fa/sms', [TwoFactorController::class, 'sendSms'])->middlewa
 Route::get('/login/2fa/sms-setup', [TwoFactorController::class, 'smsSetup'])->name('login.mfa.sms-setup');
 Route::post('/login/2fa/sms-setup', [TwoFactorController::class, 'smsSetupSend'])->middleware('throttle:mfa');
 Route::post('/login/2fa/sms-setup/confirm', [TwoFactorController::class, 'smsSetupConfirm'])->middleware('throttle:mfa');
+// Device sign-in (RFC 8628). The route name passport.device also turns on Passport's device-code grant.
+Route::get('/device', [\App\Http\Controllers\OAuth\DeviceController::class, 'show'])->middleware('auth')->name('passport.device');
+Route::post('/device', [\App\Http\Controllers\OAuth\DeviceController::class, 'decide'])->middleware(['auth', 'throttle:20,1']);
+Route::get('/signup', [Auth\SignupController::class, 'show'])->name('signup');
+Route::post('/signup', [Auth\SignupController::class, 'store'])->middleware('throttle:5,10');
+Route::post('/signup/verify', [Auth\SignupController::class, 'verify'])->middleware('throttle:10,10');
 Route::get('/login/code', [Auth\LoginCodeController::class, 'show'])->name('login.code');
 Route::post('/login/code', [Auth\LoginCodeController::class, 'send'])->middleware('throttle:login');
 Route::post('/login/code/verify', [Auth\LoginCodeController::class, 'verify'])->middleware('throttle:mfa');
@@ -129,6 +137,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // People: Clauth owner or org owner/admin, scoped to their organizations.
     Route::middleware('admin:people')->group(function () {
+        Route::get('/orgs/{org}/sign-in-rules', [Admin\SigninPolicyController::class, 'showOrg'])->name('orgs.policy');
+        Route::put('/orgs/{org}/sign-in-rules', [Admin\SigninPolicyController::class, 'updateOrg']);
+        Route::post('/orgs/{org}/sign-in-rules/restore', [Admin\SigninPolicyController::class, 'restoreOrg']);
+        Route::post('/orgs/{org}/sign-in-rules/reset', [Admin\SigninPolicyController::class, 'resetOrg']);
         Route::get('/users', [Admin\UserController::class, 'index'])->name('users.index');
         Route::post('/users/invite', [Admin\UserController::class, 'invite'])->name('users.invite');
         Route::get('/users/{id}', [Admin\UserController::class, 'show'])->name('users.show');
@@ -184,6 +196,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Apps: Clauth owner or org owner/admin/developer of the app's publisher.
     Route::middleware('admin:apps')->group(function () {
+        Route::get('/apps/{app}/sign-in-rules', [Admin\SigninPolicyController::class, 'showApp'])->name('apps.policy');
+        Route::put('/apps/{app}/sign-in-rules', [Admin\SigninPolicyController::class, 'updateApp']);
+        Route::post('/apps/{app}/sign-in-rules/restore', [Admin\SigninPolicyController::class, 'restoreApp']);
+        Route::post('/apps/{app}/sign-in-rules/reset', [Admin\SigninPolicyController::class, 'resetApp']);
         Route::get('/apps', [Admin\AppController::class, 'index'])->name('apps.index');
         Route::post('/apps', [Admin\AppController::class, 'store'])->name('apps.store');
         Route::get('/apps/{app}', [Admin\AppController::class, 'show'])->name('apps.show');
@@ -213,6 +229,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Platform: Clauth owner only.
     Route::middleware('admin:owner')->group(function () {
+        Route::get('/settings/sign-in-rules', [Admin\SigninPolicyController::class, 'showPlatform'])->name('settings.policy');
+        Route::put('/settings/sign-in-rules', [Admin\SigninPolicyController::class, 'updatePlatform']);
+        Route::post('/settings/sign-in-rules/restore', [Admin\SigninPolicyController::class, 'restorePlatform']);
+        Route::post('/settings/sign-in-rules/reset', [Admin\SigninPolicyController::class, 'resetPlatform']);
         Route::post('/orgs', [Admin\OrgController::class, 'store'])->name('orgs.store');
         Route::put('/orgs/{org}', [Admin\OrgController::class, 'update'])->name('orgs.update');
         Route::post('/orgs/{org}/suspend', [Admin\OrgController::class, 'suspend'])->name('orgs.suspend');

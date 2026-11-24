@@ -40,6 +40,9 @@ class ConnectionLoginController
     public function redirect(Request $request, string $key)
     {
         $c = $this->connection($key);
+        if (! \App\Services\SigninPolicies::allowsVia($this->flowApp($request), $c->key)) {
+            return redirect()->route('login')->withErrors(['email' => 'This app doesn’t use that way to sign in.']);
+        }
         if ($domain = $request->attributes->get('clauth.domain')) {
             return redirect()->away(Domains::mainUrl("login/c/$key?".http_build_query(array_filter([
                 'back' => $domain->host, 'app' => $this->flowApp($request)?->key, 'remember' => $request->boolean('remember') ? 1 : null,

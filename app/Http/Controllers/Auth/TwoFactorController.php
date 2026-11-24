@@ -31,7 +31,8 @@ class TwoFactorController
     /** Text-message 2-step works for this person now (not when the first factor already was a text). */
     private function smsUsable(Request $request, User $user): bool
     {
-        return $user->hasSmsTwoStep() && ! in_array('sms', $request->session()->get('login.amr', []), true);
+        return $user->hasSmsTwoStep() && ! in_array('sms', $request->session()->get('login.amr', []), true)
+            && \App\Services\SigninPolicies::rules($this->flowApp($request))['sms_second_step'];
     }
 
     /** POST /login/2fa/sms — text the code. */

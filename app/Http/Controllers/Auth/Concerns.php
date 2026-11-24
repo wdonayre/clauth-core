@@ -84,7 +84,8 @@ trait Concerns
         Auth::login($user, $remember);
         $request->session()->regenerate();
         $request->session()->forget(['login.user_id', 'login.mfa_attempts', 'login.mfa_secret', 'login.recovery_codes', 'login.amr']);
-        $request->session()->put(['auth.amr' => $amr, 'auth.time' => time(), 'auth.mfa' => $mfa]);
+        $via = $request->session()->pull('login.via') ?? (in_array('pwd', $amr, true) ? 'password' : null);
+        $request->session()->put(['auth.amr' => $amr, 'auth.time' => time(), 'auth.mfa' => $mfa, 'auth.via' => $via]);
         if ($clientId) {
             $request->session()->put('login.client_id', $clientId);
         }
