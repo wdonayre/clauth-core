@@ -157,8 +157,14 @@ class PlatformP3Test extends ClauthTestCase
         [$loc, , $back] = $this->viaProvider('facebook');
         $this->assertStringStartsWith('https://www.facebook.com/', $loc);
         $back->assertRedirect(self::MAIN.'/login?social_error=link_first');
-        // …but an already linked Facebook account signs in.
-        SocialIdentity::create(['user_id' => $maria->id, 'provider' => 'facebook', 'provider_id' => 'fb-9']);
+        // …but after linking it from My account, it signs in.
+        $this->flushSession();
+        $this->actingAs($maria)->get(self::MAIN.'/account')->assertSee('Link Facebook');
+        $r = $this->keep($this->actingAs($maria)->get(self::MAIN.'/account/link/c/facebook'));
+        parse_str((string) parse_url((string) $r->headers->get('Location'), PHP_URL_QUERY), $q);
+        $this->keep($this->get(self::MAIN.'/login/c/facebook/callback?'.http_build_query(['state' => $q['state'], 'code' => 'abc'])))->assertRedirect(self::MAIN.'/account');
+        $this->assertDatabaseHas('social_identities', ['user_id' => $maria->id, 'provider' => 'facebook', 'provider_id' => 'fb-9']);
+        auth()->logout();
         $this->flushSession();
         [, , $back] = $this->viaProvider('facebook');
         $this->assertAuthenticatedAs($maria);

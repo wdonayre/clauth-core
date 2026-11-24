@@ -110,6 +110,8 @@ Route::middleware('auth')->prefix('account')->name('account')->group(function ()
     Route::delete('/sessions/web/{id}', [AccountController::class, 'revokeWeb'])->name('.sessions.web');
     Route::delete('/sessions/app/{id}', [AccountController::class, 'revokeApp'])->name('.sessions.app');
     Route::post('/sessions/revoke-all', [AccountController::class, 'revokeAll'])->name('.sessions.all');
+    Route::get('/link/c/{key}', [Auth\ConnectionLoginController::class, 'link'])->where('key', '[a-z0-9-]{1,40}')->name('.connection.link');
+    Route::delete('/link/c/{key}', [Auth\ConnectionLoginController::class, 'unlink'])->where('key', '[a-z0-9-]{1,40}')->name('.connection.unlink');
     Route::get('/link/{provider}', [SocialController::class, 'link'])->whereIn('provider', SocialController::PROVIDERS)->name('.social.link');
     Route::delete('/link/{provider}', [SocialController::class, 'unlink'])->whereIn('provider', SocialController::PROVIDERS)->name('.social.unlink');
     Route::delete('/consents/{app}', [AccountController::class, 'revokeConsent'])->name('.consents.revoke');

@@ -91,6 +91,18 @@
         @endif
       </div>
       @endif
+      @foreach($linkable as $l)
+      <div class="row">
+        <div class="grow"><b>{{ $l['c']->name }}</b><br><span class="small muted">
+          @if($l['identity']) Linked{{ $l['identity']->email ? ' · '.$l['identity']->email : '' }} — use “Continue with {{ $l['c']->name }}” to sign in
+          @else Not linked @endif</span></div>
+        @if($l['identity'])
+          <form method="post" action="{{ route('account.connection.unlink', $l['c']->key) }}" data-confirm="Unlink {{ $l['c']->name }}?">@csrf @method('delete')<button class="btn sm danger">Unlink</button></form>
+        @else
+          <a class="btn sm" href="{{ \App\Services\Domains::mainUrl('account/link/c/'.$l['c']->key) }}">Link {{ $l['c']->name }}</a>
+        @endif
+      </div>
+      @endforeach
       @if($newCodes)
         <div class="row"><div class="grow"><b>Your new recovery codes</b> <span class="small muted">— shown once. The old ones no longer work.</span>
           <pre class="json" id="newcodes" style="margin-top:8px">{{ implode("\n", $newCodes) }}</pre>

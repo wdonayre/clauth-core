@@ -38,6 +38,10 @@ class AccountController
             'user' => $user, 'apps' => $apps, 'web' => $web, 'appSessions' => $appSessions,
             'currentSession' => $request->session()->getId(), 'mfaRequired' => Claims::policyRequiresMfa($user),
             'google' => SocialController::enabled('google') ? ['identity' => $user->socialIdentities()->where('provider', 'google')->first()] : null,
+            // Other sign-in providers this person can link: platform ones and their organizations' (SPEC-platform §7).
+            'linkable' => \App\Models\Connection::whereIn('type', ['oidc', 'oauth', 'meta'])->where('status', 'active')
+                ->where(fn ($q) => $q->whereNull('organization_id')->orWhereIn('organization_id', $user->organizations()->pluck('organizations.id')))
+                ->orderBy('name')->get()->map(fn ($c) => ['c' => $c, 'identity' => $user->socialIdentities()->where('provider', $c->key)->first()]),
             'codesLeft' => count($user->two_factor_recovery_codes ?? []),
             'newCodes' => $request->session()->get('new_codes'),
             // Apps outside your own organizations that you've allowed to receive your details (SPEC-organizations §6.1).

@@ -81,6 +81,45 @@ class ConnectionLoginController
         }
     }
 
+    /** My account › Link: sign in with the provider once to attach it to the signed-in account (main domain). */
+    public function link(Request $request, string $key)
+    {
+        $c = $this->connection($key);
+        if (! Domains::isMain($request->getHost()) && ! in_array(strtolower($request->getHost()), Domains::mainAliases(), true)) {
+            return redirect()->away(Domains::mainUrl("account/link/c/$key"));
+        }
+        abort_if($c->organization_id && ! $request->user()->organizations()->where('organizations.id', $c->organization_id)->exists(), 404);
+        $state = Str::random(40);
+        $verifier = Str::random(64);
+        $nonce = Str::random(32);
+        $request->session()->put("fed.$state", ['key' => $c->key, 'verifier' => $verifier, 'nonce' => $nonce, 'back' => null, 'at' => time(), 'link' => $request->user()->id]);
+        $params = ['client_id' => $c->cfg('client_id'), 'redirect_uri' => $this->callbackUrl($c), 'response_type' => 'code', 'state' => $state];
+        try {
+            if ($c->type === 'meta') {
+                return redirect()->away(self::META.'?'.http_build_query($params + ['scope' => 'email,public_profile']));
+            }
+            $params += ['code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '='), 'code_challenge_method' => 'S256'];
+            if ($c->type === 'oidc') {
+                return redirect()->away($this->discovery($c)['authorization_endpoint'].'?'.http_build_query($params + ['scope' => $c->cfg('scopes') ?: 'openid email profile', 'nonce' => $nonce, 'prompt' => 'select_account']));
+            }
+
+            return redirect()->away($c->cfg('authorize_url').(str_contains($c->cfg('authorize_url'), '?') ? '&' : '?').http_build_query($params + array_filter(['scope' => $c->cfg('scopes')])));
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->route('account')->withErrors(['social' => "Couldn’t reach {$c->name}. Try again later."]);
+        }
+    }
+
+    public function unlink(Request $request, string $key)
+    {
+        $identity = $request->user()->socialIdentities()->where('provider', $key)->firstOrFail();
+        $identity->delete();
+        \App\Services\Audit::log('security.social_unlinked', 'security', $request->user(), before: ['provider' => $key, 'email' => $identity->email], actorType: 'user');
+
+        return back()->with('status', 'Unlinked. Sign in another way from now on.');
+    }
+
     public function callback(Request $request, string $key)
     {
         abort_unless(Domains::isMain($request->getHost()) || in_array(strtolower($request->getHost()), Domains::mainAliases(), true), 404);
@@ -106,6 +145,20 @@ class ConnectionLoginController
         }
         if ($id === '') {
             return $this->federatedFail($back, 'failed');
+        }
+        if ($linkFor = $flow['link'] ?? null) {
+            $user = $request->user();
+            if (! $user || $user->id !== $linkFor) {
+                return redirect()->route('login');
+            }
+            $taken = \App\Models\SocialIdentity::where('provider', $c->key)->where('provider_id', $id)->where('user_id', '!=', $user->id)->exists();
+            if ($taken) {
+                return redirect()->route('account')->withErrors(['social' => "That {$c->name} account is already linked to another Clauth account."]);
+            }
+            $user->socialIdentities()->updateOrCreate(['provider' => $c->key], ['provider_id' => $id, 'email' => $email]);
+            \App\Services\Audit::log('security.social_linked', 'security', $user, after: ['provider' => $c->key, 'email' => $email], actorType: 'user');
+
+            return redirect()->route('account')->with('status', "{$c->name} linked. You can now use “Continue with {$c->name}”.");
         }
 
         return $this->federatedFinish($request, $c->key, $id, $email, $verified, $c, $name, $back);
