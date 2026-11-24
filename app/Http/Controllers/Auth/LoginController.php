@@ -6,6 +6,7 @@ use App\Mail\LockoutMail;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\Claims;
+use App\Services\Connections;
 use App\Services\Domains;
 use App\Services\Settings;
 use App\Services\Sso;
@@ -37,14 +38,20 @@ class LoginController
             return redirect()->away(Domains::mainUrl('sso/check?'.http_build_query(['host' => $domain->host, 'state' => $state])));
         }
 
-        $socialError = SocialController::ERRORS[(string) $request->query('social_error')] ?? null;
+        $socialError = SocialController::errors()[(string) $request->query('social_error')] ?? null;
 
         return view('auth.login', ['theme' => $this->theme($request), 'app' => $this->flowApp($request),
-            'google' => SocialController::enabled('google'), 'socialError' => $socialError]);
+            'google' => SocialController::enabled('google'), 'socialError' => $socialError,
+            'connections' => Connections::buttons($this->flowApp($request), $request->attributes->get('clauth.domain')),
+            'codeSignIn' => LoginCodeController::available()]);
     }
 
     public function store(Request $request)
     {
+        // People whose organization requires its own sign-in (e.g. Microsoft 365) go there, whatever they typed.
+        if ($request->filled('email') && filter_var($request->input('email'), FILTER_VALIDATE_EMAIL) && ($c = Connections::required((string) $request->input('email')))) {
+            return redirect()->route('login.connection', ['key' => $c->key, 'login_hint' => mb_strtolower(trim($request->input('email'))), 'remember' => $request->boolean('remember') ? 1 : null]);
+        }
         $data = $request->validate(['email' => 'required|email', 'password' => 'required|string']);
         $user = User::where('email', mb_strtolower(trim($data['email'])))->first();
         $fail = fn (string $msg) => back()->withInput($request->only('email', 'remember'))->withErrors(['email' => $msg]);
@@ -83,7 +90,7 @@ class LoginController
         $app = $this->flowApp($request);
 
         if (Claims::mfaRequired($user, $app)) {
-            if (! $user->hasTwoFactor()) {
+            if (! $user->hasSecondFactor()) {
                 return redirect()->route('login.mfa.setup');
             }
             if ($this->isTrustedDevice($request, $user)) {

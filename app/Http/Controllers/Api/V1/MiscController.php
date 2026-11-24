@@ -65,6 +65,7 @@ class MiscController
             'lockout_attempts' => 'sometimes|integer|min:3|max:20', 'lockout_minutes' => 'sometimes|integer|min:1|max:1440',
             'session_idle_hours' => 'sometimes|integer|min:1|max:72', 'trusted_device_days' => 'sometimes|integer|min:0|max:90',
             'new_device_email' => 'sometimes|boolean', 'support_email' => 'sometimes|email',
+            'email_code_signin' => 'sometimes|boolean', 'sms_signin' => 'sometimes|boolean', 'sms_daily_cap' => 'sometimes|integer|min:0|max:100000',
         ]);
         // legal_reviewed stays a console-only switch: it opens Clauth to outside organizations.
         $before = array_intersect_key(Settings::all(), $data);

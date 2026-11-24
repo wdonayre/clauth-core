@@ -8,7 +8,7 @@
       <div class="pills" style="margin-top:8px">
         @if($user->isLocked())<span class="chip bad">Locked until {{ $user->locked_until->format('H:i') }}</span>@endif
         <span class="chip {{ ['active' => 'ok', 'invited' => 'info', 'disabled' => 'bad'][$user->status] ?? '' }}">{{ ucfirst($user->status) }}</span>
-        <span class="chip">{{ $user->hasTwoFactor() ? '2-step on' : '2-step off' }}</span>
+        <span class="chip">{{ $user->hasTwoFactor() ? '2-step on' : ($user->hasSmsTwoStep() ? '2-step by text' : '2-step off') }}</span>
         @if($user->mfa_exempt)<span class="chip bad">2-step not required (admin override)</span>@endif
         @if($user->isOwner())<span class="chip info">Clauth owner</span>@endif
         <span class="chip">Last sign-in {{ $user->last_login_at?->diffForHumans() ?? 'never' }}</span>
@@ -151,7 +151,7 @@
       <h2 id="dz-h" style="margin-bottom:12px">Security</h2>
       <div class="actions">
         <form method="post" action="{{ route('admin.users.action', [$user->id, 'signout']) }}">@csrf<button class="btn">Sign out everywhere</button></form>
-        @if($user->hasTwoFactor() && $user->id !== auth()->id())<form method="post" action="{{ route('admin.users.action', [$user->id, 'reset-2fa']) }}" data-confirm="Reset 2-step verification for {{ $user->name }}? They set it up again at next sign-in.">@csrf<button class="btn">Reset 2-step</button></form>@endif
+        @if($user->hasSecondFactor() && $user->id !== auth()->id())<form method="post" action="{{ route('admin.users.action', [$user->id, 'reset-2fa']) }}" data-confirm="Reset 2-step verification for {{ $user->name }}? They set it up again at next sign-in.">@csrf<button class="btn">Reset 2-step</button></form>@endif
         @if($user->id !== auth()->id() && ! $user->isAdmin())
           @if($user->mfa_exempt)
             <form method="post" action="{{ route('admin.users.action', [$user->id, 'mfa-on']) }}">@csrf<button class="btn">Require 2-step again</button></form>

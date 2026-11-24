@@ -34,7 +34,7 @@ class Present
         $orgs = $u->organizations->when($orgIds !== null, fn ($c) => $c->whereIn('id', $orgIds));
         $out = [
             'id' => $u->sub(), 'email' => $u->email, 'name' => $u->name, 'phone' => $u->phone,
-            'status' => $u->status, 'locked' => $u->isLocked(), 'two_step' => (bool) $u->hasTwoFactor(), 'two_step_exempt' => (bool) $u->mfa_exempt,
+            'status' => $u->status, 'locked' => $u->isLocked(), 'two_step' => (bool) $u->hasSecondFactor(), 'two_step_method' => $u->hasTwoFactor() ? 'app' : ($u->hasSmsTwoStep() ? 'sms' : null), 'two_step_exempt' => (bool) $u->mfa_exempt,
             'last_login_at' => $u->last_login_at?->toIso8601String(), 'created_at' => $u->created_at?->toIso8601String(),
             'orgs' => $orgs->map(fn ($o) => ['org' => $o->slug, 'role' => $o->pivot->role ?? 'member'])->values(),
         ];

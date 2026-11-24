@@ -71,7 +71,7 @@
         <span class="pills">@foreach($u->grants->unique('app_id')->take(4) as $g)<span class="chip">{{ $g->app?->name }} · {{ $g->role?->name }}</span>@endforeach</span>
         @if($u->isLocked())<span class="chip bad">Locked</span>
         @else<span class="chip {{ ['active' => 'ok', 'invited' => 'info', 'disabled' => 'bad'][$u->status] ?? '' }}">{{ ucfirst($u->status) }}</span>@endif
-        @if($u->hasTwoFactor())<span class="chip" title="2-step verification on">2FA</span>@endif
+        @if($u->hasSecondFactor())<span class="chip" title="2-step verification on">2FA{{ $u->hasTwoFactor() ? '' : ' (SMS)' }}</span>@endif
       </a>
     @empty<div class="empty">No one here yet.</div>@endforelse
   </div>

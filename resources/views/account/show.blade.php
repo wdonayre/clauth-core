@@ -44,7 +44,7 @@
     <div class="list" style="margin:0 -20px">
       <div class="row">
         <div class="grow"><b>2-step verification</b><br><span class="small muted">
-          @if($user->hasTwoFactor()) On · {{ $codesLeft }} recovery code(s) left @else Off @endif
+          @if($user->hasTwoFactor()) On · {{ $codesLeft }} recovery code(s) left @elseif($user->hasSmsTwoStep()) On · by text message @else Off @endif
           @if($mfaRequired) · required for your account @endif</span></div>
         @if($user->hasTwoFactor())
           <form method="post" action="{{ route('account.2fa.codes') }}">@csrf<button class="btn sm">New recovery codes</button></form>
@@ -59,6 +59,26 @@
           <form method="post" action="{{ route('account.2fa') }}">@csrf<button class="btn sm pri">Turn on</button></form>
         @endif
       </div>
+      @if(\App\Services\Sms::available())
+      <div class="row" style="align-items:flex-start;flex-wrap:wrap">
+        <div class="grow"><b>Phone for text-message codes</b><br><span class="small muted">
+          @if($user->phone_verified_at) {{ \App\Services\Sms::mask($user->phone) }} · verified @if($user->hasSmsTwoStep()) · used for 2-step @endif
+          @else Not verified — add a mobile number to get sign-in and 2-step codes by text @endif</span>
+          @if(session('account.phone'))
+            <form class="form" method="post" action="{{ route('account.phone.verify') }}" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">@csrf
+              <input class="in" name="code" inputmode="numeric" maxlength="7" placeholder="6-digit code" autocomplete="one-time-code" required style="max-width:160px"><button class="btn sm pri">Verify</button></form>
+            @error('phone_code')<div class="small bad">{{ $message }}</div>@enderror
+          @else
+            <form class="form" method="post" action="{{ route('account.phone') }}" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">@csrf
+              <input class="in" name="phone" type="tel" placeholder="0917 123 4567" autocomplete="tel" required style="max-width:200px"><button class="btn sm">{{ $user->phone_verified_at ? 'Change number' : 'Send code' }}</button></form>
+            @error('phone')<div class="small bad">{{ $message }}</div>@enderror
+          @endif
+        </div>
+        @if($user->phone_verified_at && ! $user->isAdmin())
+          <form method="post" action="{{ route('account.sms-two-step') }}">@csrf<input type="hidden" name="on" value="{{ $user->sms_two_step ? 0 : 1 }}"><button class="btn sm">{{ $user->sms_two_step ? 'Stop using for 2-step' : 'Use for 2-step' }}</button></form>
+        @endif
+      </div>
+      @endif
       @if($google)
       <div class="row">
         <div class="grow"><b>Google</b><br><span class="small muted">

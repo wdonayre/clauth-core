@@ -37,10 +37,13 @@ class SettingsController
             'session_idle_hours' => 'required|integer|min:1|max:72',
             'trusted_device_days' => 'required|integer|min:0|max:90',
             'new_device_email' => 'boolean',
+            'email_code_signin' => 'boolean',
+            'sms_signin' => 'boolean',
+            'sms_daily_cap' => 'required|integer|min:0|max:100000',
             'support_email' => 'required|email',
             'legal_reviewed' => 'boolean',
         ]);
-        foreach (['require_mfa_everyone', 'require_mfa_admin_tiers', 'breached_password_check', 'new_device_email', 'legal_reviewed'] as $b) {
+        foreach (['require_mfa_everyone', 'require_mfa_admin_tiers', 'breached_password_check', 'new_device_email', 'legal_reviewed', 'email_code_signin', 'sms_signin'] as $b) {
             $data[$b] = $request->boolean($b);
         }
         $before = array_intersect_key(Settings::all(), $data);

@@ -56,7 +56,7 @@ class Claims
     /** Does this user have to pass 2-step verification (SPEC §6.3)? */
     public static function mfaRequired(User $user, ?Application $app = null): bool
     {
-        return $user->hasTwoFactor() || self::policyRequiresMfa($user, $app);
+        return $user->hasSecondFactor() || self::policyRequiresMfa($user, $app);
     }
 
     /** Policy alone (ignores whether the user already enrolled). */

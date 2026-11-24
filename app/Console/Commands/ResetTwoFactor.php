@@ -27,7 +27,7 @@ class ResetTwoFactor extends Command
 
             return self::FAILURE;
         }
-        if (! $user->hasTwoFactor()) {
+        if (! $user->hasTwoFactor() && ! $user->sms_two_step) {
             $this->info("{$user->email} has no 2-step set up. Nothing to reset.");
 
             return self::SUCCESS;
@@ -39,7 +39,7 @@ class ResetTwoFactor extends Command
 
             return self::FAILURE;
         }
-        $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+        $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
         Sessions::revokeAll($user);
         Audit::log('security.mfa_reset', 'security', $user, after: ['via' => 'server command'], actorType: 'system');
         $this->info('Done. At next sign-in they set up 2-step again with their new phone.');

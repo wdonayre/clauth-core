@@ -113,13 +113,13 @@ class UsersController
                 Audit::log('user.unlocked', 'admin', $u);
                 break;
             case 'reset-two-step':
-                $u->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+                $u->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
                 Sessions::revokeAll($u);
                 Audit::log('security.mfa_reset', 'security', $u);
                 break;
             case 'two-step-exempt':
                 abort_if($u->isAdmin(), 422, 'Clauth admins always need 2-step verification.');
-                $u->forceFill(['mfa_exempt' => true, 'two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+                $u->forceFill(['mfa_exempt' => true, 'two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
                 Sessions::revokeAll($u);
                 Audit::log('security.mfa_exempted', 'security', $u);
                 break;

@@ -19,6 +19,10 @@ class Settings
         'session_idle_hours' => 8,
         'trusted_device_days' => 30,
         'new_device_email' => true,
+        // One-time codes (SPEC-platform §7): sign in with a code by email / by text, and the platform's daily SMS cap.
+        'email_code_signin' => false,
+        'sms_signin' => false,
+        'sms_daily_cap' => 200,
         'support_email' => null, // from config('clauth.support_email') unless set in Admin › Settings
         // Outside organizations can only request to join once a lawyer has reviewed the Terms, Privacy Policy and
         // Data Processing Agreement and William ticks this (SPEC-organizations §10.5).

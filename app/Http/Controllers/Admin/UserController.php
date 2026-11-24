@@ -261,14 +261,14 @@ class UserController
                 $msg = "{$user->name} can sign in again.";
                 break;
             case 'reset-2fa':
-                $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+                $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
                 Sessions::revokeAll($user);
                 Audit::log('security.mfa_reset', 'security', $user);
                 $msg = "2-step verification reset. {$user->name} sets it up again at next sign-in.";
                 break;
             case 'mfa-off':
                 abort_if($user->isAdmin(), 422, 'Clauth admins always need 2-step verification.');
-                $user->forceFill(['mfa_exempt' => true, 'two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+                $user->forceFill(['mfa_exempt' => true, 'two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
                 Sessions::revokeAll($user);
                 Audit::log('security.mfa_exempted', 'security', $user);
                 $msg = "2-step verification is off for {$user->name}. They sign in with just their password.";

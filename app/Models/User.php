@@ -28,6 +28,8 @@ class User extends Authenticatable
             'two_factor_secret' => 'encrypted',
             'two_factor_recovery_codes' => 'encrypted:array',
             'mfa_exempt' => 'boolean',
+            'phone_verified_at' => 'datetime',
+            'sms_two_step' => 'boolean',
         ];
     }
 
@@ -123,9 +125,22 @@ class User extends Authenticatable
         return $this->isOwner() || ($app->owner_organization_id && in_array($app->owner_organization_id, $this->devOrgIds(), true));
     }
 
+    /** Authenticator-app 2-step (TOTP). */
     public function hasTwoFactor(): bool
     {
         return $this->two_factor_confirmed_at !== null && $this->two_factor_secret;
+    }
+
+    /** Text-message 2-step (SPEC-platform §7): a verified phone, switched on, never for admins, only while SMS works. */
+    public function hasSmsTwoStep(): bool
+    {
+        return $this->sms_two_step && $this->phone && $this->phone_verified_at !== null && ! $this->isAdmin() && \App\Services\Sms::available();
+    }
+
+    /** Any second factor: authenticator app or text messages. */
+    public function hasSecondFactor(): bool
+    {
+        return $this->hasTwoFactor() || $this->hasSmsTwoStep();
     }
 
     public function initials(): string

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AppsController;
 use App\Http\Controllers\Api\V1\AppWritesController;
+use App\Http\Controllers\Api\V1\ConnectionsController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\InvitesController;
 use App\Http\Controllers\Api\V1\LegacyUserLookup;
@@ -121,6 +122,16 @@ Route::middleware(['api.client:me:write', 'api.idempotent'])->group(function () 
     Route::delete('me/sessions/{id}', [MeController::class, 'endSession']);
     Route::delete('me/consents/{app}', [MeController::class, 'revokeConsent']);
     Route::patch('me/orgs/{org}/profile', [MeController::class, 'updateOrgProfile']);
+});
+
+Route::middleware('api.client:connections:read')->group(function () {
+    Route::get('connections', [ConnectionsController::class, 'index']);
+    Route::get('connections/{key}', [ConnectionsController::class, 'show']);
+});
+Route::middleware(['api.client:connections:write', 'api.idempotent'])->group(function () {
+    Route::post('connections', [ConnectionsController::class, 'store']);
+    Route::patch('connections/{key}', [ConnectionsController::class, 'update']);
+    Route::delete('connections/{key}', [ConnectionsController::class, 'destroy']);
 });
 
 Route::middleware('api.client:audit:read')->get('audit', [MiscController::class, 'audit']);

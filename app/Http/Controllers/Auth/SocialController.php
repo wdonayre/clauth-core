@@ -20,18 +20,15 @@ use Throwable;
  */
 class SocialController
 {
-    use Concerns;
+    use Federated;
 
     public const PROVIDERS = ['google'];
 
-    public const ERRORS = [
-        'no_account' => 'There’s no Clauth account for that Google account. Ask your admin for an invite.',
-        'unverified' => 'Google hasn’t verified that email address, so we can’t use it to sign you in.',
-        'invited' => 'Your account isn’t set up yet. Use the link in your invite email first.',
-        'disabled' => 'This account is turned off. Ask your admin.',
-        'failed' => 'Google sign-in didn’t finish. Please try again.',
-        'cancelled' => 'Google sign-in was cancelled.',
-    ];
+    /** Kept for callers that read the messages (LoginController); same as Federated::$federatedErrors. */
+    public static function errors(): array
+    {
+        return self::$federatedErrors;
+    }
 
     public static function enabled(string $provider): bool
     {
@@ -93,14 +90,14 @@ class SocialController
         $back = $request->session()->pull('social.back');
 
         if ($request->has('error')) {
-            return $linkFor ? redirect()->route('account')->withErrors(['social' => self::ERRORS['cancelled']]) : $this->fail($back, 'cancelled');
+            return $linkFor ? redirect()->route('account')->withErrors(['social' => self::$federatedErrors['cancelled']]) : $this->federatedFail($back, 'cancelled');
         }
         try {
             $g = Socialite::driver($provider)->redirectUrl($this->callbackUrl($provider))->user();
         } catch (Throwable $e) {
             report($e);
 
-            return $linkFor ? redirect()->route('account')->withErrors(['social' => self::ERRORS['failed']]) : $this->fail($back, 'failed');
+            return $linkFor ? redirect()->route('account')->withErrors(['social' => self::$federatedErrors['failed']]) : $this->federatedFail($back, 'failed');
         }
         $id = (string) $g->getId();
         $email = mb_strtolower(trim((string) $g->getEmail()));
@@ -123,57 +120,8 @@ class SocialController
             return redirect()->route('account')->with('status', 'Google linked'.($email ? " ($email)" : '').'. You can now use “Continue with Google”.');
         }
 
-        // ---- Signing in ----
-        $user = $identity?->user;
-        if (! $user) {
-            if (! $email) {
-                return $this->fail($back, 'no_account');
-            }
-            $match = User::where('email', $email)->first();
-            if (! $match) {
-                return $this->fail($back, 'no_account');
-            }
-            if (! $verified) {
-                return $this->fail($back, 'unverified');
-            }
-            $user = $match;
-        }
-        if ($user->status === 'invited' || ! $user->password) {
-            return $this->fail($back, 'invited');
-        }
-        if ($user->status === 'disabled') {
-            return $this->fail($back, 'disabled');
-        }
-        if ($user->isLocked()) {
-            return redirect()->route('login.locked');
-        }
-        if (! $identity) {
-            $identity = $user->socialIdentities()->updateOrCreate(['provider' => $provider], ['provider_id' => $id, 'email' => $email]);
-            Audit::log('security.social_linked', 'security', $user, after: ['provider' => $provider, 'email' => $email, 'via' => 'verified email'], actorId: $user->id, actorType: 'user');
-        }
-        $identity->forceFill(['last_used_at' => now(), 'email' => $email ?: $identity->email])->save();
-
-        $remember = (bool) $request->session()->get('login.remember', false);
-        $request->session()->regenerate();
-        $request->session()->put(['login.user_id' => $user->id, 'login.remember' => $remember]);
-        $request->session()->put('login.amr', ['fed']); // first factor = Google (2-step adds 'otp')
-        if ($back) {
-            // Finish on main (incl. 2-step), then return to the app's domain, which picks the sign-in up via SSO.
-            $request->session()->put('url.intended', "https://$back/login?sso=1");
-        }
-
-        if (Claims::mfaRequired($user, $this->flowApp($request))) {
-            if (! $user->hasTwoFactor()) {
-                return redirect()->route('login.mfa.setup');
-            }
-            if ($this->isTrustedDevice($request, $user)) {
-                return $this->completeLogin($request, $user, ['fed'], true);
-            }
-
-            return redirect()->route('login.mfa');
-        }
-
-        return $this->completeLogin($request, $user, ['fed'], false);
+        // ---- Signing in ---- (shared with connections: Federated::federatedFinish)
+        return $this->federatedFinish($request, $provider, $id, $email ?: null, $verified, null, $g->getName(), $back);
     }
 
     private function toProvider(string $provider)
@@ -185,13 +133,5 @@ class SocialController
     private function callbackUrl(string $provider): string
     {
         return Domains::mainUrl("login/$provider/callback");
-    }
-
-    /** Back to the sign-in page the person started on, with a fixed message (never text from outside). */
-    private function fail(?string $back, string $code)
-    {
-        $path = 'login?'.http_build_query(['social_error' => $code]);
-
-        return redirect()->away($back ? "https://$back/$path" : Domains::mainUrl($path));
     }
 }

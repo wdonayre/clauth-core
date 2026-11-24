@@ -94,7 +94,7 @@ class AccountController
         if (Claims::policyRequiresMfa($user)) {
             return back()->withErrors(['current_password' => '2-step verification is required for your account.']);
         }
-        $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null])->save();
+        $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
         Audit::log('security.mfa_reset', 'security', $user, actorType: 'user');
 
         return back()->with('status', '2-step verification turned off.');

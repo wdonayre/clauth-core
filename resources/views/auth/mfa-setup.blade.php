@@ -17,6 +17,7 @@
       <input class="input code" id="code" name="code" inputmode="numeric" maxlength="7" autocomplete="one-time-code" required></div>
     <button class="btn-auth pri" type="submit">Turn on 2-step verification</button>
   </form>
+  @if(! empty($smsSetup))<p style="text-align:center;margin:12px 0 0"><a class="link" href="{{ route('login.mfa.sms-setup') }}">No authenticator app? Use text messages</a></p>@endif
   @if($canSkip)
     <form method="post" action="{{ route('login.mfa.skip') }}" style="margin-top:10px">
       @csrf

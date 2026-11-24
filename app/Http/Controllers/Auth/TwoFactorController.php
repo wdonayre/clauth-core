@@ -19,17 +19,46 @@ class TwoFactorController
         if (! $user) {
             return redirect()->route('login');
         }
-        if (! $user->hasTwoFactor()) {
+        if (! $user->hasTwoFactor() && ! $this->smsUsable($request, $user)) {
             return redirect()->route('login.mfa.setup');
         }
 
-        return view('auth.mfa', ['theme' => $this->theme($request), 'user' => $user, 'recovery' => $request->boolean('recovery'), 'canTrust' => ! $user->isAdmin()]);
+        return view('auth.mfa', ['theme' => $this->theme($request), 'user' => $user, 'recovery' => $request->boolean('recovery'), 'canTrust' => ! $user->isAdmin(),
+            'totp' => $user->hasTwoFactor(), 'sms' => $this->smsUsable($request, $user), 'smsSent' => (bool) $request->session()->get('login.sms_sent'),
+            'phone' => \App\Services\Sms::mask($user->phone)]);
+    }
+
+    /** Text-message 2-step works for this person now (not when the first factor already was a text). */
+    private function smsUsable(Request $request, User $user): bool
+    {
+        return $user->hasSmsTwoStep() && ! in_array('sms', $request->session()->get('login.amr', []), true);
+    }
+
+    /** POST /login/2fa/sms — text the code. */
+    public function sendSms(Request $request)
+    {
+        $user = $this->pendingUser($request);
+        if (! $user || ! $this->smsUsable($request, $user)) {
+            return redirect()->route('login');
+        }
+        try {
+            $err = \App\Services\OneTimeCodes::send('sms', $user->phone, 'mfa', $request->ip());
+        } catch (\Throwable $e) {
+            report($e);
+            $err = 'We couldn’t send the text. Try again, or use another way.';
+        }
+        if ($err) {
+            return back()->withErrors(['code' => $err]);
+        }
+        $request->session()->put('login.sms_sent', true);
+
+        return back()->with('status', 'Code sent to '.\App\Services\Sms::mask($user->phone).'.');
     }
 
     public function verify(Request $request)
     {
         $user = $this->pendingUser($request);
-        if (! $user || ! $user->hasTwoFactor()) {
+        if (! $user || ! $user->hasSecondFactor()) {
             return redirect()->route('login');
         }
         $attempts = $request->session()->increment('login.mfa_attempts');
@@ -48,7 +77,13 @@ class TwoFactorController
             return $this->completeLogin($request, $user, [...$request->session()->get('login.amr', ['pwd']), 'otp'], true);
         }
 
-        if (! TwoFactor::verify($user->two_factor_secret, (string) $request->input('code'), $user->id)) {
+        if ($request->session()->get('login.sms_sent') && $this->smsUsable($request, $user)
+            && \App\Services\OneTimeCodes::verify('sms', $user->phone, 'mfa', (string) $request->input('code'))) {
+            $request->session()->forget('login.sms_sent');
+
+            return $this->completeLogin($request, $user, [...$request->session()->get('login.amr', ['pwd']), 'sms'], true, $request->boolean('trust') && ! $user->isAdmin());
+        }
+        if (! $user->hasTwoFactor() || ! TwoFactor::verify($user->two_factor_secret, (string) $request->input('code'), $user->id)) {
             return back()->withErrors(['code' => 'That code isn’t right. Check your authenticator app and try again.']);
         }
 
@@ -67,7 +102,60 @@ class TwoFactorController
             'theme' => $this->theme($request), 'user' => $user, 'secret' => $secret,
             'qr' => TwoFactor::qrSvg($user, $secret), 'invite' => $request->session()->get('invite.flow'),
             'canSkip' => $this->canSkipSetup($request, $user),
+            'smsSetup' => \App\Services\Sms::available() && ! $user->isAdmin() && ! in_array('sms', $request->session()->get('login.amr', []), true),
         ]);
+    }
+
+    /** GET /login/2fa/sms-setup — "No authenticator app? Use text messages" (not for admins). */
+    public function smsSetup(Request $request)
+    {
+        $user = $this->pendingUser($request);
+        if (! $user || $user->isAdmin() || ! \App\Services\Sms::available()) {
+            return redirect()->route('login');
+        }
+
+        return view('auth.sms-setup', ['theme' => $this->theme($request), 'phone' => $request->session()->get('login.sms_phone')]);
+    }
+
+    public function smsSetupSend(Request $request)
+    {
+        $user = $this->pendingUser($request);
+        if (! $user || $user->isAdmin() || ! \App\Services\Sms::available()) {
+            return redirect()->route('login');
+        }
+        $phone = \App\Services\Sms::normalise((string) $request->input('phone'));
+        if (! $phone) {
+            return back()->withErrors(['phone' => 'Enter a mobile number, e.g. 0917 123 4567 or +63 917 123 4567.'])->withInput();
+        }
+        try {
+            $err = \App\Services\OneTimeCodes::send('sms', $phone, 'phone:'.$user->id, $request->ip());
+        } catch (\Throwable $e) {
+            report($e);
+            $err = 'We couldn’t send the text. Check the number and try again.';
+        }
+        if ($err) {
+            return back()->withErrors(['phone' => $err])->withInput();
+        }
+        $request->session()->put('login.sms_phone', $phone);
+
+        return redirect()->route('login.mfa.sms-setup');
+    }
+
+    public function smsSetupConfirm(Request $request)
+    {
+        $user = $this->pendingUser($request);
+        $phone = $request->session()->get('login.sms_phone');
+        if (! $user || ! $phone || $user->isAdmin()) {
+            return redirect()->route('login');
+        }
+        if (! \App\Services\OneTimeCodes::verify('sms', $phone, 'phone:'.$user->id, (string) $request->input('code'))) {
+            return back()->withErrors(['code' => 'That code isn’t right, or it expired. Send a new one.']);
+        }
+        $user->forceFill(['phone' => $phone, 'phone_verified_at' => now(), 'sms_two_step' => true])->save();
+        Audit::log('security.sms_two_step_enabled', 'security', $user, after: ['phone' => \App\Services\Sms::mask($phone)], actorId: $user->id, actorType: 'user');
+        $request->session()->forget(['login.sms_phone', 'invite.flow', 'invite_require_mfa', 'login.mfa_secret']);
+
+        return $this->completeLogin($request, $user, [...$request->session()->get('login.amr', ['pwd']), 'sms'], true);
     }
 
     /** Onboarding only: skip 2-step setup when no rule requires it (they can turn it on later in My account). */
@@ -88,7 +176,7 @@ class TwoFactorController
 
     private function canSkipSetup(Request $request, User $user): bool
     {
-        return $request->session()->get('invite.flow') && ! $user->hasTwoFactor() && ! Claims::mfaRequired($user, $this->flowApp($request));
+        return $request->session()->get('invite.flow') && ! $user->hasSecondFactor() && ! Claims::mfaRequired($user, $this->flowApp($request));
     }
 
     public function confirm(Request $request)
