@@ -40,7 +40,7 @@ class PersonalTokens
     {
         $out = self::SELF_SCOPES;
         if ($user->isOwner() || $user->adminOrgIds() !== []) {
-            $out = array_merge($out, ['users:read', 'users:write', 'orgs:read', 'orgs:write', 'access:read', 'access:write', 'audit:read', 'connections:read', 'connections:write']);
+            $out = array_merge($out, ['users:read', 'users:write', 'orgs:read', 'orgs:write', 'access:read', 'access:write', 'audit:read', 'connections:read', 'connections:write', 'agents:read', 'agents:write', 'config:read', 'config:write']);
         }
         if ($user->isOwner() || $user->devOrgIds() !== []) {
             $out = array_merge($out, ['apps:read', 'apps:write']);

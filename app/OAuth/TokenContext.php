@@ -10,4 +10,7 @@ class TokenContext
     public array $amr = ['pwd'];
 
     public ?int $authTime = null;
+
+    /** Agent tokens (SPEC-platform §9.3): the app the agent asked for (`audience`). */
+    public ?\App\Models\Application $audience = null;
 }

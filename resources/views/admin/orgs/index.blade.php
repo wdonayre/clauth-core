@@ -50,6 +50,7 @@
           <a class="btn sm" href="{{ route('admin.orgs.policy', $o->id) }}">Sign-in rules</a>
           <a class="btn sm" href="{{ route('admin.themes.index', $o->id) }}">Themes</a>
           <a class="btn sm" href="{{ route('admin.messages.index', $o->id) }}">Messages</a>
+          <a class="btn sm" href="{{ route('admin.agents.index', $o->id) }}">Agents</a>
           <a class="btn sm" href="{{ route('admin.api-clients.index', $o->id) }}">API clients</a>
         </div>
       </div>

@@ -112,12 +112,15 @@ class AuthzenController
     }
 
     /** The orgs claim the person's token for this app would carry, limited to $orgs (null = all). */
-    private function granted(User $user, Application $app, ?array $orgs): array
+    private function granted(User|\App\Models\Agent $user, Application $app, ?array $orgs): array
     {
-        if (! Claims::canUse($user, $app)) {
+        if ($user instanceof \App\Models\Agent) {
+            $all = \App\Services\Agents::claims($user, $app);
+        } elseif (! Claims::canUse($user, $app)) {
             return [];
+        } else {
+            $all = Claims::orgs($user, $app);
         }
-        $all = Claims::orgs($user, $app);
 
         return $orgs === null ? $all : array_intersect_key($all, array_flip($orgs));
     }
@@ -125,8 +128,8 @@ class AuthzenController
     /** [user|null, app|null, org slugs|null, error|null]. Unknown or out-of-reach subjects come back as null (a plain "no"). */
     private function resolve(array $caller, $subject, $resource): array
     {
-        if (! is_array($subject) || ! in_array($subject['type'] ?? '', ['user', 'identity'], true) || ! is_string($subject['id'] ?? null)) {
-            return [null, null, null, 'subject must be {"type": "user", "id": "usr_…"}.'];
+        if (! is_array($subject) || ! in_array($subject['type'] ?? '', ['user', 'identity', 'agent'], true) || ! is_string($subject['id'] ?? null)) {
+            return [null, null, null, 'subject must be {"type": "user", "id": "usr_…"} or {"type": "agent", "id": "agt_…"}.'];
         }
         $resource = is_array($resource) ? $resource : [];
         if (($resource['type'] ?? 'app') !== 'app' && ($resource['type'] ?? '') !== 'application') {
@@ -145,6 +148,12 @@ class AuthzenController
             $orgs = $orgs === null || in_array($org, $orgs, true) ? [$org] : [];
         }
         $id = $subject['id'];
+        if ($subject['type'] === 'agent' || str_starts_with($id, 'agt_')) {
+            $agent = \App\Models\Agent::with(['organization', 'owner'])->find(str_starts_with($id, 'agt_') ? substr($id, 4) : $id);
+            $ok = $agent && ($caller['orgSlugs'] === null || in_array($agent->organization?->slug, $caller['orgSlugs'], true));
+
+            return [$ok ? $agent : null, $app, $orgs, null];
+        }
         $user = str_contains($id, '@') ? User::where('email', mb_strtolower($id))->first() : User::findBySub($id);
         if ($user && $caller['orgSlugs'] !== null && ! $user->organizations()->whereIn('slug', $caller['orgSlugs'])->exists()) {
             $user = null;

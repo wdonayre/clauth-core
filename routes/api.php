@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AgentsController;
 use App\Http\Controllers\Api\V1\AppsController;
 use App\Http\Controllers\Api\V1\AppWritesController;
+use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\ConnectionsController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\InvitesController;
@@ -87,6 +89,7 @@ Route::middleware(['api.client:access:write', 'api.idempotent'])->group(function
 });
 
 Route::middleware(['api.client:apps:read'])->group(function () {
+    Route::get('cimd/preview', [AppWritesController::class, 'cimdPreview']);
     Route::get('apps', [AppsController::class, 'index']);
     Route::get('apps/{app}', [AppsController::class, 'show']);
 });
@@ -96,6 +99,7 @@ Route::middleware(['api.client:apps:write', 'api.idempotent'])->group(function (
     Route::delete('apps/{app}', [AppWritesController::class, 'destroy']);
     Route::post('apps/{app}/manifest/sync', [AppsController::class, 'syncManifest']);
     Route::post('apps/{app}/clients', [AppWritesController::class, 'addClient']);
+    Route::post('apps/{app}/registration-tokens', [AppWritesController::class, 'registrationToken']);
     Route::patch('apps/{app}/clients/{client}', [AppWritesController::class, 'updateClient']);
     Route::post('apps/{app}/roles', [AppWritesController::class, 'storeRole']);
     Route::patch('apps/{app}/roles/{role}', [AppWritesController::class, 'updateRole']);
@@ -137,6 +141,40 @@ Route::middleware(['api.client:connections:write', 'api.idempotent'])->group(fun
     Route::post('connections', [ConnectionsController::class, 'store']);
     Route::patch('connections/{key}', [ConnectionsController::class, 'update']);
     Route::delete('connections/{key}', [ConnectionsController::class, 'destroy']);
+});
+
+// Agents (SPEC-platform §9.3)
+Route::middleware('api.client:agents:read')->group(function () {
+    Route::get('orgs/{org}/agents', [AgentsController::class, 'index']);
+    Route::get('agents/{agent}', [AgentsController::class, 'show']);
+});
+Route::middleware(['api.client:agents:write', 'api.idempotent'])->group(function () {
+    Route::post('orgs/{org}/agents', [AgentsController::class, 'store']);
+    Route::patch('agents/{agent}', [AgentsController::class, 'update']);
+    Route::put('agents/{agent}/access', [AgentsController::class, 'access']);
+    Route::post('agents/{agent}/secret', [AgentsController::class, 'rotate']);
+    Route::delete('agents/{agent}', [AgentsController::class, 'destroy']);
+});
+Route::middleware('api.client:me:read')->get('me/agents', [AgentsController::class, 'mine']);
+Route::middleware(['api.client:me:write', 'api.idempotent'])->group(function () {
+    Route::post('me/agents', [AgentsController::class, 'storeMine']);
+    Route::patch('me/agents/{agent}', [AgentsController::class, 'updateMine']);
+    Route::post('me/agents/{agent}/secret', [AgentsController::class, 'rotateMine']);
+    Route::delete('me/agents/{agent}', [AgentsController::class, 'destroyMine']);
+});
+
+// Config as code (SPEC-platform §9.4)
+Route::middleware('api.client:config:read')->group(function () {
+    Route::get('export', [ConfigController::class, 'export']);
+    Route::get('variables', [ConfigController::class, 'listVariables']);
+    Route::get('secrets', [ConfigController::class, 'listSecrets']);
+});
+Route::middleware(['api.client:config:write', 'api.idempotent'])->group(function () {
+    Route::post('import', [ConfigController::class, 'import']);
+    Route::put('variables/{name}', [ConfigController::class, 'putVariable']);
+    Route::delete('variables/{name}', [ConfigController::class, 'deleteVariable']);
+    Route::put('secrets/{name}', [ConfigController::class, 'putSecret']);
+    Route::delete('secrets/{name}', [ConfigController::class, 'deleteSecret']);
 });
 
 // Languages, wording and message templates (SPEC-platform §8.5)

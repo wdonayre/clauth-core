@@ -29,6 +29,17 @@ class TokenController
     public function __invoke(Request $request, ServerRequestInterface $psrRequest, AuthorizationServer $server, TokenContext $ctx)
     {
         $grant = $request->input('grant_type');
+        if ($grant === CibaController::GRANT) {
+            // CIBA poll (SPEC-platform §8.3): once approved, swap for the internal authorization code exchange.
+            $params = CibaController::exchange($request);
+            if (! is_array($params)) {
+                return $params;
+            }
+            $request->merge($params);
+            $request->request->remove('auth_req_id');
+            $psrRequest = $psrRequest->withParsedBody($params);
+            $grant = 'authorization_code';
+        }
         $key = Passport::tokenEncryptionKey(app('encrypter'));
         // A suspended app (or one whose organization is suspended) gets no tokens at all (SPEC-organizations §10.4).
         $requester = OAuthClient::with('app.publisher')->find($request->input('client_id') ?: $request->getUser());
@@ -86,7 +97,19 @@ class TokenController
 
         if ($grant === 'client_credentials') {
             $client = OAuthClient::find($request->input('client_id') ?: $request->getUser());
-            if ($client && ! in_array($client->type, ['m2m', 'api'], true)) {
+            if ($client?->type === 'agent' && ! $client->revoked) {
+                // An agent asks for a token to one app: audience=<app key>. It must be usable and installed there.
+                $agent = \App\Models\Agent::with(['organization', 'owner'])->find($client->agent_id);
+                $aud = \App\Models\Application::where('key', (string) $request->input('audience'))->first();
+                if (! $agent || ! $agent->usable()) {
+                    return $this->error('unauthorized_client', 'This agent is suspended, or its owner can no longer sign in.');
+                }
+                if (! $aud || ! \App\Services\Agents::claims($agent, $aud)) {
+                    return $this->error('invalid_target', 'Send audience=<app key> for an app this agent has access to.');
+                }
+                $ctx->audience = $aud;
+                \App\Models\Agent::whereKey($agent->id)->update(['last_used_at' => now()]);
+            } elseif ($client && ! in_array($client->type, ['m2m', 'api', 'agent'], true)) {
                 return $this->error('unauthorized_client', 'Only machine-to-machine and API clients may use client credentials.');
             }
             if ($client?->isApi() && $client->organization?->isSuspended()) {

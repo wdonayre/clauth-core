@@ -137,6 +137,14 @@ class AppWritesController
     public function addClient(Request $request, string $app)
     {
         $a = $this->managed($app);
+        if ($request->filled('cimd_url')) {
+            // From a client ID metadata document: a public client named and redirected as the document says.
+            $m = \App\Services\ClientMetadata::fetch((string) $request->input('cimd_url'));
+            [$client] = \App\Http\Controllers\OAuth\RegistrationController::create($a, $m);
+            Audit::log('app.client_added', 'app', $a, after: ['client' => $client->id, 'cimd' => $m['client_id']], appId: $a->id);
+
+            return response()->json(Present::client($client) + ['metadata_url' => $m['client_id']], 201);
+        }
         $data = $request->validate(['type' => 'required|in:web,public,m2m,device', 'redirect_uri' => 'required_if:type,web,public|nullable|string|max:500', 'name' => 'required|string|max:80']);
         [$client, $secret] = AppController::makeClient($a, $data['type'], $data['redirect_uri'] ?? null, $data['name']);
         Audit::log('app.client_added', 'app', $a, after: ['client' => $client->id, 'type' => $data['type']], appId: $a->id);
@@ -229,6 +237,28 @@ class AppWritesController
         }
 
         return Etag::attach(response()->json(Present::role($r->fresh())), $r->fresh());
+    }
+
+    /** POST {name, uses?: int, days?: int} — an initial access token for RFC 7591 registration into this app (shown once). */
+    public function registrationToken(Request $request, string $app)
+    {
+        $a = $this->managed($app);
+        $data = $request->validate(['name' => 'required|string|max:80', 'uses' => 'nullable|integer|min:1|max:10000', 'days' => 'nullable|integer|min:1|max:365']);
+        $token = Str::random(48);
+        DB::table('registration_tokens')->insert(['app_id' => $a->id, 'name' => $data['name'], 'token_hash' => hash('sha256', $token),
+            'uses_left' => $data['uses'] ?? null, 'expires_at' => now()->addDays($data['days'] ?? 30), 'created_by' => $this->api()->actor->id, 'created_at' => now(), 'updated_at' => now()]);
+        Audit::log('app.registration_token_created', 'app', $a, after: ['name' => $data['name']], appId: $a->id);
+
+        return response()->json(['initial_access_token' => $token, 'registration_endpoint' => \App\Services\Domains::mainUrl('oauth/register'),
+            'uses' => $data['uses'] ?? null, 'expires_at' => now()->addDays($data['days'] ?? 30)->toIso8601String()], 201);
+    }
+
+    /** GET /cimd/preview?url= — read a client ID metadata document before registering it. */
+    public function cimdPreview(Request $request)
+    {
+        $request->validate(['url' => 'required|string|max:500']);
+
+        return response()->json(\App\Services\ClientMetadata::fetch((string) $request->query('url')));
     }
 
     /** {key, description?} — a permission added by hand (manifest permissions come from the app). */

@@ -35,6 +35,11 @@ Route::withoutMiddleware([ValidateCsrfToken::class])->group(function () {
     Route::post('/oauth/token', TokenController::class)->middleware('throttle:token')->name('oauth.token');
     Route::post('/oauth/revoke', [OidcController::class, 'revoke'])->middleware('throttle:token');
     Route::match(['get', 'post'], '/userinfo', [OidcController::class, 'userinfo']);
+    Route::post('/oauth/register', [\App\Http\Controllers\OAuth\RegistrationController::class, 'register'])->middleware('throttle:20,1');
+    Route::get('/oauth/register/{client}', [\App\Http\Controllers\OAuth\RegistrationController::class, 'show'])->middleware('throttle:60,1');
+    Route::put('/oauth/register/{client}', [\App\Http\Controllers\OAuth\RegistrationController::class, 'update'])->middleware('throttle:20,1');
+    Route::delete('/oauth/register/{client}', [\App\Http\Controllers\OAuth\RegistrationController::class, 'destroy'])->middleware('throttle:20,1');
+    Route::post('/oauth/bc-authorize', [\App\Http\Controllers\OAuth\CibaController::class, 'start'])->middleware('throttle:token');
     Route::post('/oauth/device', [\App\Http\Controllers\OAuth\DeviceController::class, 'code'])->middleware('throttle:token');
     Route::post('/oauth/par', [\App\Http\Controllers\OAuth\ParController::class, '__invoke'])->middleware('throttle:token');
     Route::post('/oauth/introspect', [OidcController::class, 'introspect'])->middleware('throttle:token');
@@ -63,6 +68,8 @@ Route::get('/login/2fa/sms-setup', [TwoFactorController::class, 'smsSetup'])->na
 Route::post('/login/2fa/sms-setup', [TwoFactorController::class, 'smsSetupSend'])->middleware('throttle:mfa');
 Route::post('/login/2fa/sms-setup/confirm', [TwoFactorController::class, 'smsSetupConfirm'])->middleware('throttle:mfa');
 // Device sign-in (RFC 8628). The route name passport.device also turns on Passport's device-code grant.
+Route::get('/approve/{id}', [\App\Http\Controllers\OAuth\CibaController::class, 'show'])->middleware('auth')->where('id', '[A-Za-z0-9]{48}')->name('ciba.show');
+Route::post('/approve/{id}', [\App\Http\Controllers\OAuth\CibaController::class, 'decide'])->middleware(['auth', 'throttle:20,1'])->where('id', '[A-Za-z0-9]{48}');
 Route::get('/device', [\App\Http\Controllers\OAuth\DeviceController::class, 'show'])->middleware('auth')->name('passport.device');
 Route::post('/device', [\App\Http\Controllers\OAuth\DeviceController::class, 'decide'])->middleware(['auth', 'throttle:20,1']);
 Route::get('/signup', [Auth\SignupController::class, 'show'])->name('signup');
@@ -161,6 +168,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs/{org}/apps', [Admin\OrgController::class, 'addApp'])->name('orgs.apps.store');
         Route::delete('/orgs/{org}/apps/{app}', [Admin\OrgController::class, 'removeApp'])->name('orgs.apps.destroy');
         Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
+        Route::get('/orgs/{org}/agents', [Admin\AgentController::class, 'index'])->name('agents.index');
+        Route::post('/orgs/{org}/agents', [Admin\AgentController::class, 'store'])->name('agents.store');
+        Route::put('/orgs/{org}/agents/{agent}/access', [Admin\AgentController::class, 'access'])->name('agents.access');
+        Route::post('/orgs/{org}/agents/{agent}/secret', [Admin\AgentController::class, 'rotate'])->name('agents.rotate');
+        Route::post('/orgs/{org}/agents/{agent}/status', [Admin\AgentController::class, 'status'])->name('agents.status');
+        Route::delete('/orgs/{org}/agents/{agent}', [Admin\AgentController::class, 'destroy'])->name('agents.destroy');
         Route::get('/orgs/{org}/messages', [Admin\MessagesController::class, 'index'])->name('messages.index');
         Route::post('/orgs/{org}/messages', [Admin\MessagesController::class, 'save'])->name('messages.save');
         Route::get('/orgs/{org}/connections', [Admin\ConnectionController::class, 'index'])->name('connections.index');

@@ -25,12 +25,36 @@ class ClauthAccessToken extends AccessToken
         return $this->jwt ??= $this->build();
     }
 
+    /** sub = agt_…, aud = the app, act = the owner (a person's own agent), orgs = the agent's access. */
+    private function agentToken(OAuthClient $client, Application $app): string
+    {
+        $key = SigningKeys::active();
+        $config = SigningKeys::config($key);
+        $agent = \App\Models\Agent::with(['organization', 'owner'])->find($client->agent_id);
+        $now = new DateTimeImmutable;
+        $b = $config->builder(ChainedFormatter::withUnixTimestampDates())
+            ->withHeader('kid', $key->kid)->issuedBy(config('clauth.issuer'))->permittedFor($app->key)
+            ->identifiedBy($this->getIdentifier())->issuedAt($now)->canOnlyBeUsedAfter($now)->expiresAt($this->getExpiryDateTime())
+            ->relatedTo($agent->sub())->withClaim('client_id', $client->id)->withClaim('scope', 'clauth')
+            ->withClaim('agent', ['name' => $agent->name, 'org' => $agent->organization->slug])
+            ->withClaim('orgs', (object) \App\Services\Agents::claims($agent, $app));
+        if ($agent->owner) {
+            $b = $b->withClaim('act', ['sub' => $agent->owner->sub()]);
+        }
+
+        return $b->getToken($config->signer(), $config->signingKey())->toString();
+    }
+
     private function build(): string
     {
         $key = SigningKeys::active();
         $config = SigningKeys::config($key);
         $client = OAuthClient::find($this->getClient()->getIdentifier());
         $app = $client?->app;
+        $ctx = app(TokenContext::class);
+        if ($client?->type === 'agent' && $ctx->audience) {
+            return $this->agentToken($client, $ctx->audience);
+        }
         $now = new DateTimeImmutable;
         $scopes = array_map(fn ($s) => $s->getIdentifier(), $this->getScopes());
         $ctx = app(TokenContext::class);
