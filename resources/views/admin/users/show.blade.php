@@ -50,6 +50,30 @@
                 @if($ownerP && ! $canOwner && in_array($p->id, $held, true))<input type="hidden" name="profiles[]" value="{{ $p->id }}">@endif
               @empty<span class="small muted">{{ $org->name }} has no access profiles yet.</span>@endforelse
             </div></div></div>
+          @if($org->pivot->deactivated_at)
+            <div class="row"><span class="chip bad">Switched off by provisioning</span><span class="small muted">{{ $org->name }}'s HR system (SCIM) turned this person off {{ \Carbon\Carbon::parse($org->pivot->deactivated_at)->diffForHumans() }}: no access to its apps until it turns them back on.</span></div>
+          @endif
+          @if($teams->isNotEmpty())
+            <div class="row" style="align-items:flex-start"><div class="grow"><b>Teams</b> <a class="small" href="{{ route('admin.org-data.index', $org->id) }}">Manage</a>
+              <input type="hidden" name="teams_shown" value="1">
+              <div class="pills" style="margin-top:8px">@foreach($teams as $t)<label class="pill"><input type="checkbox" name="teams[]" value="{{ $t->key }}" @checked(in_array($t->key, $heldTeams, true))><span>{{ $t->name }}</span></label>@endforeach</div></div></div>
+          @endif
+          @if($fieldDefs->isNotEmpty())
+            <div class="row" style="align-items:flex-start"><div class="grow"><b>Profile fields</b>
+              <div class="form" style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px">
+                @foreach($fieldDefs as $f)
+                  @php($v = $fieldValues[$f->key] ?? null)
+                  <div class="f"><label for="fv-{{ $f->key }}">{{ $f->label }}@if($f->required)<span class="bad"> *</span>@endif @if($f->in_token)<span class="chip info" title="Sent to apps in sign-in tokens">apps</span>@endif</label>
+                    @switch($f->type)
+                      @case('bool')<select class="in" id="fv-{{ $f->key }}" name="fields[{{ $f->key }}]"><option value="">—</option><option value="1" @selected($v === true)>Yes</option><option value="0" @selected($v === false)>No</option></select>@break
+                      @case('enum')<select class="in" id="fv-{{ $f->key }}" name="fields[{{ $f->key }}]"><option value="">—</option>@foreach($f->options ?? [] as $o)<option @selected($v === $o)>{{ $o }}</option>@endforeach</select>@break
+                      @case('date')<input class="in" type="date" id="fv-{{ $f->key }}" name="fields[{{ $f->key }}]" value="{{ $v }}">@break
+                      @case('number')<input class="in" type="number" step="any" id="fv-{{ $f->key }}" name="fields[{{ $f->key }}]" value="{{ $v }}">@break
+                      @default<input class="in" id="fv-{{ $f->key }}" name="fields[{{ $f->key }}]" value="{{ $v }}" maxlength="255">
+                    @endswitch</div>
+                @endforeach
+              </div>@error('fields.*')<div class="small bad">{{ $message }}</div>@enderror</div></div>
+          @endif
           @forelse($apps as $a)
             @php($e = $access[$a->id] ?? null)
             @php($ov = $e['override'] ?? null)

@@ -67,7 +67,8 @@ class Access
     /** Bring one person's grants in $org in line with their profiles + overrides. Returns the changes made. */
     public static function resolve(User $user, Organization $org, string $cause, ?User $actor = null): array
     {
-        $member = $user->organizations()->where('organizations.id', $org->id)->exists();
+        // A member switched off by provisioning (SCIM active=false) keeps the membership but gets no access.
+        $member = $user->organizations()->where('organizations.id', $org->id)->wherePivotNull('deactivated_at')->exists();
         $changes = [];
         foreach (self::explain($user, $org) as $appId => $e) {
             $want = $member ? $e['role'] : null;
@@ -184,6 +185,8 @@ class Access
     {
         $user->accessProfiles()->detach(AccessProfile::where('organization_id', $org->id)->pluck('id'));
         GrantOverride::where('user_id', $user->id)->where('organization_id', $org->id)->delete();
+        $user->teams()->detach(\App\Models\Team::where('organization_id', $org->id)->pluck('id'));
+        DB::table('user_attributes')->where('user_id', $user->id)->where('organization_id', $org->id)->delete();
         foreach (Grant::where(['user_id' => $user->id, 'organization_id' => $org->id])->get() as $g) {
             $g->delete();
             Sessions::revokeApp($user, $g->app_id);

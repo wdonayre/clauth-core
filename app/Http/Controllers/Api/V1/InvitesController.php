@@ -45,6 +45,7 @@ class InvitesController
             'email' => 'required|email|max:190', 'name' => 'required|string|max:120', 'org' => 'required|string',
             'profiles' => 'array', 'profiles.*' => 'string', 'apps' => 'array', 'apps.*' => 'string',
             'require_two_step' => 'boolean', 'org_role' => 'nullable|in:member,developer,admin', 'send' => 'boolean',
+            'teams' => 'array', 'teams.*' => 'string', 'fields' => 'array',
         ]);
         $org = $this->api()->org($data['org']);
         $me = $this->api()->actor;
@@ -67,12 +68,21 @@ class InvitesController
             abort_if($role->tier === 'owner' && ! Access::canTouchOwnerTier($me, $org->id), 403, "Only an owner of {$org->name} can give an Owner-tier role.");
             $grants[] = ['app_id' => $app->id, 'role_id' => $role->id];
         }
+        // Teams and field values are checked now and applied when the invite is accepted.
+        $unknownTeams = array_diff($data['teams'] ?? [], $org->teams()->pluck('key')->all());
+        abort_if($unknownTeams, 422, 'Unknown teams: '.implode(', ', $unknownTeams));
+        $defs = $org->attributeDefs()->get()->keyBy('key');
+        foreach ($data['fields'] ?? [] as $k => $v) {
+            $msg = $defs->has($k) ? \App\Services\OrgData::invalid($defs[$k], $v) : "{$org->name} has no field called {$k}.";
+            abort_if($msg !== null, 422, $msg);
+        }
         $orgRole = $data['org_role'] ?? null;
         abort_if(in_array($orgRole, ['admin'], true) && ! Access::canTouchOwnerTier($me, $org->id), 403, 'Only an owner of the organization can invite an admin.');
         [$invite, $token] = Invites::create([
             'email' => $data['email'], 'name' => $data['name'], 'organization_id' => $org->id, 'grants' => $grants,
             'profiles' => $profiles->pluck('id')->all(), 'require_mfa' => (bool) ($data['require_two_step'] ?? false),
             'org_role' => $orgRole && $orgRole !== 'member' ? $orgRole : null,
+            'teams' => $data['teams'] ?? [], 'fields' => $data['fields'] ?? [],
         ], $me);
         $sent = false;
         if ($request->boolean('send', true)) {
@@ -101,6 +111,7 @@ class InvitesController
         [$new, $token] = Invites::create([
             'name' => $old->name, 'email' => $old->email, 'organization_id' => $old->organization_id, 'grants' => $old->grants,
             'profiles' => $old->profiles, 'require_mfa' => $old->require_mfa, 'org_role' => $old->org_role,
+            'teams' => $old->teams, 'fields' => $old->fields,
         ], $this->api()->actor);
         $sent = $request->boolean('send', true) && (bool) rescue(fn () => Invites::send($new, $token) ?? true, false, report: true);
 

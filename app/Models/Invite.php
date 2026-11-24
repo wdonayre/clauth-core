@@ -17,6 +17,8 @@ class Invite extends Model
         return [
             'grants' => 'array',
             'profiles' => 'array',
+            'teams' => 'array',
+            'fields' => 'array',
             'require_mfa' => 'bool',
             'is_org_admin' => 'bool',
             'expires_at' => 'datetime',

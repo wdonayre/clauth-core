@@ -49,12 +49,17 @@ class User extends Authenticatable
 
     public function organizations(): BelongsToMany
     {
-        return $this->belongsToMany(Organization::class)->withPivot('role', 'joined_at');
+        return $this->belongsToMany(Organization::class)->withPivot('role', 'joined_at', 'external_id', 'deactivated_at');
     }
 
     public function grants(): HasMany
     {
         return $this->hasMany(Grant::class);
+    }
+
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class)->withPivot('added_by', 'added_at');
     }
 
     public function accessProfiles(): BelongsToMany

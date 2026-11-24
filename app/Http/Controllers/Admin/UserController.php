@@ -133,6 +133,10 @@ class UserController
             'access' => $org ? Access::explain($user, $org) : [],
             'profiles' => $org ? $org->accessProfiles()->get() : collect(),
             'held' => $org ? $user->accessProfiles()->where('organization_id', $org->id)->pluck('access_profiles.id')->all() : [],
+            'teams' => $org ? $org->teams()->get() : collect(),
+            'heldTeams' => $org ? \App\Services\OrgData::teamKeys($user, $org) : [],
+            'fieldDefs' => $org ? $org->attributeDefs()->get() : collect(),
+            'fieldValues' => $org ? \App\Services\OrgData::values($user, $org) : [],
             'canOwner' => $org && Access::canTouchOwnerTier(auth()->user(), $org->id),
             'tiers' => AppRole::TIERS,
             'allOrgs' => $this->orgs()->whereNotIn('id', $orgs->pluck('id')),
@@ -158,6 +162,19 @@ class UserController
         $request->validate(['profiles' => 'array', 'roles' => 'array', 'reason' => 'nullable|string|max:190']);
         $me = $request->user();
         Access::setProfiles($user, $org, $request->has('profiles_shown') ? (array) $request->input('profiles', []) : $user->accessProfiles()->where('organization_id', $org->id)->pluck('access_profiles.id')->all(), $me);
+        if ($request->has('teams_shown')) {
+            \App\Services\OrgData::setTeams($user, $org, (array) $request->input('teams', []), $me);
+        }
+        if (is_array($request->input('fields'))) {
+            $defs = $org->attributeDefs()->get()->keyBy('key');
+            $vals = collect($request->input('fields'))->only($defs->keys())
+                ->map(fn ($v, $k) => $defs[$k]->type === 'bool' ? ($v === '1' ? true : ($v === '0' ? false : null)) : $v);
+            $now = \App\Services\OrgData::values($user, $org);
+            // Only what changed: an empty required field nobody touched doesn't block saving the rest.
+            $vals = $vals->filter(fn ($v, $k) => (string) json_encode($v === '' ? null : $v) !== (string) json_encode($now[$k] ?? null)
+                && ! (is_numeric($v) && isset($now[$k]) && $v + 0 == $now[$k]))->all();
+            \App\Services\OrgData::setValues($user, $org, $vals, $me);
+        }
         $changed = false;
         foreach ($org->apps as $app) {
             $choice = $request->input("roles.{$app->id}");

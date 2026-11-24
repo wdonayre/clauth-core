@@ -63,6 +63,27 @@ class ApiClientController
         return back()->with('created_client', ['id' => $c->id, 'secret' => $secret, 'name' => $c->name, 'scopes' => implode(' ', $c->scopes)]);
     }
 
+    /**
+     * SCIM provisioning (SPEC-platform §9.2): an API client with only the scim scope plus one bearer token valid for
+     * a year, because HR systems and identity providers take a fixed token. Making a new one turns the old one off.
+     */
+    public function scim(Request $request, string $org)
+    {
+        $o = $this->org($org);
+        abort_unless($o, 404);
+        foreach (OAuthClient::where('type', 'api')->where('organization_id', $o->id)->where('name', 'SCIM provisioning')->where('revoked', false)->get() as $old) {
+            $old->forceFill(['revoked' => true])->save();
+            DB::table('oauth_access_tokens')->where('client_id', $old->id)->update(['revoked' => true]);
+        }
+        $c = new OAuthClient;
+        $c->forceFill(['type' => 'api', 'name' => 'SCIM provisioning', 'secret' => Str::random(48), 'organization_id' => $o->id, 'created_by' => $request->user()->id,
+            'redirect_uris' => [], 'grant_types' => ['client_credentials'], 'scopes' => ['scim'], 'revoked' => false, 'secret_expires_at' => now()->addYear()])->save();
+        [, $token] = \App\Services\PersonalTokens::mint($c, null, 'SCIM token', ['scim'], 365, 'scim');
+        Audit::log('api.scim_token_created', 'admin', $c, orgId: $o->id);
+
+        return back()->with('scim_token', ['url' => rtrim(config('clauth.issuer'), '/').'/scim/v2', 'token' => $token]);
+    }
+
     public function rotate(string $org, string $client)
     {
         $o = $this->org($org);

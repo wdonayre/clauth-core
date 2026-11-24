@@ -163,6 +163,7 @@ class OrgsController
     {
         return [
             'user' => $u->sub(), 'org' => $o->slug, 'org_role' => $u->orgRole($o->id),
+            'teams' => \App\Services\OrgData::teamKeys($u, $o),
             'profiles' => $u->accessProfiles()->where('organization_id', $o->id)->pluck('key'),
             'apps' => collect(Access::explain($u, $o))->mapWithKeys(fn ($e) => [$e['app']->key => [
                 'role' => $e['role']?->key, 'source' => $e['source'], 'from_profiles' => $e['via'],

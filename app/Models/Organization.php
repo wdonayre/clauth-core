@@ -47,7 +47,17 @@ class Organization extends Model
 
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)->withPivot('role', 'joined_at');
+        return $this->belongsToMany(User::class)->withPivot('role', 'joined_at', 'external_id', 'deactivated_at');
+    }
+
+    public function teams(): HasMany
+    {
+        return $this->hasMany(Team::class)->orderBy('name');
+    }
+
+    public function attributeDefs(): HasMany
+    {
+        return $this->hasMany(OrgAttribute::class)->orderBy('position')->orderBy('id');
     }
 
     public function accessProfiles(): HasMany

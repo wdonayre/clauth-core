@@ -15,6 +15,18 @@
 curl -s {{ url('/api/v1/capabilities') }} -H "Authorization: Bearer $TOKEN"</pre></div>
 @endif
 
+@if($s = session('scim_token'))
+  <div class="flash ok"><b>Paste these into your HR system or identity provider (Google Workspace, Entra ID, Okta). The token is shown only once and works for a year.</b>
+    <div class="mono small" style="margin-top:8px;word-break:break-all">SCIM base URL: {{ $s['url'] }}<br>Bearer token: {{ $s['token'] }}</div></div>
+@endif
+@if($org)
+  <section class="card pad" style="margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <div class="grow" style="min-width:240px"><h2 style="margin:0 0 4px">SCIM provisioning</h2>
+      <p class="small muted" style="margin:0">Let {{ $org->name }}'s HR system or identity provider add people, switch them off when they leave, and put them in access profiles (SCIM groups). New people get an invite email to set a password. Making a new token turns the old one off.</p></div>
+    <form method="post" action="{{ route('admin.api-clients.scim', $orgKey) }}" data-confirm="Make a new SCIM token? Any existing SCIM token for {{ $org->name }} stops working.">@csrf<button class="btn pri">Make SCIM token</button></form>
+  </section>
+@endif
+
 <div class="grid2">
   <section class="card">
     <div class="card-h"><h2>Clients ({{ $clients->count() }})</h2></div>

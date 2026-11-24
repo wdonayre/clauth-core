@@ -55,10 +55,21 @@ class PersonalTokens
     /** Returns [row id, jwt]. The JWT is shown once. */
     public static function create(User $user, string $name, array $scopes, int $days): array
     {
-        $client = self::client();
+        $out = self::mint(self::client(), $user, $name, $scopes, $days, 'personal');
+        Audit::log('api.personal_token_created', 'security', $user, after: ['name' => $name, 'scopes' => $scopes, 'days' => $days], actorId: $user->id, actorType: 'user');
+
+        return $out;
+    }
+
+    /**
+     * A long-lived Clauth JWT for $client (and $user, or none: sub = client_…), backed by an oauth_access_tokens row
+     * so it can be revoked. Used for personal tokens and SCIM tokens (HR systems want one fixed bearer token).
+     */
+    public static function mint(OAuthClient $client, ?User $user, string $name, array $scopes, int $days, string $use): array
+    {
         $id = Str::random(80);
         $exp = now()->addDays($days);
-        DB::table('oauth_access_tokens')->insert(['id' => $id, 'user_id' => $user->id, 'client_id' => $client->id, 'name' => $name,
+        DB::table('oauth_access_tokens')->insert(['id' => $id, 'user_id' => $user?->id, 'client_id' => $client->id, 'name' => $name,
             'scopes' => json_encode(array_values($scopes)), 'revoked' => false, 'created_at' => now(), 'updated_at' => now(), 'expires_at' => $exp]);
         $key = SigningKeys::active();
         $config = SigningKeys::config($key);
@@ -68,13 +79,12 @@ class PersonalTokens
             ->issuedBy(config('clauth.issuer'))
             ->permittedFor(config('clauth.issuer').'/api')
             ->identifiedBy($id)
-            ->relatedTo($user->sub())
+            ->relatedTo($user ? $user->sub() : 'client_'.$client->id)
             ->issuedAt($now)->canOnlyBeUsedAfter($now)->expiresAt($exp->toDateTimeImmutable())
             ->withClaim('client_id', $client->id)
             ->withClaim('scope', implode(' ', $scopes))
-            ->withClaim('token_use', 'personal')
+            ->withClaim('token_use', $use)
             ->getToken($config->signer(), $config->signingKey())->toString();
-        Audit::log('api.personal_token_created', 'security', $user, after: ['name' => $name, 'scopes' => $scopes, 'days' => $days], actorId: $user->id, actorType: 'user');
 
         return [$id, $jwt];
     }

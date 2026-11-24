@@ -36,6 +36,28 @@ class MeController
         return $this->show();
     }
 
+    /** GET /me/orgs/{org}/profile — your teams and field values in one organization (which ones you may edit). */
+    public function orgProfile(string $org)
+    {
+        $u = $this->api()->actor;
+        $o = $u->organizations()->where('slug', $org)->first() ?? abort(404, 'You are not in that organization.');
+
+        return response()->json(['org' => $o->slug, 'teams' => \App\Services\OrgData::teamKeys($u, $o),
+            'fields' => (object) \App\Services\OrgData::values($u, $o),
+            'editable' => $o->attributeDefs()->where('editable_by', 'self')->pluck('key')]);
+    }
+
+    /** PATCH /me/orgs/{org}/profile {fields: {key: value}} — only fields the organization lets people edit themselves. */
+    public function updateOrgProfile(Request $request, string $org)
+    {
+        $u = $this->api()->actor;
+        $o = $u->organizations()->where('slug', $org)->first() ?? abort(404, 'You are not in that organization.');
+        $data = $request->validate(['fields' => 'required|array']);
+        \App\Services\OrgData::setValues($u, $o, $data['fields'], $u, true);
+
+        return $this->orgProfile($org);
+    }
+
     /** Apps the person can open, with their role per organization. */
     public function apps()
     {

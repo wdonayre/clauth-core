@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\MiscController;
 use App\Http\Controllers\Api\V1\OpenApiController;
 use App\Http\Controllers\Api\V1\OrgsController;
 use App\Http\Controllers\Api\V1\ProfilesController;
+use App\Http\Controllers\Api\V1\TeamsController;
 use App\Http\Controllers\Api\V1\UsersController;
 use Illuminate\Support\Facades\Route;
 
@@ -44,10 +45,23 @@ Route::middleware(['api.client:orgs:read'])->group(function () {
     Route::get('orgs', [OrgsController::class, 'index']);
     Route::get('orgs/{org}', [OrgsController::class, 'show']);
     Route::get('orgs/{org}/members', [OrgsController::class, 'members']);
+    Route::get('orgs/{org}/teams', [TeamsController::class, 'index']);
+    Route::get('orgs/{org}/teams/{team}', [TeamsController::class, 'show']);
+    Route::get('orgs/{org}/fields', [TeamsController::class, 'fields']);
+    Route::get('orgs/{org}/members/{user}/profile', [TeamsController::class, 'memberProfile']);
 });
 Route::middleware(['api.client:orgs:write', 'api.idempotent'])->group(function () {
     Route::put('orgs/{org}/members/{user}', [OrgsController::class, 'putMember']);
     Route::delete('orgs/{org}/members/{user}', [OrgsController::class, 'removeMember']);
+    Route::post('orgs/{org}/teams', [TeamsController::class, 'store']);
+    Route::patch('orgs/{org}/teams/{team}', [TeamsController::class, 'update']);
+    Route::delete('orgs/{org}/teams/{team}', [TeamsController::class, 'destroy']);
+    Route::put('orgs/{org}/teams/{team}/members/{user}', [TeamsController::class, 'addMember']);
+    Route::delete('orgs/{org}/teams/{team}/members/{user}', [TeamsController::class, 'removeMember']);
+    Route::post('orgs/{org}/fields', [TeamsController::class, 'storeField']);
+    Route::patch('orgs/{org}/fields/{field}', [TeamsController::class, 'updateField']);
+    Route::delete('orgs/{org}/fields/{field}', [TeamsController::class, 'destroyField']);
+    Route::patch('orgs/{org}/members/{user}/profile', [TeamsController::class, 'updateMemberProfile']);
 });
 
 Route::middleware(['api.client:access:read'])->group(function () {
@@ -100,11 +114,13 @@ Route::middleware('api.client:me:read')->group(function () {
     Route::get('me/apps', [MeController::class, 'apps']);
     Route::get('me/sessions', [MeController::class, 'sessions']);
     Route::get('me/consents', [MeController::class, 'consents']);
+    Route::get('me/orgs/{org}/profile', [MeController::class, 'orgProfile']);
 });
 Route::middleware(['api.client:me:write', 'api.idempotent'])->group(function () {
     Route::patch('me', [MeController::class, 'update']);
     Route::delete('me/sessions/{id}', [MeController::class, 'endSession']);
     Route::delete('me/consents/{app}', [MeController::class, 'revokeConsent']);
+    Route::patch('me/orgs/{org}/profile', [MeController::class, 'updateOrgProfile']);
 });
 
 Route::middleware('api.client:audit:read')->get('audit', [MiscController::class, 'audit']);

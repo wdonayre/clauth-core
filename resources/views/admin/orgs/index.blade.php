@@ -45,6 +45,7 @@
           @if($o->suspended_at)<span class="chip bad" title="{{ $o->suspend_reason }}">Suspended</span>@endif
           <span class="chip {{ $o->status === 'active' ? 'ok' : 'bad' }}">{{ ucfirst($o->status) }}</span>
           <a class="btn sm" href="{{ route('admin.profiles.index', $o->id) }}">Access profiles</a>
+          <a class="btn sm" href="{{ route('admin.org-data.index', $o->id) }}">Teams &amp; fields</a>
           <a class="btn sm" href="{{ route('admin.api-clients.index', $o->id) }}">API clients</a>
         </div>
       </div>

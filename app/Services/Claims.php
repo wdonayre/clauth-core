@@ -40,6 +40,13 @@ class Claims
                 $grant->role->permissionKeys(),
             )));
             sort($out[$slug]['permissions']);
+            // Teams and profile fields marked "send to apps" (SPEC-platform §6.3, §6.4); only present when set.
+            if (! isset($out[$slug]['teams']) && ($teams = OrgData::teamKeys($user, $grant->organization))) {
+                $out[$slug]['teams'] = $teams;
+            }
+            if (! isset($out[$slug]['fields']) && ($fields = OrgData::values($user, $grant->organization, true))) {
+                $out[$slug]['fields'] = $fields;
+            }
         }
         ksort($out);
 

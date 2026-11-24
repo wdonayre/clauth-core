@@ -72,13 +72,15 @@ return [
         'audit:read' => 'Read the audit log (API)',
         'settings:read' => 'Read platform settings (API, platform clients only)',
         'settings:write' => 'Change platform settings (API, platform clients only)',
+        'authzen' => 'Ask "can this person do X in this app?" (AuthZEN access evaluation)',
+        'scim' => 'Provision people and groups with SCIM 2.0 (HR systems, Google Workspace, Entra, Okta)',
         'me:read' => 'Read your own account (personal API tokens)',
         'me:write' => 'Change your own account and sign out sessions (personal API tokens)',
     ],
 
     // Scopes an API client can be given (SPEC-platform §5.1); the platform_only ones need a platform client.
     'api' => [
-        'scopes' => ['users:read', 'users:write', 'orgs:read', 'orgs:write', 'apps:read', 'apps:write', 'access:read', 'access:write', 'audit:read', 'settings:read', 'settings:write'],
+        'scopes' => ['users:read', 'users:write', 'orgs:read', 'orgs:write', 'apps:read', 'apps:write', 'access:read', 'access:write', 'audit:read', 'authzen', 'scim', 'settings:read', 'settings:write'],
         'platform_only' => ['settings:read', 'settings:write'],
         'per_minute_read' => (int) env('CLAUTH_API_READ_PER_MINUTE', 600),
         'per_minute_write' => (int) env('CLAUTH_API_WRITE_PER_MINUTE', 120),

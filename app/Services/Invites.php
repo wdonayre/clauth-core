@@ -23,6 +23,8 @@ class Invites
             'organization_id' => $data['organization_id'] ?? null,
             'grants' => array_values($data['grants'] ?? []),
             'profiles' => array_values(array_map('intval', $data['profiles'] ?? [])) ?: null,
+            'teams' => array_values($data['teams'] ?? []) ?: null,
+            'fields' => ($data['fields'] ?? []) ?: null,
             'clauth_role' => $data['clauth_role'] ?? null,
             'is_org_admin' => (bool) ($data['is_org_admin'] ?? false),
             'org_role' => $data['org_role'] ?? null,
@@ -67,7 +69,14 @@ class Invites
                     ['app_role_id' => $g['role_id'], 'reason' => 'Chosen in the invite', 'set_by' => $invite->invited_by, 'set_at' => now()],
                 );
             }
-            Access::resolve($user, $org, 'invite accepted', User::find($invite->invited_by));
+            $by = User::find($invite->invited_by);
+            if ($invite->teams) {
+                rescue(fn () => OrgData::setTeams($user, $org, $invite->teams, $by), report: true);
+            }
+            if ($invite->fields) {
+                rescue(fn () => OrgData::setValues($user, $org, $invite->fields, $by), report: true);
+            }
+            Access::resolve($user, $org, 'invite accepted', $by);
         }
         if ($invite->clauth_role === 'owner') {
             $user->forceFill(['clauth_role' => 'owner'])->save();

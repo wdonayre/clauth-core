@@ -22,12 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api/v1',
+        then: function () {
+            Illuminate\Support\Facades\Route::middleware('api')->group(base_path('routes/standards.php'));
+        },
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
-        $middleware->alias(['admin' => EnsureAdmin::class, 'api.client' => ApiClient::class, 'api.idempotent' => Idempotency::class]);
+        $middleware->alias(['admin' => EnsureAdmin::class, 'api.client' => ApiClient::class, 'api.idempotent' => Idempotency::class, 'scim' => App\Http\Middleware\ScimRequest::class]);
         $middleware->prepend(ForwardPreviousHost::class);
         $middleware->web(prepend: [ServeCustomDomain::class], append: [SecurityHeaders::class]);
         $middleware->encryptCookies(except: []);
@@ -36,8 +39,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         // Platform API errors are RFC 9457 problem+json (SPEC-platform §5).
         $exceptions->render(function (Throwable $e, Request $request) {
-            if (! $request->attributes->get('clauth_api') && ! ($request->is('api/v1/*') && ! $request->route())) {
+            if (! $request->attributes->get('clauth_api') && ! (($request->is('api/v1/*') || $request->is('scim/v2/*')) && ! $request->route())) {
                 return null;
+            }
+            if ($request->is('scim/v2/*')) {
+                $request->attributes->set('clauth_scim', true);
             }
             return match (true) {
                 $e instanceof ValidationException => Problem::make(422, 'Invalid request', $e->getMessage(), $e->errors()),

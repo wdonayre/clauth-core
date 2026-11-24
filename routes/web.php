@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ApiTokenController;
+use App\Http\Controllers\AuthzenController;
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\Api\BarController;
 use App\Http\Controllers\Api\ReleaseNoteController;
@@ -25,6 +26,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/.well-known/openid-configuration', [OidcController::class, 'discovery']);
 Route::get('/.well-known/jwks.json', [OidcController::class, 'jwks']);
 Route::get('/.well-known/oauth-authorization-server', [OidcController::class, 'oauthMetadata']);
+Route::get('/.well-known/authzen-configuration', [AuthzenController::class, 'configuration']);
 Route::get('/oauth/authorize', AuthorizeController::class)->name('oauth.authorize');
 Route::match(['get', 'post'], '/oauth/logout', [OidcController::class, 'logout'])->name('oauth.logout');
 
@@ -33,6 +35,9 @@ Route::withoutMiddleware([ValidateCsrfToken::class])->group(function () {
     Route::post('/oauth/revoke', [OidcController::class, 'revoke'])->middleware('throttle:token');
     Route::match(['get', 'post'], '/userinfo', [OidcController::class, 'userinfo']);
     Route::post('/oauth/introspect', [OidcController::class, 'introspect'])->middleware('throttle:token');
+    Route::post('/access/v1/evaluation', [AuthzenController::class, 'evaluation']);
+    Route::post('/access/v1/evaluations', [AuthzenController::class, 'evaluations']);
+    Route::post('/access/v1/search/action', [AuthzenController::class, 'searchAction']);
     Route::get('/api/v1/bar', BarController::class)->middleware('throttle:240,1');
     Route::post('/api/v1/bar/read', [BarController::class, 'read'])->middleware('throttle:120,1');
     Route::post('/api/v1/release-notes', [ReleaseNoteController::class, 'store'])->middleware('throttle:30,1');
@@ -128,9 +133,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs/{org}/apps', [Admin\OrgController::class, 'addApp'])->name('orgs.apps.store');
         Route::delete('/orgs/{org}/apps/{app}', [Admin\OrgController::class, 'removeApp'])->name('orgs.apps.destroy');
         Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
+        Route::get('/orgs/{org}/teams-fields', [Admin\OrgDataController::class, 'index'])->name('org-data.index');
+        Route::post('/orgs/{org}/teams', [Admin\OrgDataController::class, 'storeTeam'])->name('org-data.teams.store');
+        Route::delete('/orgs/{org}/teams/{team}', [Admin\OrgDataController::class, 'destroyTeam'])->whereNumber('team')->name('org-data.teams.destroy');
+        Route::post('/orgs/{org}/fields', [Admin\OrgDataController::class, 'storeField'])->name('org-data.fields.store');
+        Route::put('/orgs/{org}/fields/{field}', [Admin\OrgDataController::class, 'updateField'])->whereNumber('field')->name('org-data.fields.update');
+        Route::delete('/orgs/{org}/fields/{field}', [Admin\OrgDataController::class, 'destroyField'])->whereNumber('field')->name('org-data.fields.destroy');
         Route::get('/orgs/{org}/api-clients', [Admin\ApiClientController::class, 'index'])->name('api-clients.index');
         Route::post('/orgs/{org}/api-clients', [Admin\ApiClientController::class, 'store'])->name('api-clients.store');
         Route::post('/orgs/{org}/api-clients/{client}/rotate', [Admin\ApiClientController::class, 'rotate'])->name('api-clients.rotate');
+        Route::post('/orgs/{org}/api-clients/scim', [Admin\ApiClientController::class, 'scim'])->name('api-clients.scim');
         Route::post('/orgs/{org}/api-clients/{client}/revoke', [Admin\ApiClientController::class, 'revoke'])->name('api-clients.revoke');
         Route::get('/orgs/{org}/profiles', [Admin\ProfileController::class, 'index'])->name('profiles.index');
         Route::post('/orgs/{org}/profiles', [Admin\ProfileController::class, 'store'])->name('profiles.store');
