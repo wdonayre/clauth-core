@@ -83,7 +83,8 @@ class OnboardingTest extends ClauthTestCase
         $this->get($link)->assertOk()->assertSee('email confirmed');
         $this->as($this->owner)->get('/admin')->assertSee('organization request(s) to review');
         $req = OrganizationRequest::firstOrFail();
-        $this->as($this->owner)->get('/admin/orgs')->assertSee('Requests to join')->assertSee('Single sign-on for our staff');
+        $this->as($this->owner)->get('/admin/orgs')->assertSee('Requests to join')->assertSee('Foo Ltd')->assertSee('/admin/org-requests/'.$req->id);
+        $this->as($this->owner)->get('/admin/org-requests/'.$req->id)->assertOk()->assertSee('Single sign-on for our staff')->assertSee('Short name is free');
 
         $this->as($this->owner)->post('/admin/org-requests/'.$req->id.'/approve')->assertSessionHasNoErrors();
         $org = Organization::where('slug', 'foo-ltd')->firstOrFail();
@@ -131,7 +132,7 @@ class OnboardingTest extends ClauthTestCase
         $this->as($olga)->post('/admin/orgs/'.$foo->id.'/domain', ['domain' => 'reserved.test'])->assertSessionHasErrors('domain');
         $this->as($olga)->post('/admin/orgs/'.$foo->id.'/domain', ['domain' => 'foo.test'])->assertSessionHasNoErrors();
         $foo->refresh();
-        $this->as($olga)->get('/admin/orgs')->assertSee(OrgLifecycle::txtValue($foo));
+        $this->as($olga)->get('/admin/orgs/'.$foo->id.'/domain')->assertOk()->assertSee(OrgLifecycle::txtValue($foo));
         $this->as($olga)->post('/admin/orgs/'.$foo->id.'/domain/check');
         $this->assertNull($foo->fresh()->domain_verified_at);
         $dns = app(Dns::class);

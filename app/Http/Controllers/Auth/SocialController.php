@@ -39,12 +39,14 @@ class SocialController
     public function redirect(Request $request, string $provider)
     {
         abort_unless(self::enabled($provider), 404);
-        if (! \App\Services\SigninPolicies::allowsVia($this->flowApp($request), $provider)) {
+        [$invite, $inviteToken] = $this->inviteForFlow($request);
+        $flowApp = $invite ? $invite->primaryApp() : $this->flowApp($request);
+        if (! \App\Services\SigninPolicies::allowsVia($flowApp, $provider)) {
             return redirect()->route('login')->withErrors(['email' => 'This app doesn’t use that way to sign in.']);
         }
         if ($domain = $request->attributes->get('clauth.domain')) {
             return redirect()->away(Domains::mainUrl("login/$provider?".http_build_query(array_filter([
-                'back' => $domain->host, 'app' => $this->flowApp($request)?->key, 'remember' => $request->boolean('remember') ? 1 : null,
+                'back' => $domain->host, 'app' => $flowApp?->key, 'remember' => $request->boolean('remember') ? 1 : null, 'invite' => $inviteToken,
             ]))));
         }
 
@@ -59,6 +61,7 @@ class SocialController
             }
         }
         $request->session()->forget('social.link');
+        $this->stashInvite($request, $invite, $inviteToken);
 
         return $this->toProvider($provider);
     }
@@ -71,7 +74,7 @@ class SocialController
             return redirect()->away(Domains::mainUrl("account/link/$provider"));
         }
         $request->session()->put('social.link', $request->user()->id);
-        $request->session()->forget('social.back');
+        $request->session()->forget(['social.back', 'social.invite']);
 
         return $this->toProvider($provider);
     }

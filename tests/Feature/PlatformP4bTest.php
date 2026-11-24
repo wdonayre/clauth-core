@@ -131,7 +131,7 @@ class PlatformP4bTest extends ClauthTestCase
             'redirect_uris' => [], 'grant_types' => ['client_credentials'], 'scopes' => ['apps:read', 'apps:write'], 'revoked' => false])->save();
         $tok = $this->post('/oauth/token', ['grant_type' => 'client_credentials', 'client_id' => $c->id, 'client_secret' => 'api-secret-api-secret', 'scope' => 'apps:read apps:write'])->json('access_token');
         $api = fn () => $this->flushHeaders()->withHeaders(['Authorization' => "Bearer $tok", 'Accept' => 'application/json']);
-        $api()->getJson('/api/v1/themes')->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('data.0.built_in', true);
+        $api()->getJson('/api/v1/themes')->assertOk()->assertJsonCount(count(\App\Services\Theme::NAMES), 'data')->assertJsonPath('data.0.built_in', true);
         $key = $api()->postJson('/api/v1/themes', ['name' => 'Night', 'org' => 'cakesbygrace', 'base' => 'midnight', 'font' => 'Manrope', 'layout' => 'center'])->assertCreated()->json('key');
         $api()->postJson('/api/v1/themes', ['name' => 'X', 'org' => 'cakesbygrace', 'base' => 'neon'])->assertStatus(422);
         $api()->patchJson("/api/v1/themes/$key", ['radius' => 4])->assertOk()->assertJsonPath('settings.radius', 4)->assertJsonPath('settings.font', 'Manrope');

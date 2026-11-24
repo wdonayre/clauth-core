@@ -5,20 +5,24 @@ namespace App\Services;
 use App\Models\Application;
 
 /**
- * Sign-in page look (SPEC §6.1a, SPEC-platform §8.4). Three built-in styles (classic | daylight | midnight), and
+ * Sign-in page look (SPEC §6.1a, SPEC-platform §8.4). Built-in styles (classic | daylight | midnight, and auto = "Match
+ * device": Daylight or Midnight following the visitor's light/dark setting), and
  * designed themes (SigninTheme) that start from one of them and set colors, font, corners, buttons and layout.
  * An app's designed theme wins over its built-in style; on a custom domain with no app, the domain's theme applies.
  */
 class Theme
 {
-    public const NAMES = ['classic' => 'Clauth Classic', 'daylight' => 'Daylight', 'midnight' => 'Midnight'];
+    public const NAMES = ['classic' => 'Clauth Classic', 'daylight' => 'Daylight', 'midnight' => 'Midnight', 'auto' => 'Match device'];
+
+    /** Variables that differ between Daylight and Midnight: what "Match device" swaps under prefers-color-scheme: dark. */
+    private const SCHEME_VARS = ['bg', 'card', 'border', 'text', 'muted', 'in-bg', 'in-border', 'sec', 'link', 'info-bg', 'info-border', 'shadow', 'danger', 'accent', 'on-accent', 'pri', 'on-pri'];
 
     /** Fonts a theme may use (Google Fonts; the page's CSP allows only those). */
     public const FONTS = ['Inter', 'Manrope', 'Poppins', 'Nunito Sans', 'DM Sans', 'Space Grotesk', 'IBM Plex Sans', 'Source Sans 3', 'Lora', 'Barlow'];
 
     /** Designed-theme settings: name => validation rule. */
     public const SETTINGS = [
-        'base' => 'required|in:classic,daylight,midnight',
+        'base' => 'required|in:classic,daylight,midnight,auto',
         'accent' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         'background' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         'card' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
@@ -37,16 +41,27 @@ class Theme
             return self::designed($designed, $app);
         }
         $style = $app?->login_theme && isset(self::NAMES[$app->login_theme]) ? $app->login_theme : 'classic';
-        // Brand v2: Signal (#22D3EE) on dark, Deep Signal (#0E7490) on light.
-        $accent = $style === 'classic' ? '#22D3EE' : ($app?->accent_color ?: ($style === 'daylight' ? '#0E7490' : '#22D3EE'));
+        $base = ['app' => $app, 'fonts' => [], 'layout' => 'center', 'tagline' => null, 'auto' => false];
+        if ($style === 'auto') {
+            // Match device: Daylight by default, Midnight when the visitor's device is set to dark (both keep the app's accent).
+            $dark = self::palette('midnight', $app?->accent_color);
+
+            return ['style' => 'auto', 'dark' => false, 'auto' => true, 'vars' => self::palette('daylight', $app?->accent_color), 'dark_vars' => $dark,
+                'logo' => $app?->logoUrl(false), 'logo_dark' => $app?->logo_dark_path ? $app->logoUrl(true) : null] + $base;
+        }
+        $dark = $style === 'midnight';
+
+        return ['style' => $style, 'dark' => $dark, 'vars' => self::palette($style, $app?->accent_color), 'logo' => $app?->logoUrl($dark)] + $base;
+    }
+
+    /** The CSS variables of a built-in style (classic | daylight | midnight) with an app's accent. */
+    public static function palette(string $style, ?string $appAccent): array
+    {
+        // Clauth Classic (the default) is the light "paper" look of the 2026-11 redesign: Ink buttons, Deep Signal (#0E7490)
+        // for links and focus. Daylight is the same palette with the app's own accent; Midnight is the dark one.
+        $accent = $style === 'classic' ? '#0E7490' : ($appAccent ?: ($style === 'daylight' ? '#0E7490' : '#22D3EE'));
         $onAccent = self::luminance($accent) > 0.35 ? '#111111' : '#FFFFFF';
-        $dark = $style !== 'daylight';
         $vars = match ($style) {
-            'daylight' => [
-                'bg' => '#F7F8FA', 'card' => '#FFFFFF', 'border' => '#DDE2EA', 'text' => '#0B0D12', 'muted' => '#5B6475',
-                'in-bg' => '#FFFFFF', 'in-border' => '#C9D0DB', 'sec' => '#FFFFFF', 'link' => '#0E7490',
-                'info-bg' => '#ECFEFF', 'info-border' => '#A5E4EF', 'shadow' => '0 1px 2px rgba(11,13,18,.06), 0 8px 24px rgba(11,13,18,.06)', 'danger' => '#B91C1C',
-            ],
             'midnight' => [
                 'bg' => '#0F0F12', 'card' => '#18181C', 'border' => '#2A2A31', 'text' => '#F4F4F5', 'muted' => '#A1A1AA',
                 'in-bg' => '#111114', 'in-border' => '#33333B', 'sec' => '#222228',
@@ -54,21 +69,21 @@ class Theme
                 'info-bg' => '#1E1E24', 'info-border' => '#2E2E36', 'shadow' => 'none', 'danger' => '#F87171',
             ],
             default => [
-                'bg' => '#0B0D12', 'card' => '#12161E', 'border' => '#232A36', 'text' => '#F2F5F9', 'muted' => '#AAB2C2',
-                'in-bg' => '#0B0D12', 'in-border' => '#2E3644', 'sec' => '#161B25', 'link' => '#22D3EE',
-                'info-bg' => '#0E2A31', 'info-border' => '#164E5A', 'shadow' => 'none', 'danger' => '#F87171',
+                'bg' => '#F7F8FA', 'card' => '#FFFFFF', 'border' => '#E6E8EC', 'text' => '#0B0D12', 'muted' => '#5B6475',
+                'in-bg' => '#FFFFFF', 'in-border' => '#DDE1E6', 'sec' => '#FFFFFF',
+                'link' => '#0E7490',
+                'info-bg' => '#F2F4F6', 'info-border' => '#E6E8EC', 'shadow' => '0 10px 30px rgba(11,13,18,.05)', 'danger' => '#B91C1C',
             ],
         };
         $vars['accent'] = $accent;
         $vars['on-accent'] = $onAccent;
         // Primary button: Ink on light (brand rule) unless the app chose its own accent; otherwise the accent.
-        $inkPrimary = $style === 'daylight' && ! $app?->accent_color;
+        $inkPrimary = $style === 'classic' || ($style === 'daylight' && ! $appAccent);
         $vars['pri'] = $inkPrimary ? '#0B0D12' : $accent;
         $vars['on-pri'] = $inkPrimary ? '#FFFFFF' : $onAccent;
 
-        return ['style' => $style, 'dark' => $dark, 'vars' => $vars, 'app' => $app, 'logo' => $app?->logoUrl($dark), 'fonts' => [], 'layout' => 'center', 'tagline' => null];
+        return $vars;
     }
-
     /** A designed theme: its base style's palette, then its own colors, fonts, corners, buttons and layout. */
     public static function designed(\App\Models\SigninTheme $t, ?Application $app): array
     {
@@ -78,19 +93,23 @@ class Theme
         $proxy->login_theme = $t->s('base', 'classic');
         $proxy->accent_color = $t->s('accent') ?: $app?->accent_color;
         if ($proxy->login_theme === 'classic' && $t->s('accent')) {
-            $proxy->login_theme = 'midnight'; // classic keeps Clauth cyan; a chosen accent needs a tintable base
+            $proxy->login_theme = 'daylight'; // classic keeps Clauth's own colors; a chosen accent needs a tintable base
         }
         $out = self::for($proxy);
         $out['app'] = $app;
         $out['logo'] = $app?->logoUrl($out['dark']);
         $out['style'] = 'designed';
+        // On a "Match device" base a chosen colour belongs to the side it suits (a dark background to the dark side).
+        $side = fn (string $hex) => $out['auto'] && self::luminance($hex) < 0.3 ? 'dark_vars' : 'vars';
         if ($bg = $t->s('background')) {
-            $out['vars']['bg'] = $bg;
-            $out['dark'] = self::luminance($bg) < 0.3;
+            $out[$side($bg)]['bg'] = $bg;
+            if (! $out['auto']) {
+                $out['dark'] = self::luminance($bg) < 0.3;
+            }
         }
         if ($card = $t->s('card')) {
-            $out['vars']['card'] = $card;
-            $out['vars']['in-bg'] = $card;
+            $out[$side($card)]['card'] = $card;
+            $out[$side($card)]['in-bg'] = $card;
         }
         $font = $t->s('font');
         $heading = $t->s('heading_font') ?: $font;
@@ -129,6 +148,21 @@ class Theme
     public static function css(array $theme): string
     {
         return collect($theme['vars'])->map(fn ($v, $k) => "--$k:$v")->implode(';');
+    }
+
+    /**
+     * "Match device": the dark-side variables as one CSS rule body (!important so they win over the inline light ones),
+     * or null for any other style. Values are fixed palette entries or validated #rrggbb colours.
+     */
+    public static function darkCss(array $theme): ?string
+    {
+        if (empty($theme['auto']) || empty($theme['dark_vars'])) {
+            return null;
+        }
+        $vars = array_intersect_key($theme['dark_vars'], array_flip(self::SCHEME_VARS));
+
+        return collect($vars)->filter(fn ($v) => preg_match('/^[#\w\s(),.%-]+$/', (string) $v))
+            ->map(fn ($v, $k) => "--$k:$v !important")->implode(';');
     }
 
     public static function luminance(string $hex): float

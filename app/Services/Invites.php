@@ -49,7 +49,7 @@ class Invites
     {
         $link = self::url($token, $invite);
         $mail = Templates::mail('invite', $invite->organization, ['name' => $invite->name, 'email' => $invite->email, 'link' => $link,
-            'app' => $invite->primaryApp()?->name, 'org' => $invite->organization?->name, 'inviter' => $invite->inviter?->name], User::where('email', $invite->email)->value('locale'));
+            'app' => $invite->primaryApp()?->name, 'org' => $invite->organization?->name, 'inviter' => $invite->inviter?->name, 'note' => (string) ($invite->note ?? '')], User::where('email', $invite->email)->value('locale'));
         OrgMail::send($invite->organization, $invite->email, $mail ?? new InviteMail($invite, $link));
     }
 

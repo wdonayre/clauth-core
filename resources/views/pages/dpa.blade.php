@@ -1,16 +1,17 @@
 @extends('layouts.auth')
-@section('title', 'Data Processing Agreement')
+@section('title', __('Data Processing Agreement'))
 @section('wide', true)
+@section('no-brand', true)
 @section('card')
-  <h1>Data Processing Agreement</h1>
+  <div class="ttl"><span class="eyebrow">Clauth</span><h1>{{ __('Data Processing Agreement') }}</h1></div>
   @include('partials.legal-draft')
-  <div class="legal" style="text-align:left;line-height:1.6;font-size:14px">
+  <div class="legal">
     <p class="small muted">Version {{ config('clauth.terms_version') }}. Between The Cake Labs [registered details to be added] (“Clauth”, the processor) and the organization that accepts it (the “Organization”, the controller of its people’s data).</p>
 
-    <h2 style="font-size:16px;margin:20px 0 6px">1. Scope</h2>
+    <h2>1. Scope</h2>
     <p>Clauth processes the personal data of the Organization’s people (name, email, credentials, roles, sign-in records) only to provide sign-in and access management for the Organization’s apps, as described in the <a href="{{ route('privacy') }}">Privacy Policy</a>, and only on the Organization’s documented instructions — which are these terms and the Organization’s use of the admin console.</p>
 
-    <h2 style="font-size:16px;margin:20px 0 6px">2. Clauth’s commitments</h2>
+    <h2>2. Clauth’s commitments</h2>
     <ul>
       <li>Keep the data confidential; only people who need it to run Clauth can access it, under confidentiality.</li>
       <li>Security measures: passwords hashed, admin 2-step verification, encrypted signing keys and backups, encrypted traffic, audit logs, separation of organizations’ data in the console, limits and abuse monitoring.</li>
@@ -21,15 +22,15 @@
       <li>Make available the information reasonably needed to show compliance with this agreement.</li>
     </ul>
 
-    <h2 style="font-size:16px;margin:20px 0 6px">3. The Organization’s commitments</h2>
+    <h2>3. The Organization’s commitments</h2>
     <ul>
       <li>It has a lawful basis to have its people use Clauth and has told them how their data is used.</li>
       <li>It controls who gets access and keeps its admin and client credentials secure.</li>
       <li>Its apps handle the data they receive from Clauth lawfully, under their own privacy policies.</li>
     </ul>
 
-    <h2 style="font-size:16px;margin:20px 0 6px">4. Transfers, term and law</h2>
+    <h2>4. Transfers, term and law</h2>
     <p>Data is stored with the hosting provider in [country to be confirmed]; transfers outside the Philippines are protected as the Data Privacy Act requires. This agreement lasts as long as the Organization uses Clauth and is governed by Philippine law.</p>
   </div>
-  <a class="btn-auth sec" href="{{ route('login') }}" style="margin-top:16px">Back</a>
+  <a class="btn-auth sec noprint" href="{{ route('login') }}">{{ __('Back to sign in') }}</a>
 @endsection

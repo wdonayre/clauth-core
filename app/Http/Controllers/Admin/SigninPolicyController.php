@@ -41,6 +41,13 @@ class SigninPolicyController
             'checks' => Connection::where('type', 'http')->where(fn ($q) => $q->whereNull('organization_id')->when($publisher, fn ($w) => $w->orWhere('organization_id', $publisher->id)))->orderBy('name')->get(),
             'profiles' => $app?->publisher?->accessProfiles()->get() ?? collect(),
             'versions' => $own?->versions()->with('changer')->limit(20)->get() ?? collect(),
+            // Whether Settings / the server have each method switched on at all (rules can only narrow them).
+            'available' => [
+                'password' => true,
+                'google' => \App\Http\Controllers\Auth\SocialController::enabled('google'),
+                'email_code' => (bool) \App\Services\Settings::get('email_code_signin'),
+                'sms_code' => \App\Services\Settings::get('sms_signin') && \App\Services\Sms::available(),
+            ],
         ]);
     }
 

@@ -1,0 +1,56 @@
+/* Settings, sign-in rules, My account and API tokens (redesign 2026-11). Colors only via console.css tokens. */
+.stack{display:flex;flex-direction:column;gap:20px;min-width:0}
+.ch{margin:0;padding:18px 22px 4px;font-size:16px;font-weight:600}
+.ch-p{margin:0 22px 10px;color:var(--muted);font-size:13px;max-width:640px}
+.ch+.set,.ch-p+.set{border-top:0}
+.set b{font-weight:500}
+.set .person b{font-weight:600}
+.set>.person{flex:1 1 260px}
+.set ul.plain{margin:8px 0 0;padding:0 0 0 18px;font-size:13px;color:var(--text-2)}
+.set ul.plain li{margin:2px 0}
+.code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;background:var(--soft);border-radius:6px;padding:2px 6px;word-break:break-all}
+.m{display:flex;align-items:center;gap:14px}
+.m>div{min-width:0}
+.mi{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;background:var(--surface);color:var(--text)}
+.mi:empty{border-color:transparent;background:transparent}
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:14px}
+.cta h2{font-size:16px}
+.cta p{margin:2px 0 0}
+.num input.in{width:80px;text-align:right;font-weight:500}
+.w-field{max-width:320px}
+.savebar{position:sticky;bottom:12px;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(6px)}
+.savebar [data-dirty-note]{margin-right:auto}
+.savebar.dirty{border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow)}
+.set .sel{width:auto;min-width:240px;max-width:100%}
+.indent{padding:0 22px 18px}
+
+/* My account */
+.acct{width:100%;max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.acct .head h1{font-size:28px}
+.acct h2.sec{margin:0 0 12px;font-size:16px;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.tile{display:flex;flex-direction:column;gap:12px;padding:18px;color:var(--text)!important;transition:border-color .15s,box-shadow .15s}
+.tile:hover{border-color:var(--line-hover);box-shadow:var(--shadow)}
+.tile .ico{width:44px;height:44px;border-radius:12px;font-size:18px}
+.tile .sub{color:var(--muted);font-size:13px}
+.tile.off{cursor:default}
+.themepick{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.themepick button{display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:12px;border:2px solid var(--line);background:var(--surface);cursor:pointer;text-align:left;font:500 14px Inter,sans-serif;color:var(--text);min-height:44px}
+.themepick button[aria-checked="true"]{border-color:var(--accent)}
+.themepick .pv{display:flex;height:76px;border-radius:8px;overflow:hidden}
+.themepick .pv>span{display:flex;flex-direction:column;gap:6px;padding:10px}
+.themepick .pv i{display:block;border-radius:4px;height:8px;width:60%}
+.themepick .pv i+i{height:22px;width:auto;border-radius:5px}
+/* the previews illustrate each theme, so they keep their own fixed colors */
+.pv.l{border:1px solid #E6E8EC}.pv.l .sd{width:30%;background:#fff;border-right:1px solid #E6E8EC;padding:0!important}.pv.l .mn{flex:1;background:#F7F8FA}
+.pv.d{border:1px solid #232A36}.pv.d .sd{width:30%;background:#0F131B;border-right:1px solid #232A36;padding:0!important}.pv.d .mn{flex:1;background:#0B0D12}
+.pv.a{border:1px solid #E6E8EC}.pv.a .mn{flex:1;background:#F7F8FA}.pv.a .mn+.mn{background:#0B0D12}
+.pv .mn i:first-child{background:#0B0D12}.pv .mn i+i{background:#fff;border:1px solid #E6E8EC}
+.pv.d .mn i:first-child,.pv.a .mn+.mn i:first-child{background:#F2F5F9}
+.pv.d .mn i+i,.pv.a .mn+.mn i+i{background:#12161E;border-color:#232A36}
+.codes{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 16px;margin:0;padding:14px 16px;border-radius:10px;background:var(--code-bg);border:1px dashed var(--line-2);font:13px/1.6 "JetBrains Mono",monospace;list-style:none}
+.inline-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.inline-form .in{max-width:220px}
+.scopes{display:flex;flex-direction:column;gap:2px;border:0;margin:0;padding:0}
+.scopes legend{font-size:13px;font-weight:500;color:var(--text-2);margin-bottom:6px;padding:0}
+.scopes .cb .mono{color:var(--muted);font-size:12px}

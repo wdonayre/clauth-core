@@ -1,0 +1,92 @@
+/* Organization sub-pages: job roles, who has what, teams & fields, API & sync, agents, sign-in & senders, messages.
+   Only page layout lives here; every color comes from the console.css tokens so dark mode works. */
+
+/* Intro line under the tabs: text left, buttons right */
+.intro{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.intro>p{margin:0;color:var(--muted);max-width:680px}
+
+/* Job roles: list on the left, the open one on the right */
+.jr{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.jr-nav{flex:1 1 260px;max-width:320px;padding:8px;display:flex;flex-direction:column;gap:2px}
+@media (max-width:860px){.jr-nav{max-width:none}}
+.jr-item{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;padding:10px 14px;border-radius:10px;color:var(--text)!important}
+.jr-item:hover{background:var(--surface-2)}
+.jr-item.on{background:var(--soft)}
+.jr-item b{font-weight:500}.jr-item.on b{font-weight:600}
+.jr-item .sub{display:block;color:var(--muted);font-size:13px}
+.jr-sug{border-top:1px solid var(--line-3);margin:6px 8px 0;padding:12px 6px 4px;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--text-2)}
+.jr-sug .badge{align-self:flex-start}
+.jr-sug form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.jr-main{flex:999 1 520px;min-width:0}
+.jr-top{padding:20px;display:flex;flex-direction:column;gap:14px}
+.jr-top .titlebar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.jr-top h2{font-size:18px}
+
+/* App → role rows */
+.map{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,240px);gap:12px;align-items:center;padding:12px 20px;border-top:1px solid var(--line-3)}
+.map.h{background:var(--surface-2);font-size:12px;color:var(--muted);font-weight:500;padding-top:8px;padding-bottom:8px}
+.map .app{display:flex;align-items:center;gap:12px;min-width:0}
+.map .app>span:last-child{display:flex;flex-direction:column;min-width:0}
+.map .note{grid-column:1/-1;font-size:13px;color:var(--muted);margin-top:-4px}
+@media (max-width:520px){.map{grid-template-columns:1fr}}
+.holders{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-top:1px solid var(--line-3)}
+.holders>span{display:flex;align-items:center;gap:10px;color:var(--muted)}
+
+/* Overlapping avatars */
+.stack{display:inline-flex;padding-left:6px}
+.stack .av{width:28px;height:28px;font-size:11px;border:2px solid var(--surface);margin-left:-6px;box-sizing:border-box}
+
+/* ⋯ menu (closes on outside click via console.js: details.menu-d) */
+details.menu-d{position:relative}
+details.menu-d>summary{list-style:none}
+details.menu-d>summary::-webkit-details-marker{display:none}
+.menu-d .menu-list{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;display:flex;flex-direction:column}
+.menu-d .menu-list a,.menu-d .menu-list button{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--text)!important;font:500 14px Inter,sans-serif;cursor:pointer;text-align:left;width:100%}
+.menu-d .menu-list a:hover,.menu-d .menu-list button:hover{background:var(--soft)}
+.menu-d .menu-list .danger{color:var(--bad)!important}
+
+/* Who has what */
+.legend{display:flex;flex-wrap:wrap;gap:16px;align-items:center;color:var(--muted);font-size:13px}
+.legend>span{display:flex;align-items:center;gap:6px}
+table.mx{min-width:820px}
+table.mx th{font-weight:600;font-size:13px;color:var(--text)}
+table.mx td.none,.none{color:var(--muted-2)}
+table.mx .cell{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+table.mx .flags{display:flex;gap:4px;flex-wrap:wrap}
+table.mx .flags .badge{height:20px;font-size:11px}
+
+/* Teams */
+.team{display:flex;align-items:center;gap:14px;padding:14px 20px;border-top:1px solid var(--line-3)}
+.team>div:first-child{flex:1;min-width:0}
+.team .sub{color:var(--muted);font-size:13px}
+
+/* Directory sync providers */
+.provs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:0 20px 20px}
+.prov{display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.prov span{color:var(--muted);font-size:13px;flex:1}
+.prov .btn{align-self:flex-start}
+.pastebox{border-top:1px solid var(--line-3);padding:16px 20px;display:flex;flex-direction:column;gap:8px}
+.pastebox .line{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pastebox .line>span:first-child{width:100px;color:var(--muted);font-size:13px}
+.code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;background:var(--soft);border-radius:8px;padding:6px 10px;overflow-wrap:anywhere;color:var(--text)}
+.code.sm{display:inline-block;margin-top:4px;padding:2px 6px}
+ol.steps{margin:0;padding-left:20px;color:var(--text-2);display:flex;flex-direction:column;gap:6px}
+
+/* Scope checklist inside dialogs */
+.scopes{display:flex;flex-direction:column;gap:2px;max-height:320px;overflow:auto;padding:4px 2px}
+.scopes .cb{font-size:13px}
+.scopes .cb code{font-size:12px}
+
+/* Connection type tiles */
+.types{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;padding:0 20px 20px}
+
+/* Messages */
+.locales{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;padding:0 20px 20px}
+.locale{border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.locale .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+
+dialog.dlg.wide{max-width:720px}
+dialog.dlg{max-height:calc(100vh - 48px)}
+dialog.dlg form{margin:0}
+td.act{text-align:right;white-space:nowrap}
+.console [hidden]{display:none!important}

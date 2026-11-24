@@ -26,7 +26,9 @@ class OrgDataController
     {
         $o = $this->org($org);
 
-        return view('admin.org-data', ['org' => $o, 'teams' => $o->teams()->withCount('users')->get(),
+        $teams = $o->teams()->withCount('users')->with(['users' => fn ($q) => $q->orderBy('name')->limit(3)])->get();
+
+        return view('admin.org-data', ['org' => $o, 'teams' => $teams,
             'fields' => $o->attributeDefs()->get(), 'types' => OrgAttribute::TYPES]);
     }
 

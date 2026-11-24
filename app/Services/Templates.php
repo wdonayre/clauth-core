@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 class Templates
 {
     public const KEYS = [
-        'invite' => ['email', 'Invite', ['name', 'email', 'link', 'app', 'org', 'inviter']],
+        'invite' => ['email', 'Invite', ['name', 'email', 'link', 'app', 'org', 'inviter', 'note']],
         'login_code' => ['email', 'One-time code by email', ['code']],
         'new_device' => ['email', 'New device sign-in', ['name', 'device', 'ip']],
         'lockout' => ['email', 'Account locked', ['name', 'minutes']],

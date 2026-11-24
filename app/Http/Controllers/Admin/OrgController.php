@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Mail\OrgRequestMail;
+use App\Models\AppDomain;
 use App\Models\Application;
+use App\Models\Grant;
 use App\Models\Organization;
 use App\Models\OrganizationRequest;
 use App\Models\User;
@@ -14,7 +16,10 @@ use App\Services\Invites;
 use App\Services\OrgLifecycle;
 use App\Services\Suspensions;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -25,22 +30,197 @@ class OrgController
 {
     use Scope;
 
+    /** Organizations list: people + apps counts, admins, status; pending organization requests for Clauth owners. */
     public function index()
     {
         $me = auth()->user();
 
         return view('admin.orgs.index', [
-            'orgs' => Organization::withCount('users')
-                ->with(['apps.publisher', 'installRequests.publisher', 'users' => fn ($q) => $q->wherePivotIn('role', ['owner', 'admin', 'developer'])->orderBy('name')])
+            'orgs' => Organization::withCount(['users', 'apps'])
+                ->with(['apps:id,name', 'publishedApps:id,name,owner_organization_id', 'installRequests.publisher',
+                    'users' => fn ($q) => $q->wherePivotIn('role', ['owner', 'admin'])->orderBy('name')])
                 ->when($this->orgIds() !== null, fn ($q) => $q->whereIn('id', $this->orgIds()))->orderBy('name')->get(),
-            // Apps this person may add to an organization they run: everything for Clauth owners, else their own orgs' apps.
-            'addable' => Application::with('publisher')->orderBy('name')
-                ->when(! $me->isOwner(), fn ($q) => $q->whereIn('owner_organization_id', $me->devOrgIds()))->get(),
             'canEdit' => $me->isOwner(),
             'requests' => $me->isOwner() ? OrganizationRequest::where('status', 'pending')->whereNotNull('email_verified_at')->latest()->get() : collect(),
-            'ownedOrgIds' => $me->ownedOrgIds(),
-            'roles' => Organization::ROLES,
         ]);
+    }
+
+    /** People tab: everyone in the organization, their org role, job roles and how many apps they can use here. */
+    public function show(Request $request, Organization $org)
+    {
+        $this->visibleOrg($org);
+        $q = trim((string) $request->query('q', ''));
+        $role = $request->query('role');
+        $people = $org->users()
+            ->when($q !== '', fn ($w) => $w->where(fn ($x) => $x->where('users.name', 'like', "%{$q}%")->orWhere('users.email', 'like', '%'.mb_strtolower($q).'%')))
+            ->when(isset(Organization::ROLES[$role]), fn ($w) => $w->wherePivot('role', $role))
+            ->orderBy('users.name')->paginate(50)->withQueryString();
+        $ids = $people->getCollection()->pluck('id');
+        $jobRoles = DB::table('access_profile_user')->join('access_profiles', 'access_profiles.id', '=', 'access_profile_user.access_profile_id')
+            ->where('access_profiles.organization_id', $org->id)->whereIn('access_profile_user.user_id', $ids)
+            ->orderBy('access_profiles.name')->get(['access_profile_user.user_id', 'access_profiles.name'])->groupBy('user_id');
+        $appCounts = Grant::where('organization_id', $org->id)->whereIn('user_id', $ids)
+            ->selectRaw('user_id, count(distinct app_id) as n')->groupBy('user_id')->pluck('n', 'user_id');
+        $profiles = $org->accessProfiles()->withCount('users')->get();
+        $appsPer = DB::table('access_profile_roles')->whereIn('access_profile_id', $profiles->pluck('id'))
+            ->selectRaw('access_profile_id, count(*) as n')->groupBy('access_profile_id')->pluck('n', 'access_profile_id');
+
+        $suggestions = Access::suggestions($org, $request->user());
+
+        return view('admin.orgs.show', $this->orgHead($org) + [
+            'suggestion' => $suggestions[0] ?? null, 'suggestionCount' => count($suggestions),
+            'people' => $people, 'jobRoles' => $jobRoles, 'appCounts' => $appCounts, 'profiles' => $profiles, 'appsPer' => $appsPer,
+            'q' => $q, 'role' => isset(Organization::ROLES[$role]) ? $role : null,
+            'canRoles' => $this->canOwn($org), 'roles' => Organization::ROLES,
+        ]);
+    }
+
+    /** Apps tab: apps people here can use, install requests waiting, and adding one. */
+    public function apps(Request $request, Organization $org)
+    {
+        $this->visibleOrg($org);
+        $me = $request->user();
+        $apps = $org->apps()->with('publisher')->orderBy('name')->get();
+        $people = Grant::where('organization_id', $org->id)->selectRaw('app_id, count(distinct user_id) as n')->groupBy('app_id')->pluck('n', 'app_id');
+        $addable = Application::with('publisher')->orderBy('name')
+            ->when(! $me->isOwner(), fn ($q) => $q->whereIn('owner_organization_id', $me->devOrgIds()))
+            ->whereNotIn('id', $apps->pluck('id'))->get();
+
+        return view('admin.orgs.apps', $this->orgHead($org) + [
+            'apps' => $apps, 'people' => $people, 'addable' => $addable,
+            'requests' => $org->installRequests()->with('publisher')->get(),
+            'canBuild' => $me->isOwner() || in_array($org->id, $me->devOrgIds(), true),
+        ]);
+    }
+
+    /** Sign-in domain tab: the organization's own sign-in addresses (set up on an app's page) and its proven domain. */
+    public function domainPage(Organization $org)
+    {
+        $this->visibleOrg($org);
+
+        return view('admin.orgs.domain', $this->orgHead($org) + [
+            'domains' => AppDomain::where('organization_id', $org->id)->with('apps')->orderBy('host')->get(),
+            'manageable' => $org->publishedApps()->orderBy('name')->get()->filter(fn ($a) => auth()->user()->canManageApp($a))->values(),
+        ]);
+    }
+
+    /** Settings tab: general details, status & limits, agreements, export, suspension and deletion. */
+    public function settings(Request $request, Organization $org)
+    {
+        $this->visibleOrg($org);
+
+        return view('admin.orgs.settings', $this->orgHead($org) + [
+            'canEdit' => $request->user()->isOwner(), 'canOwn' => $this->canOwn($org),
+        ]);
+    }
+
+    /** Organization owners (and Clauth owners): name and website. Status, verification and limits stay with Clauth owners. */
+    public function general(Request $request, Organization $org)
+    {
+        $this->visibleOrg($org);
+        abort_unless($this->canOwn($org), 404);
+        $data = $request->validate(['name' => 'required|string|max:120', 'website' => 'nullable|url:http,https|max:190']);
+        $before = $org->only('name', 'website');
+        $org->update(['name' => $data['name'], 'website' => $data['website'] ?? null]);
+        Audit::log('org.updated', 'admin', $org, $before, $org->only('name', 'website'), orgId: $org->id);
+
+        return back()->with('status', "{$org->name} saved.");
+    }
+
+    /** Upload the organization's logo (PNG or SVG, 512 KB; same rules and disk as app logos). Owners/admins of it, Clauth owners. */
+    public function logo(Request $request, Organization $org)
+    {
+        $this->visibleOrg($org);
+        $request->validate(['logo' => 'required|file|mimes:png,svg|max:512'], ['logo.mimes' => 'Upload a PNG or SVG.', 'logo.max' => 'The logo can be up to 512 KB.']);
+        $file = $request->file('logo');
+        $ext = strtolower($file->getClientOriginalExtension());
+        if ($ext === 'svg' && preg_match('/<script|on\w+=|javascript:/i', (string) file_get_contents($file->getRealPath()))) {
+            return back()->withErrors(['logo' => 'That SVG contains scripts. Upload a clean SVG or a PNG.']);
+        }
+        $before = $org->logo_path;
+        $org->update(['logo_path' => $file->storeAs('logos', 'org-'.$org->slug.'-'.Str::random(6).'.'.($ext === 'svg' ? 'svg' : 'png'), 'local')]);
+        if ($before && $before !== $org->logo_path) {
+            Storage::disk('local')->delete($before);
+        }
+        Audit::log('org.updated', 'admin', $org, ['logo' => $before], ['logo' => $org->logo_path], orgId: $org->id);
+
+        return back()->with('status', "{$org->name}’s logo saved.");
+    }
+
+    public function removeLogo(Organization $org)
+    {
+        $this->visibleOrg($org);
+        abort_unless($org->logo_path, 404);
+        $before = $org->logo_path;
+        $org->update(['logo_path' => null]);
+        Storage::disk('local')->delete($before);
+        Audit::log('org.updated', 'admin', $org, ['logo' => $before], ['logo' => null], orgId: $org->id);
+
+        return back()->with('status', "{$org->name}’s logo removed.");
+    }
+
+    /** Serves the uploaded logo from Clauth's own domain, locked down like app logos. */
+    public function showLogo(Organization $org)
+    {
+        $this->visibleOrg($org);
+        $path = $org->logo_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return response()->file(Storage::disk('local')->path($path), ['Cache-Control' => 'private, max-age=86400',
+            'Content-Type' => str_ends_with($path, '.svg') ? 'image/svg+xml' : 'image/png',
+            'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'", 'X-Content-Type-Options' => 'nosniff']);
+    }
+
+    /**
+     * Logo URL for an organization, or null (show initials). Works with partly-selected models (the sidebar switcher
+     * loads only id/name/slug): those are looked up once per request.
+     */
+    public static function logoUrl(Organization $o): ?string
+    {
+        if (array_key_exists('logo_path', $o->getAttributes())) {
+            $path = $o->logo_path;
+        } else {
+            $bag = request()->attributes;
+            if (! $bag->has('clauth.org_logos')) {
+                $bag->set('clauth.org_logos', Organization::whereNotNull('logo_path')->pluck('logo_path', 'id')->all());
+            }
+            $path = $bag->get('clauth.org_logos')[$o->id] ?? null;
+        }
+
+        return $path ? route('admin.orgs.logo.show', [$o->id, 'v' => substr(md5($path), 0, 8)]) : null;
+    }
+
+    /** Review one organization request (Clauth owners). */
+    public function showRequest(OrganizationRequest $orgRequest)
+    {
+        $host = fn (?string $u) => $u ? preg_replace('/^www\./', '', mb_strtolower((string) parse_url($u, PHP_URL_HOST))) : null;
+        $site = $host($orgRequest->website);
+        $mail = mb_strtolower(substr(strrchr($orgRequest->contact_email, '@') ?: '', 1));
+
+        return view('admin.orgs.request', [
+            'r' => $orgRequest,
+            'checks' => [
+                'email' => (bool) $orgRequest->email_verified_at,
+                'match' => $site ? ($mail === $site || str_ends_with($mail, '.'.$site)) : null,
+                'slug' => ! Organization::where('slug', $orgRequest->slug)->exists(),
+            ],
+            'org' => $orgRequest->organization_id ? Organization::find($orgRequest->organization_id) : null,
+        ]);
+    }
+
+    /** Shared numbers for the organization header. */
+    private function orgHead(Organization $org): array
+    {
+        return ['org' => $org, 'peopleCount' => $org->users()->count(), 'appsCount' => $org->apps()->count(),
+            'signInHost' => AppDomain::where('organization_id', $org->id)->where('status', 'active')->orderBy('host')->value('host')];
+    }
+
+    /** Clauth owner or an owner of this organization. */
+    private function canOwn(Organization $org): bool
+    {
+        $me = auth()->user();
+
+        return $me->isOwner() || in_array($org->id, $me->ownedOrgIds(), true);
     }
 
     public function store(Request $request)
@@ -81,7 +261,7 @@ class OrgController
         if (Organization::where('slug', $orgRequest->slug)->exists()) {
             return back()->withErrors(['request' => "The short name {$orgRequest->slug} is taken now. Reject with a note, or rename it."]);
         }
-        $org = Organization::create(['name' => $orgRequest->org_name, 'slug' => $orgRequest->slug, 'is_platform' => false,
+        $org = Organization::create(['name' => $orgRequest->org_name, 'slug' => $orgRequest->slug, 'is_platform' => false, 'website' => $orgRequest->website,
             'terms_accepted_at' => now(), 'terms_version' => config('clauth.terms_version')]);
         [$ownerProfile] = Access::starterProfiles($org, auth()->user());
         [$invite, $token] = Invites::create(['name' => $orgRequest->contact_name, 'email' => $orgRequest->contact_email,

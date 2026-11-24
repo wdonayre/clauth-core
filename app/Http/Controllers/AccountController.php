@@ -71,7 +71,7 @@ class AccountController
         $user = $request->user();
         $request->validate(['current_password' => 'required', 'password' => Passwords::rules()]);
         if (! Hash::check($request->input('current_password'), (string) $user->password)) {
-            return back()->withErrors(['current_password' => 'Your current password isn’t right.']);
+            return back()->withInput($request->only('_dlg'))->withErrors(['current_password' => 'Your current password isn’t right.']);
         }
         $user->forceFill(['password' => $request->input('password')])->save();
         Sessions::revokeAll($user, $request->session()->getId());
@@ -93,10 +93,10 @@ class AccountController
         $user = $request->user();
         $request->validate(['current_password' => 'required']);
         if (! Hash::check($request->input('current_password'), (string) $user->password)) {
-            return back()->withErrors(['current_password' => 'Your password isn’t right.']);
+            return back()->withInput($request->only('_dlg'))->withErrors(['current_password' => 'Your password isn’t right.']);
         }
         if (Claims::policyRequiresMfa($user)) {
-            return back()->withErrors(['current_password' => '2-step verification is required for your account.']);
+            return back()->withInput($request->only('_dlg'))->withErrors(['current_password' => '2-step verification is required for your account.']);
         }
         $user->forceFill(['two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'sms_two_step' => false])->save();
         Audit::log('security.mfa_reset', 'security', $user, actorType: 'user');

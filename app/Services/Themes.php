@@ -22,7 +22,7 @@ class Themes
     {
         $rules = Theme::SETTINGS;
         if ($partial) {
-            $rules['base'] = 'sometimes|in:classic,daylight,midnight';
+            $rules['base'] = 'sometimes|in:classic,daylight,midnight,auto';
         }
         $data = validator($in, $rules)->validate();
         if (! empty($data['accent']) && ! Theme::contrastOk($data['accent'])) {

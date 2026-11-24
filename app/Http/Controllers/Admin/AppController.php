@@ -29,13 +29,27 @@ use Illuminate\Validation\Rule;
 /** Owner-only: register apps, clients, permissions × roles, sign-in page styling. */
 class AppController
 {
-    public function index()
+    /** Old tab names (bookmarks, links in emails and tests) map onto the redesigned tabs. */
+    public const TABS = ['roles', 'people', 'signin', 'settings', 'developer'];
+
+    public const TAB_ALIASES = ['users' => 'people', 'brand' => 'signin', 'integration' => 'developer', 'permissions' => 'roles', 'clients' => 'developer'];
+
+    public function index(Request $request)
     {
         $me = auth()->user();
+        $apps = Application::withCount('grants')->with(['organizations', 'clients', 'publisher', 'domains'])->orderBy('name')
+            ->when(! $me->isOwner(), fn ($q) => $q->whereIn('owner_organization_id', $me->devOrgIds()))->get();
+        $q = mb_strtolower(trim((string) $request->query('q')));
+        $status = (string) $request->query('status');
+        $all = $apps;
+        $apps = $apps->filter(fn ($a) => ($q === '' || str_contains(mb_strtolower($a->name.' '.$a->key.' '.$a->description), $q))
+            && ($status === '' || ($status === 'suspended' ? $a->isSuspended() : $a->status === $status)))->values();
 
         return view('admin.apps.index', [
-            'apps' => Application::withCount('grants')->with(['organizations', 'clients', 'publisher'])->orderBy('name')
-                ->when(! $me->isOwner(), fn ($q) => $q->whereIn('owner_organization_id', $me->devOrgIds()))->get(),
+            'apps' => $apps, 'all' => $all, 'q' => $q, 'status' => $status,
+            // Distinct people who used each app since midnight.
+            'today' => \App\Models\ClientSession::whereIn('app_id', $apps->pluck('id'))->where('last_used_at', '>=', now()->startOfDay())
+                ->selectRaw('app_id, count(distinct user_id) as n')->groupBy('app_id')->pluck('n', 'app_id'),
             'publishers' => $this->publisherOrgs(),
             'orgs' => $this->installableOrgs(),
             'created' => session('created_client'),
@@ -63,6 +77,7 @@ class AppController
         $reserved = $this->reservedRules($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:80', ...$reserved['name']],
+            'description' => 'nullable|string|max:120',
             'key' => ['required', 'regex:/^[a-z][a-z0-9-]{1,40}$/', Rule::unique('apps', 'key'), ...$reserved['key']],
             'type' => 'required|in:web,public,m2m',
             'redirect_uri' => 'required_unless:type,m2m|nullable|url',
@@ -86,7 +101,7 @@ class AppController
             $app = Application::create([
                 'owner_organization_id' => $data['publisher'], 'visibility' => 'private',
                 'privacy_url' => $data['privacy_url'] ?? null, 'terms_url' => $data['terms_url'] ?? null, 'support_email' => $data['support_email'] ?? null,
-                'name' => $data['name'], 'key' => $data['key'], 'home_url' => $data['home_url'] ?? null,
+                'name' => $data['name'], 'description' => $data['description'] ?? null, 'key' => $data['key'], 'home_url' => $data['home_url'] ?? null,
                 'color' => $data['color'] ?? '#22D3EE', 'icon_letter' => mb_strtoupper(mb_substr($data['name'], 0, 1)),
                 'status' => 'not_connected', 'manifest_url' => ! empty($data['home_url']) ? rtrim($data['home_url'], '/').'/.well-known/clauth.json' : null,
             ]);
@@ -102,35 +117,64 @@ class AppController
         });
         Audit::log('app.registered', 'app', $app, after: ['key' => $app->key, 'type' => $data['type']], appId: $app->id);
 
-        return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'integration'])
-            ->with('created_client', ['id' => $client->id, 'secret' => $secret, 'name' => $client->name]);
+        return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'developer'])
+            ->with('created_client', ['id' => $client->id, 'secret' => $secret, 'name' => $client->name])->with('connected', true);
     }
 
     public function show(Request $request, Application $app)
     {
-        $tab = $request->query('tab', 'roles');
+        $tab = (string) $request->query('tab', 'roles');
+        $tab = self::TAB_ALIASES[$tab] ?? $tab;
+        $tab = in_array($tab, self::TABS, true) ? $tab : 'roles';
+        $me = $request->user();
         $app->load(['roles.permissions', 'organizations', 'clients', 'publisher', 'installations']);
-
-        return view('admin.apps.show', [
+        // People are only shown for organizations the viewer belongs to as staff: a publisher never sees who
+        // uses its app in another organization (SPEC-organizations §2.3).
+        $visible = fn () => Grant::where('app_id', $app->id)->when(! $me->isOwner(), fn ($q) => $q->whereIn('organization_id', $me->devOrgIds()));
+        $data = [
             'app' => $app, 'tab' => $tab,
             'permissions' => AppPermission::where('app_id', $app->id)->orderByRaw('deprecated_at is not null')->orderBy('key')->get(),
             'orgs' => $this->installableOrgs(),
-            // People are only shown for organizations the viewer belongs to as staff: a publisher never sees who
-            // uses its app in another organization (SPEC-organizations §2.3).
-            'grants' => $tab === 'users' ? Grant::with(['user', 'organization', 'role'])->where('app_id', $app->id)
-                ->when(! $request->user()->isOwner(), fn ($q) => $q->whereIn('organization_id', $request->user()->devOrgIds()))->get()->sortBy('user.name') : collect(),
+            'peopleCount' => $visible()->count(),
+            'roleCounts' => $visible()->selectRaw('app_role_id, count(*) as n')->groupBy('app_role_id')->pluck('n', 'app_role_id'),
+            'orgCounts' => $visible()->selectRaw('organization_id, count(*) as n')->groupBy('organization_id')->pluck('n', 'organization_id'),
+            'grants' => collect(), 'lastUsed' => collect(), 'via' => collect(), 'regTokens' => collect(),
             'created' => session('created_client'),
+            'connected' => session('connected'),
             'theme' => Theme::for($app),
             'themes' => Theme::NAMES + \App\Services\Themes::forApp($app)->mapWithKeys(fn ($t) => ['designed:'.$t->key => $t->name])->all(),
-        ]);
+            'canDelete' => $me->isOwner() || in_array($app->owner_organization_id, $me->adminOrgIds(), true),
+        ];
+
+        if ($tab === 'people') {
+            $q = trim((string) $request->query('q'));
+            $data['grants'] = $visible()->with(['user', 'organization', 'role'])
+                ->when($request->query('org'), fn ($w, $o) => $w->where('organization_id', $o))
+                ->when($request->query('role'), fn ($w, $r) => $w->where('app_role_id', (int) $r))
+                ->when($q !== '', fn ($w) => $w->whereHas('user', fn ($u) => $u->where('name', 'like', "%$q%")->orWhere('email', 'like', "%$q%")))
+                ->get()->sortBy('user.name')->values();
+            $data['lastUsed'] = \App\Models\ClientSession::where('app_id', $app->id)->whereIn('user_id', $data['grants']->pluck('user_id'))
+                ->selectRaw('user_id, max(last_used_at) as at')->groupBy('user_id')->pluck('at', 'user_id');
+            // Which job role (access profile) gave each person their role here.
+            $data['via'] = DB::table('access_profile_roles as r')->join('access_profile_user as u', 'u.access_profile_id', '=', 'r.access_profile_id')
+                ->join('access_profiles as p', 'p.id', '=', 'r.access_profile_id')->where('r.app_id', $app->id)
+                ->get(['u.user_id', 'p.organization_id', 'r.app_role_id', 'p.name'])
+                ->groupBy(fn ($r) => $r->user_id.'|'.$r->organization_id.'|'.$r->app_role_id)->map(fn ($g) => $g->pluck('name')->all());
+        }
+        if ($tab === 'developer') {
+            $data['regTokens'] = DB::table('registration_tokens')->where('app_id', $app->id)->orderByDesc('created_at')->get();
+        }
+
+        return view('admin.apps.show', $data);
     }
 
     public function update(Request $request, Application $app)
     {
-        $before = $app->only('name', 'home_url', 'manifest_url', 'status', 'require_mfa_roles', 'color', 'visibility', 'owner_organization_id', 'privacy_url', 'terms_url', 'support_email');
+        $before = $app->only('name', 'description', 'home_url', 'manifest_url', 'status', 'require_mfa_roles', 'color', 'visibility', 'owner_organization_id', 'privacy_url', 'terms_url', 'support_email');
         $publisher = $request->user()->isOwner() && $request->filled('publisher') ? $request->input('publisher') : $app->owner_organization_id;
         $data = $request->validate([
             'name' => ['required', 'string', 'max:80', ...($request->input('name') !== $app->name ? $this->reservedRules($request)['name'] : [])],
+            'description' => 'nullable|string|max:120',
             'home_url' => 'nullable|url',
             'manifest_url' => 'nullable|url',
             'status' => 'required|in:live,paused,not_connected',
@@ -142,6 +186,12 @@ class AppController
             'require_mfa_roles' => 'array',
         ] + self::policyRules($publisher), ['privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
             'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
+        // The Danger zone's Pause / Resume buttons submit the same form.
+        if ($request->boolean('pause')) {
+            $data['status'] = 'paused';
+        } elseif ($request->boolean('resume')) {
+            $data['status'] = 'live';
+        }
         $app->update(collect($data)->except('orgs', 'visibility', 'publisher')->all() + ['require_mfa_roles' => array_values($data['require_mfa_roles'] ?? []),
             'visibility' => $data['visibility'] ?? $app->visibility,
             'owner_organization_id' => $request->user()->isOwner() && ! empty($data['publisher']) ? $data['publisher'] : $app->owner_organization_id]);
@@ -171,7 +221,7 @@ class AppController
         [$client, $secret] = self::makeClient($app, $data['type'], $data['redirect_uri'] ?? null, $data['name']);
         Audit::log('app.client_added', 'app', $app, after: ['client' => $client->id, 'type' => $data['type']], appId: $app->id);
 
-        return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'settings'])
+        return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'developer'])
             ->with('created_client', ['id' => $client->id, 'secret' => $secret, 'name' => $client->name]);
     }
 
@@ -183,7 +233,7 @@ class AppController
         $c->forceFill(['secret' => $secret, 'secret_expires_at' => now()->addDays(config('clauth.client_secret_days'))])->save();
         Audit::log('app.secret_rotated', 'app', $app, after: ['client' => $c->id], appId: $app->id);
 
-        return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'settings'])
+        return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'developer'])
             ->with('created_client', ['id' => $c->id, 'secret' => $secret, 'name' => $c->name]);
     }
 
@@ -243,10 +293,23 @@ class AppController
 
     public function storeRole(Request $request, Application $app)
     {
-        $data = $request->validate(['tier' => ['nullable', Rule::in(array_keys(AppRole::TIERS))], 'name' => 'required|string|max:60', 'key' => ['required', 'regex:/^[a-z][a-z0-9_-]{0,40}$/', Rule::unique('app_roles')->where('app_id', $app->id)], 'description' => 'nullable|string|max:190']);
-        $role = AppRole::create($data + ['app_id' => $app->id, 'source' => 'manual', 'edited' => true, 'position' => $app->roles()->count(),
+        $data = $request->validate(['tier' => ['nullable', Rule::in(array_keys(AppRole::TIERS))], 'name' => 'required|string|max:60', 'key' => ['required', 'regex:/^[a-z][a-z0-9_-]{0,40}$/', Rule::unique('app_roles')->where('app_id', $app->id)], 'description' => 'nullable|string|max:190',
+            'permissions' => 'array', 'permissions.*' => 'integer', 'copy_from' => 'nullable|integer', 'mfa' => 'boolean']);
+        $role = AppRole::create(collect($data)->only('tier', 'name', 'key', 'description')->all() + ['app_id' => $app->id, 'source' => 'manual', 'edited' => true, 'position' => $app->roles()->count(),
             'tier_source' => ! empty($data['tier']) ? 'manual' : null]);
-        Audit::log('app.role_changed', 'role', $role, after: ['created' => $role->key], appId: $app->id);
+        // What the role can do: the ticked actions, or (without any ticked) a copy of the "Start from" role.
+        $active = AppPermission::where('app_id', $app->id)->whereNull('deprecated_at')->pluck('id')->all();
+        $want = array_values(array_intersect(array_map('intval', $data['permissions'] ?? []), $active));
+        if (! $want && ! empty($data['copy_from']) && ($src = $app->roles()->find($data['copy_from']))) {
+            $want = array_values(array_intersect($src->permissions()->pluck('app_permissions.id')->all(), $active));
+        }
+        if ($want) {
+            $role->permissions()->sync($want);
+        }
+        if ($request->boolean('mfa')) {
+            $app->update(['require_mfa_roles' => array_values(array_unique([...($app->require_mfa_roles ?? []), $role->key]))]);
+        }
+        Audit::log('app.role_changed', 'role', $role, after: ['created' => $role->key, 'permissions' => $want, 'mfa' => $request->boolean('mfa')], appId: $app->id);
 
         return back()->with('status', "Role “{$role->name}” added.");
     }
@@ -308,7 +371,8 @@ class AppController
     public function branding(Request $request, Application $app)
     {
         $data = $request->validate([
-            'login_theme' => ['required', 'string', 'max:80'],
+            // A built-in style (classic | daylight | midnight | auto = Match device) or "designed:<key>" (checked by Themes::assign).
+            'login_theme' => ['required', 'string', 'max:80', fn ($attr, $v, $fail) => isset(Theme::NAMES[$v]) || str_starts_with((string) $v, 'designed:') ? null : $fail('Unknown style.')],
             'accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'logo' => 'nullable|file|mimes:png,svg|max:512',
             'logo_dark' => 'nullable|file|mimes:png,svg|max:512',

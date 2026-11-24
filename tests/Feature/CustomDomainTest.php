@@ -205,7 +205,7 @@ class CustomDomainTest extends ClauthTestCase
         $this->hit($this->authorizeUrl(self::APPD));
         $r = $this->follow($this->hit(self::APPD.'/login'));             // main says "not signed in"
         $this->assertSame(200, $r->status());
-        $this->assertStringContainsString('Continue to <strong>Xpenses</strong>', $r->getContent());
+        $this->assertStringContainsString('<div class="lead">Continue to</div><b>Xpenses</b>', $r->getContent());
 
         $r = $this->hit(self::APPD.'/login', 'POST', ['email' => $user->email, 'password' => self::PASSWORD]);
         $this->assertStringStartsWith(self::MAIN.'/sso/adopt?ticket=', $r->headers->get('Location'));
@@ -255,9 +255,9 @@ class CustomDomainTest extends ClauthTestCase
         // Each app's flow is branded for that app; a page opened directly shows the domain's name.
         $admin()->patch(self::MAIN.'/admin/apps/erp/domain', ['display_name' => 'Cake Group', 'trusted' => 1])->assertSessionHasNoErrors();
         $this->hit($this->authorizeUrl(self::APPD, $erpClient));
-        $this->assertStringContainsString('Continue to <strong>Alab ERP</strong>', $this->follow($this->hit(self::APPD.'/login'))->getContent());
+        $this->assertStringContainsString('<div class="lead">Continue to</div><b>Alab ERP</b>', $this->follow($this->hit(self::APPD.'/login'))->getContent());
         $this->jars = [];
-        $this->assertStringContainsString('Continue to <strong>Cake Group</strong>', $this->follow($this->hit(self::APPD.'/login'))->getContent());
+        $this->assertStringContainsString('<div class="lead">Continue to</div><b>Cake Group</b>', $this->follow($this->hit(self::APPD.'/login'))->getContent());
 
         // Signed in once on the shared domain → both apps get a code without a password.
         $user = $this->makeUser();

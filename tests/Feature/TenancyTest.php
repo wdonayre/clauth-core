@@ -65,7 +65,7 @@ class TenancyTest extends ClauthTestCase
             'app' => $this->xp->key, 'id' => $this->maria->id, 'org' => $this->cbg->id, 'client' => $this->client->id,
             'role' => $this->role('member')->id, 'key' => $key->id, 'note' => $note->id, 'action' => 'disable',
         ];
-        $listing = ['admin.dashboard', 'admin.users.index', 'admin.apps.index', 'admin.orgs.index', 'admin.audit', 'admin.audit.export'];
+        $listing = ['admin.dashboard', 'admin.search', 'admin.users.index', 'admin.apps.index', 'admin.orgs.index', 'admin.audit', 'admin.audit.export'];
         $creates = ['admin.users.invite', 'admin.apps.store'];
         $checked = 0;
 

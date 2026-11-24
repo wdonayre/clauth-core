@@ -172,7 +172,7 @@ class TwoFactorController
         Audit::log('security.mfa_skipped', 'security', $user, actorId: $user->id, actorType: 'user');
         $request->session()->forget(['invite.flow', 'invite_require_mfa', 'login.mfa_secret']);
 
-        return $this->completeLogin($request, $user, ['pwd'], false);
+        return $this->completeLogin($request, $user, $request->session()->get('login.amr', ['pwd']), false);
     }
 
     private function canSkipSetup(Request $request, User $user): bool

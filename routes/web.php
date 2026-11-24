@@ -142,6 +142,7 @@ Route::middleware('auth')->prefix('account')->name('account')->group(function ()
 // ---- Admin console ----
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', Admin\DashboardController::class)->name('dashboard');
+    Route::get('/search', Admin\SearchController::class)->middleware('throttle:120,1')->name('search');
 
     // People: Clauth owner or org owner/admin, scoped to their organizations.
     Route::middleware('admin:people')->group(function () {
@@ -151,14 +152,27 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs/{org}/sign-in-rules/reset', [Admin\SigninPolicyController::class, 'resetOrg']);
         Route::get('/users', [Admin\UserController::class, 'index'])->name('users.index');
         Route::post('/users/invite', [Admin\UserController::class, 'invite'])->name('users.invite');
+        Route::post('/users/bulk', [Admin\UserController::class, 'bulk'])->name('users.bulk');
         Route::get('/users/{id}', [Admin\UserController::class, 'show'])->name('users.show');
         Route::put('/users/{id}', [Admin\UserController::class, 'update'])->name('users.update');
         Route::post('/users/{id}/grants', [Admin\UserController::class, 'grants'])->name('users.grants');
         Route::post('/users/{id}/orgs', [Admin\UserController::class, 'addOrg'])->name('users.orgs.add');
         Route::delete('/users/{id}/orgs', [Admin\UserController::class, 'removeOrg'])->name('users.orgs.remove');
+        Route::delete('/users/{id}/sessions/{kind}/{session}', [Admin\UserController::class, 'revokeSession'])->whereIn('kind', ['web', 'app'])->name('users.sessions.revoke');
+        Route::delete('/users/{id}/links/{provider}', [Admin\UserController::class, 'unlink'])->name('users.links.destroy');
+        Route::delete('/users/{id}', [Admin\UserController::class, 'destroy'])->name('users.destroy');
         Route::post('/users/{id}/{action}', [Admin\UserController::class, 'action'])->name('users.action');
 
         Route::get('/orgs', [Admin\OrgController::class, 'index'])->name('orgs.index');
+        // Redesign 2026-11: one page per organization tab.
+        Route::get('/orgs/{org}', [Admin\OrgController::class, 'show'])->name('orgs.show');
+        Route::get('/orgs/{org}/apps', [Admin\OrgController::class, 'apps'])->name('orgs.apps.index');
+        Route::get('/orgs/{org}/domain', [Admin\OrgController::class, 'domainPage'])->name('orgs.domain.show');
+        Route::get('/orgs/{org}/settings', [Admin\OrgController::class, 'settings'])->name('orgs.settings');
+        Route::put('/orgs/{org}/general', [Admin\OrgController::class, 'general'])->name('orgs.general');
+        Route::post('/orgs/{org}/logo', [Admin\OrgController::class, 'logo'])->name('orgs.logo');
+        Route::delete('/orgs/{org}/logo', [Admin\OrgController::class, 'removeLogo'])->name('orgs.logo.destroy');
+        Route::get('/orgs/{org}/logo', [Admin\OrgController::class, 'showLogo'])->name('orgs.logo.show');
         Route::post('/orgs/{org}/roles', [Admin\OrgController::class, 'role'])->name('orgs.roles');
         Route::post('/orgs/{org}/domain', [Admin\OrgController::class, 'domain'])->name('orgs.domain');
         Route::post('/orgs/{org}/domain/check', [Admin\OrgController::class, 'checkDomain'])->name('orgs.domain.check');
@@ -256,6 +270,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs', [Admin\OrgController::class, 'store'])->name('orgs.store');
         Route::put('/orgs/{org}', [Admin\OrgController::class, 'update'])->name('orgs.update');
         Route::post('/orgs/{org}/suspend', [Admin\OrgController::class, 'suspend'])->name('orgs.suspend');
+        Route::get('/org-requests/{orgRequest}', [Admin\OrgController::class, 'showRequest'])->name('org-requests.show');
         Route::post('/org-requests/{orgRequest}/approve', [Admin\OrgController::class, 'approveRequest'])->name('org-requests.approve');
         Route::post('/org-requests/{orgRequest}/reject', [Admin\OrgController::class, 'rejectRequest'])->name('org-requests.reject');
         Route::delete('/orgs/{org}/suspend', [Admin\OrgController::class, 'restore'])->name('orgs.restore');

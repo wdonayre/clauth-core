@@ -115,7 +115,7 @@ class PlatformP2Test extends ClauthTestCase
 
         $maria = $this->makeUser();
         $this->grant($maria, $this->cbg, 'member');
-        $as()->get("/admin/users/{$maria->id}")->assertOk()->assertSee('Talisay')->assertSee('Start date');
+        $as()->get("/admin/users/{$maria->id}?tab=profile")->assertOk()->assertSee('Talisay')->assertSee('Start date');
         // Saving access with an untouched empty required field still works; changed values are saved.
         $as()->post("/admin/users/{$maria->id}/grants", ['organization_id' => $this->cbg->id, 'teams_shown' => '1', 'teams' => ['talisay'],
             'fields' => ['start_date' => '', 'shift' => 'PM']])->assertSessionHasNoErrors();

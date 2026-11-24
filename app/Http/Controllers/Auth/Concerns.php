@@ -50,6 +50,24 @@ trait Concerns
         return $theme;
     }
 
+    /** Which "Continue with …" buttons a sign-in page shows for this app: one rule set for login, invite and the rest. */
+    protected function providerButtons(Request $request, ?Application $app): array
+    {
+        $rules = \App\Services\SigninPolicies::rules($app);
+
+        return ['google' => SocialController::enabled('google') && $rules['google'],
+            'connections' => \App\Services\Connections::buttons($app, $request->attributes->get('clauth.domain'))
+                ->filter(fn ($c) => \App\Services\SigninPolicies::allowsVia($app, $c->key))->values()];
+    }
+
+    /** Send a locked-out person to the "Too many tries" page, which counts down their real time left. */
+    protected function toLocked(Request $request, User $user)
+    {
+        $request->session()->put('login.locked_until', $user->locked_until?->getTimestamp());
+
+        return redirect()->route('login.locked');
+    }
+
     /** The user who passed the password step but not yet 2-step (or a signed-in user stepping up). */
     protected function pendingUser(Request $request): ?User
     {
@@ -87,7 +105,7 @@ trait Concerns
 
         Auth::login($user, $remember);
         $request->session()->regenerate();
-        $request->session()->forget(['login.user_id', 'login.mfa_attempts', 'login.mfa_secret', 'login.recovery_codes', 'login.amr']);
+        $request->session()->forget(['login.user_id', 'login.mfa_attempts', 'login.mfa_secret', 'login.recovery_codes', 'login.amr', 'login.locked_until']);
         $via = $request->session()->pull('login.via') ?? (in_array('pwd', $amr, true) ? 'password' : null);
         $request->session()->put(['auth.amr' => $amr, 'auth.time' => time(), 'auth.mfa' => $mfa, 'auth.via' => $via]);
         if ($clientId) {

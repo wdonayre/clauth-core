@@ -1,0 +1,66 @@
+/* Organizations pages (list, org tabs, request review). Colors only via console.css tokens. */
+.ologo{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none;background:var(--neutral-bg);color:var(--neutral)}
+.ologo.own{background:var(--text);color:var(--surface)}
+.olink{display:flex;align-items:center;gap:12px;color:var(--text)!important}
+.olink .who{display:flex;flex-direction:column;line-height:1.35;min-width:0}
+.olink .who b{font-weight:600}
+.olink .who span{color:var(--muted);font-size:13px}
+.orgs-t{min-width:780px}
+.reqbar{display:flex;align-items:center;gap:14px;padding:14px 18px;flex-wrap:wrap;background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 25%,var(--line))}
+.reqbar .grow{flex:1;min-width:200px}
+.orgmeta{color:var(--muted);margin:-6px 0 0;font-size:14px}
+
+/* ⋯ menus: <details class="menu-d"><summary class="btn icon">…</summary><div class="pop">…</div></details> */
+details.menu-d{position:relative;display:inline-block}
+details.menu-d>summary{list-style:none;cursor:pointer}
+details.menu-d>summary::-webkit-details-marker{display:none}
+details.menu-d .pop{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;display:flex;flex-direction:column}
+details.menu-d .pop a,details.menu-d .pop button{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:8px;border:0;background:none;color:var(--text)!important;font:500 14px Inter,sans-serif;text-align:left;cursor:pointer;width:100%}
+details.menu-d .pop a:hover,details.menu-d .pop button:hover{background:var(--soft)}
+details.menu-d .pop .danger{color:var(--bad)!important}
+details.menu-d .pop form{margin:0}
+
+/* People tab */
+.org-split{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.org-split>.main{flex:999 1 560px;min-width:0}
+.org-split>aside{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:16px}
+.jr{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid var(--line-3);color:var(--text)!important}
+.jr:hover{background:var(--surface-2)}
+.jr .sub{color:var(--muted);font-size:13px}
+.rolesel{max-width:150px;min-height:34px!important}
+.people-t{min-width:640px}
+
+/* Sign-in domain tab */
+.steps{display:flex;flex-wrap:wrap;gap:10px 24px;padding:0 22px 18px}
+.step{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2)}
+.step .n{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:var(--soft);color:var(--muted)}
+.step.done .n{background:var(--ok-bg);color:var(--ok)}
+.step.now .n{background:var(--info-bg);color:var(--info)}
+.dtable{border-top:1px solid var(--line-3)}
+.dtable code{word-break:break-all}
+
+/* Settings tab */
+.ch{margin:0;padding:18px 22px 0}
+.card.dangerz{border-color:color-mix(in srgb,var(--bad) 30%,var(--line))}
+.card.dangerz .ch{color:var(--bad)}
+.card-body{padding:18px 22px}
+
+/* Request review */
+.chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:14px}
+.chk .y,.chk .q,.chk .x{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:12px;font-weight:700}
+.chk .y{background:var(--ok-bg);color:var(--ok)}
+.chk .q{background:var(--warn-bg);color:var(--warn)}
+.chk .x{background:var(--bad-bg);color:var(--bad)}
+.req-kv{padding:16px 22px 22px}
+
+/* Organization logos (list rows + Settings) */
+.ologo.img{background:var(--surface);border:1px solid var(--line);overflow:hidden}
+.ologo img{width:100%;height:100%;object-fit:contain;display:block}
+.ologo.xl{width:48px;height:48px;border-radius:12px;font-size:16px}
+.logo-set{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.logo-set form{margin:0}
+
+/* Suggestion card (People tab) */
+.sug-card{display:flex;flex-direction:column;gap:6px}
+.sug-card form{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.logo-set label.btn:focus-within{outline:2px solid var(--focus,var(--info));outline-offset:2px}

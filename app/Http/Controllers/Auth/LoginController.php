@@ -44,9 +44,8 @@ class LoginController
         $app = $this->flowApp($request);
         $rules = SigninPolicies::rules($app);
 
-        return view('auth.login', ['theme' => $this->theme($request), 'app' => $app,
-            'google' => SocialController::enabled('google') && $rules['google'], 'socialError' => $socialError,
-            'connections' => Connections::buttons($app, $request->attributes->get('clauth.domain'))->filter(fn ($c) => SigninPolicies::allowsVia($app, $c->key))->values(),
+        return view('auth.login', ['theme' => $this->theme($request), 'app' => $app, 'socialError' => $socialError]
+            + $this->providerButtons($request, $app) + [
             'codeSignIn' => LoginCodeController::available($app), 'passwordForm' => $rules['password'],
             'signup' => $app && $rules['registration'] === 'open', 'policyNotice' => $request->session()->pull('login.policy_notice')]);
     }
@@ -76,7 +75,7 @@ class LoginController
             return $fail('This account is turned off. Ask your admin.');
         }
         if ($user->isLocked()) {
-            return redirect()->route('login.locked');
+            return $this->toLocked($request, $user);
         }
         if (! Hash::check($data['password'], $user->password)) {
             $user->increment('failed_logins');
@@ -86,7 +85,7 @@ class LoginController
                 Audit::log('signin.locked', 'security', $user, after: ['until' => $user->locked_until->toIso8601String()], actorId: $user->id, actorType: 'system');
                 rescue(fn () => Mail::to($user->email)->send(\App\Services\Templates::mail('lockout', null, ['name' => $user->name, 'minutes' => Settings::get('lockout_minutes')], $user->locale) ?? new LockoutMail($user)), report: true);
 
-                return redirect()->route('login.locked');
+                return $this->toLocked($request, $user);
             }
 
             return $fail('That email and password don’t match.');
@@ -111,9 +110,17 @@ class LoginController
         return $this->completeLogin($request, $user, ['pwd'], false);
     }
 
+    /**
+     * "Too many tries". The pause time is the person's own lock (set in the session by toLocked() on the redirect that
+     * brought them here), so the page only counts down for someone who was just turned away; opened directly it shows
+     * no timer and reveals nothing about any account.
+     */
     public function locked(Request $request)
     {
-        return view('auth.locked', ['theme' => $this->theme($request), 'minutes' => (int) Settings::get('lockout_minutes')]);
+        $until = (int) $request->session()->get('login.locked_until');
+        $seconds = $until > time() ? $until - time() : null;
+
+        return view('auth.locked', ['theme' => $this->theme($request), 'seconds' => $seconds, 'minutes' => (int) Settings::get('lockout_minutes')]);
     }
 
     public function logout(Request $request)

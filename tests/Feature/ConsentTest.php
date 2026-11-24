@@ -57,7 +57,7 @@ class ConsentTest extends ClauthTestCase
     {
         $r = $this->authorizeCode($this->maria);
         $this->assertFalse(is_array($r), 'expected the consent page, not a code');
-        $r->assertOk()->assertSee('Continue to Foo Roster?')->assertSee('Foo Ltd')->assertSee('Unverified')
+        $r->assertOk()->assertSee('Foo Roster wants to know who you are')->assertSee('Foo Ltd')->assertSee('Unverified')
             ->assertSee('Your roles in this app at CakesbyGrace')->assertSee('https://foo.test/privacy', false);
 
         $r = $this->consentAnswer('allow');
@@ -89,7 +89,7 @@ class ConsentTest extends ClauthTestCase
         $this->keep($this->get($this->consentAnswer('allow')->headers->get('Location')));
         $this->assertNotNull($this->authorizeCode($this->maria, 'openid profile')[0]);
         $this->authorizeCode($this->maria, 'openid profile email')->assertOk()->assertSee('Your email address');
-        $this->authorizeCode($this->maria, 'openid profile', ['prompt' => 'consent'])->assertOk()->assertSee('Continue to Foo Roster?');
+        $this->authorizeCode($this->maria, 'openid profile', ['prompt' => 'consent'])->assertOk()->assertSee('Foo Roster wants to know who you are');
     }
 
     public function test_own_organizations_and_williams_apps_never_ask(): void
@@ -121,7 +121,7 @@ class ConsentTest extends ClauthTestCase
         $this->delete('/account/consents/foo-roster')->assertSessionHas('status');
         $this->assertNotNull(Consent::first()->revoked_at);
         $this->assertTrue((bool) DB::table('oauth_access_tokens')->where('id', 'tok-r')->value('revoked'));
-        $this->authorizeCode($this->maria)->assertOk()->assertSee('Continue to Foo Roster?'); // asked again
+        $this->authorizeCode($this->maria)->assertOk()->assertSee('Foo Roster wants to know who you are'); // asked again
     }
 
     public function test_outside_app_user_lookup_needs_access_and_consent(): void

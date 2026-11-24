@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Application;
 use App\Models\ReleaseNote;
+use App\Models\User;
 use App\Services\Audit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +17,18 @@ class UpdatesController
         $notes = ReleaseNote::with('app')->latest('published_at')->paginate(30);
         $reads = DB::table('release_note_reads')->whereIn('release_note_id', $notes->pluck('id'))
             ->selectRaw('release_note_id, count(*) as n')->groupBy('release_note_id')->pluck('n', 'release_note_id');
+        // "read by X of Y": Y = people who can use that app (or everyone, for every-app notes).
+        $audience = DB::table('grants')->whereIn('app_id', $notes->pluck('app_id')->filter()->unique()->all())
+            ->selectRaw('app_id, count(distinct user_id) as n')->groupBy('app_id')->pluck('n', 'app_id');
+        $everyone = User::count();
+        $authors = User::withTrashed()->whereIn('id', $notes->pluck('created_by')->filter()->unique()->all())->pluck('name', 'id');
+        $edit = $request->query('edit') ? ReleaseNote::find($request->query('edit')) : null;
 
         return view('admin.updates', [
-            'notes' => $notes, 'reads' => $reads,
+            'notes' => $notes, 'reads' => $reads, 'audience' => $audience, 'everyone' => $everyone, 'authors' => $authors,
             'apps' => Application::orderBy('name')->get(),
-            'edit' => $request->query('edit') ? ReleaseNote::find($request->query('edit')) : null,
+            'edit' => $edit,
+            'preview' => ReleaseNote::with('app')->where('published_at', '<=', now())->latest('published_at')->limit(2)->get(),
         ]);
     }
 
@@ -60,7 +68,7 @@ class UpdatesController
             'published_at' => 'nullable|date',
         ]);
         $data['published_at'] = $data['published_at'] ?? now();
-        $data['app_id'] = $data['app_id'] ?: null;
+        $data['app_id'] = ($data['app_id'] ?? null) ?: null;
 
         return $data;
     }

@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Auth\SocialController;
+use App\Models\Connection;
 use App\Models\SigningKey;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\Claims;
+use App\Services\Connections;
+use App\Services\Domains;
 use App\Services\Settings;
 use App\Services\SigningKeys;
+use App\Services\Sms;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class SettingsController
 {
@@ -22,11 +28,22 @@ class SettingsController
             'admins' => User::where('clauth_role', 'owner')->orWhereHas('organizations', fn ($q) => $q->whereIn('organization_user.role', ['owner', 'admin', 'developer']))
                 ->with(['organizations' => fn ($q) => $q->wherePivotIn('role', ['owner', 'admin', 'developer'])])->orderBy('name')->get(),
             'mail' => ['mailer' => config('mail.default'), 'from' => config('mail.from.address')],
+            // Sign-in methods section: Google comes from the server's .env; the rest are platform connections.
+            'google' => SocialController::enabled('google'),
+            'googleCallback' => Domains::mainUrl('login/google/callback'),
+            'providers' => Connection::whereNull('organization_id')->whereIn('type', ['oidc', 'oauth', 'meta'])->orderBy('name')->get(),
+            'sms' => Connections::sms(),
+            'smsAvailable' => Sms::available(),
+            'types' => Connections::TYPES,
         ]);
     }
 
     public function update(Request $request)
     {
+        // "Send a test" in Settings › Email posts here with only send_test (no new route needed).
+        if ($request->boolean('send_test')) {
+            return $this->sendTest($request);
+        }
         $data = $request->validate([
             'require_mfa_everyone' => 'boolean',
             'require_mfa_admin_tiers' => 'boolean',
@@ -51,6 +68,22 @@ class SettingsController
         Audit::log('settings.updated', 'admin', null, $before, $data);
 
         return back()->with('status', 'Settings saved.');
+    }
+
+    /** Email a short test message to the signed-in owner, so they can see the mail settings work. */
+    private function sendTest(Request $request)
+    {
+        $to = $request->user()->email;
+        try {
+            Mail::raw("This is a test email from Clauth. If you can read it, sending works.\n\nSent from Settings › Email.", fn ($m) => $m->to($to)->subject('Clauth test email'));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->withErrors(['send_test' => 'The test email couldn’t be sent: '.$e->getMessage()]);
+        }
+        Audit::log('settings.test_email', 'admin', null, after: ['to' => $to]);
+
+        return back()->with('status', "Test email sent to {$to}.");
     }
 
     public function stageKey()

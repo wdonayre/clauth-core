@@ -1,0 +1,139 @@
+/* Apps list, one app (Roles / People / Sign-in page / Settings / Developer), connect-an-app + new-role pop-ups, Themes.
+   Colors only through console.css tokens so dark mode works; app brand colors come inline from the data. */
+
+/* ---------- Apps grid ---------- */
+.apps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
+.appcard{padding:20px;display:flex;flex-direction:column;gap:14px;color:var(--text)!important;transition:border-color .15s,box-shadow .15s}
+.appcard:hover{border-color:var(--line-hover);box-shadow:var(--shadow)}
+.appcard .top{display:flex;align-items:center;gap:14px}
+.appcard .nm{font-size:16px;font-weight:600;line-height:1.3}
+.appcard .ds{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.appcard .ico.lg{width:44px;height:44px;font-size:18px}
+.appcard .meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;font-size:13px}
+.appcard .meta span{color:var(--muted)}
+.appcard .meta div div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.appcard.next{border-style:dashed;background:transparent}
+.appcard.next ol{margin:0;padding-left:18px;color:var(--text-2);display:flex;flex-direction:column;gap:6px}
+.appcard.next .go{display:flex;gap:12px;align-items:center;margin-top:auto;flex-wrap:wrap}
+
+/* ---------- App header ---------- */
+.apphead{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.apphead .ico.xl{width:52px;height:52px;border-radius:14px;font-size:20px}
+.apphead .who{flex:1;min-width:220px}
+.apphead .who .t{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.apphead h1{font-size:24px;font-weight:650;line-height:1.2}
+.apphead .who p{margin:2px 0 0;color:var(--muted)}
+.menu-d{position:relative}
+.menu-d>summary{list-style:none}
+.menu-d>summary::-webkit-details-marker{display:none}
+.menu-d .menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;display:flex;flex-direction:column}
+.menu-d .menu a,.menu-d .menu button{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:8px;color:var(--text)!important;background:transparent;border:0;font:500 14px Inter,sans-serif;cursor:pointer;text-align:left;width:100%}
+.menu-d .menu a:hover,.menu-d .menu button:hover{background:var(--soft)}
+.menu-d .menu .danger{color:var(--bad)!important}
+
+/* ---------- Roles matrix ---------- */
+table.t.matrix{min-width:640px}
+table.t.matrix th{font-weight:600;font-size:13px;color:var(--text);padding:14px 16px;vertical-align:bottom}
+table.t.matrix th .sub{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+table.t.matrix th .badge{margin-top:4px}
+.key{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted)}
+.deprecated td{opacity:.55}
+.minicards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
+.minicard{padding:18px 20px;display:flex;flex-direction:column;gap:6px}
+.minicard b{font-weight:600}
+.minicard span{color:var(--muted)}
+.minicard a{font-weight:500;margin-top:4px}
+.rolerow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--line-3)}
+.rolerow .grow{flex:1 1 240px;min-width:0}
+.rolerow form.actions .in{width:auto}
+.rolerow .aliases{width:9em!important}
+.diff{display:flex;flex-direction:column;gap:4px}
+
+/* ---------- Drawer pop-up (New role) ---------- */
+dialog.dlg.drawer{margin:0 0 0 auto;max-width:480px;width:100%;height:100vh;max-height:100vh;border-radius:0;border-width:0 0 0 1px;display:none;flex-direction:column}
+dialog.dlg.drawer[open]{display:flex}
+dialog.dlg.drawer form{display:flex;flex-direction:column;height:100%;min-height:0}
+dialog.dlg.drawer .dlg-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 24px 14px;border-bottom:1px solid var(--line-3)}
+dialog.dlg.drawer .dlg-b{flex:1;overflow-y:auto}
+.act{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--line-3);cursor:pointer}
+.act input{width:18px;height:18px;margin-top:2px;flex:none}
+.act b{font-weight:500;color:var(--text);display:block}
+.dlg .x-btn{flex:none}
+
+/* ---------- Connect an app (steps) ---------- */
+dialog.dlg.connect{max-width:600px;overflow:hidden}
+.connect .dlg-h{display:flex;flex-direction:column;gap:14px;padding:22px 24px 0}
+.connect .dlg-h .t{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.connect .stepno{color:var(--muted);font-size:13px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.steps span{height:4px;border-radius:4px;background:var(--line)}
+.steps span.on{background:var(--accent)}
+.connect .dlg-f{justify-content:space-between;background:var(--surface-2)}
+.console [hidden]{display:none!important}
+.types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:520px){.types{grid-template-columns:1fr}}
+.type{position:relative;display:flex;flex-direction:column;gap:4px;padding:12px;border:2px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;font:500 14px Inter,sans-serif;color:var(--text)}
+.type small{font-weight:400;font-size:12px;color:var(--muted)}
+.type input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.type:has(input:checked){border-color:var(--accent)}
+.type:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+pre.env{margin:0;padding:14px 16px;background:#0B0D12;color:#C9D0DC;border-radius:10px;font:400 12.5px/1.7 "JetBrains Mono",monospace;overflow-x:auto;white-space:pre}
+.colorpick{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.colorpick .in{max-width:130px}
+.dotsw{width:32px;height:32px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line-2);cursor:pointer;padding:0}
+.dotsw:hover,.dotsw.on{box-shadow:0 0 0 2px var(--accent)}
+
+/* ---------- Sign-in page tab ---------- */
+.signin-wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.signin-wrap>.card{flex:1 1 420px;min-width:0}
+.signin-wrap>.pv{flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:10px;position:sticky;top:20px}
+.blk{padding:18px 22px;border-top:1px solid var(--line-3);display:flex;flex-direction:column;gap:10px}
+.blk:first-child{border-top:0}
+.blk>.lbl,.blk legend.lbl{font-weight:600;font-size:14px;color:var(--text);padding:0}
+.blk p.hint{margin:0}
+fieldset.blk{border:0;border-top:1px solid var(--line-3);margin:0;min-width:0}
+.logo-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo-row .cur{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#fff;overflow:hidden;flex:none;background:var(--soft)}
+.logo-row .cur img{max-width:100%;max-height:100%;object-fit:contain}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.opt{position:relative;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;border:2px solid var(--line);background:var(--surface);cursor:pointer;font:500 13px Inter,sans-serif;color:var(--text)}
+.opt input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.opt:has(input:checked){border-color:var(--accent)}
+.opt:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+.opt .look{height:54px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+.opt .look i{width:40%;height:30px;border-radius:5px;display:block}
+.pv-modes{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.pv-modes .chip{min-height:32px;height:auto;padding:0 12px;cursor:pointer}
+.pv .preview-frame{height:620px}
+.dns td code{word-break:break-all}
+
+/* ---------- Settings / Developer ---------- */
+.stack{display:flex;flex-direction:column;gap:16px}
+.narrow{max-width:980px}
+.card .ch{padding:18px 22px 0}
+.card .ch h2{font-size:16px;font-weight:600}
+.card .ch p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px;padding:20px 22px}
+.card.dangerz{border-color:color-mix(in srgb,var(--bad) 30%,var(--line))}
+.card.dangerz .ch h2{color:var(--bad)}
+.codev{font-family:"JetBrains Mono",monospace;font-size:13px;background:var(--soft);border-radius:8px;padding:6px 10px;color:var(--text);overflow-wrap:anywhere;display:inline-block;max-width:100%}
+.dev-wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+.dev-wrap>.stack{flex:999 1 520px;min-width:0}
+.dev-wrap>aside{flex:1 1 340px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.endpoints .row{gap:8px 12px}
+.endpoints .row .lbl{flex:0 0 110px}
+.endpoints .row code{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.cb.pill-cb{padding:0}
+
+/* ---------- Themes ---------- */
+.theme-row .sw-prev{width:40px;height:32px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none}
+.theme-row .sw-prev i{width:14px;height:14px;border-radius:4px;display:block}
+.themes-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:20px;align-items:start}
+@media (max-width:1100px){.themes-wrap{grid-template-columns:1fr}}
+.tprev{border-radius:14px;padding:28px 20px;display:flex;justify-content:center;border:1px solid var(--line)}
+.tprev .tcard{width:100%;max-width:300px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 30px rgba(11,13,18,.12)}
+.tprev .tcard b{font-size:18px}
+.tprev .tin{min-height:38px;border:1px solid rgba(127,127,127,.35);display:flex;align-items:center;padding:0 12px;font-size:13px;opacity:.7}
+.tprev .tbtn{min-height:40px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
+.colorin{display:flex;gap:8px;align-items:center}
+.colorin input[type=color]{width:40px;height:40px;border:1px solid var(--line-2);border-radius:10px;padding:2px;background:var(--surface);cursor:pointer;flex:none}

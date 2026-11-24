@@ -1,6 +1,10 @@
 @extends('layouts.auth')
-@section('title', $approved ? 'Device signed in' : 'Device not signed in')
+@section('title', $approved ? __('Device signed in') : __('Device not signed in'))
+@section('card-class', 'center')
 @section('card')
-  <h1>{{ $approved ? 'You’re signed in' : 'Not signed in' }}</h1>
-  <p class="sub">{{ $approved ? "Go back to your device — {$app->name} continues there in a few seconds." : ($message ?? 'The device was not signed in. You can close this page.') }}</p>
+  <span class="sico round {{ $approved ? 'ok' : 'warn' }}" aria-hidden="true">@include('partials.icon', ['i' => $approved ? 'check' : 'x', 'iconSize' => 24])</span>
+  <div class="ttl">
+    <h1>{{ $approved ? __('You’re signed in') : __('Not signed in') }}</h1>
+    <p class="lede">{{ $approved ? __('Go back to your device — :app continues there in a few seconds.', ['app' => $app->name]) : ($message ?? __('The device was not signed in. You can close this page.')) }}</p>
+  </div>
 @endsection

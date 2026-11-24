@@ -172,7 +172,7 @@ class AccessProfilesTest extends ClauthTestCase
 
         $this->assertNull($this->grantKey($maria, $this->erp));
         $this->assertSame(['Finance'], Access::explain($maria, $this->cbg)[$this->erp->id]['unmapped']);
-        $this->as($this->owner)->get("/admin/users/{$maria->id}")->assertOk()->assertSee('profile not set for this app')->assertSee('from Finance');
+        $this->as($this->owner)->get("/admin/users/{$maria->id}")->assertOk()->assertSee('Finance doesn’t say what to give in', false)->assertSee('From the Finance job role');
         $this->as($this->owner)->get("/admin/orgs/{$this->cbg->id}/profiles")->assertOk()->assertSee('1/2 apps set');
         $this->as($this->owner)->get("/admin/orgs/{$this->cbg->id}/profiles/{$finance->id}")->assertOk()->assertSee('not set — holders get no access yet');
     }

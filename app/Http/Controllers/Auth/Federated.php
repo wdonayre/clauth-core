@@ -33,11 +33,48 @@ trait Federated
         'disabled' => 'This account is turned off. Ask your admin.',
         'failed' => 'Sign-in with that provider didn’t finish. Please try again.',
         'cancelled' => 'Sign-in was cancelled.',
+        'invite_email' => 'That account uses a different email. Continue with the account for the email your invite was sent to.',
     ];
+
+    /**
+     * Accepting an invite through a provider ("Continue with Google" on the invite page). The invite page keeps its
+     * token in the session (invite.token) and its buttons add ?invite=1; a hop from an app's own domain carries the
+     * token in the query to the main domain, the same way it carries the app. Returns [invite, token] or [null, null].
+     */
+    protected function inviteForFlow(Request $request): array
+    {
+        $q = (string) $request->query('invite');
+        $token = $q === '1' ? (string) $request->session()->get('invite.token') : $q;
+        $invite = $token !== '' && strlen($token) <= 100 ? Invite::findByToken($token) : null;
+
+        return $invite?->isUsable() ? [$invite, $token] : [null, null];
+    }
+
+    /** Main domain, before leaving for the provider: remember (or forget) the invite this sign-in accepts. */
+    protected function stashInvite(Request $request, ?Invite $invite, ?string $token): void
+    {
+        if (! $invite) {
+            $request->session()->forget('social.invite');
+
+            return;
+        }
+        $request->session()->put('social.invite', $token);
+        if (($app = $invite->primaryApp()) && ! $request->session()->has('login.client_id')) {
+            $request->session()->put('login.app_key', $app->key);
+        }
+    }
 
     protected function federatedFinish(Request $request, string $provider, string $id, ?string $email, bool $verified, ?Connection $conn, ?string $name, ?string $back)
     {
         $email = $email ? mb_strtolower(trim($email)) : null;
+        // Started from an invite page whose account isn't set up yet: this sign-in sets it up (invited email only).
+        $inviteToken = $request->session()->get('social.invite');
+        $invite = $inviteToken ? Invite::findByToken((string) $inviteToken) : null;
+        $invitee = $invite?->isUsable() ? User::where('email', $invite->email)->first() : null;
+        if ($invite?->isUsable() && (! $invitee || ($invitee->status === 'invited' && ! $invitee->password))) {
+            return $this->federatedInvite($request, $invite, $invitee, $provider, $id, $email, $verified, $conn, $name, $back);
+        }
+        $request->session()->forget('social.invite');
         $identity = SocialIdentity::where('provider', $provider)->where('provider_id', $id)->first();
         $user = $identity?->user;
         if (! $user) {
@@ -74,7 +111,7 @@ trait Federated
             return $this->federatedFail($back, 'disabled');
         }
         if ($user->isLocked()) {
-            return redirect()->route('login.locked');
+            return $this->toLocked($request, $user);
         }
         if (! $identity) {
             $identity = $user->socialIdentities()->updateOrCreate(['provider' => $provider], ['provider_id' => $id, 'email' => $email]);
@@ -105,10 +142,57 @@ trait Federated
         return $this->completeLogin($request, $user, ['fed'], false);
     }
 
-    /** Back to the sign-in page the person started on, with a fixed message (never text from outside). */
+    /**
+     * Set up an invited account through a provider. Only the invited email may accept: the provider must report exactly
+     * that address and vouch for it (Google: verified; a connection: as Connections::mayLinkByEmail would for a new
+     * member — the inviting organization's own provider for its domains, or a platform provider trusted for email).
+     */
+    private function federatedInvite(Request $request, Invite $invite, ?User $user, string $provider, string $id, ?string $email, bool $verified, ?Connection $conn, ?string $name, ?string $back)
+    {
+        $identity = SocialIdentity::where('provider', $provider)->where('provider_id', $id)->first();
+        if (! $email || ! hash_equals($invite->email, $email) || ($identity && $identity->user?->email !== $invite->email)) {
+            return $this->federatedFail($back, 'invite_email');
+        }
+        $vouched = ! $conn ? $verified : ($conn->organization_id
+            ? $conn->organization_id === $invite->organization_id && in_array(strtolower(Str::after($email, '@')), $conn->cfg('domains', []), true)
+            : $conn->cfg('trust_email', $conn->type === 'oidc') && $verified);
+        if (! $vouched) {
+            return $this->federatedFail($back, 'unverified');
+        }
+        $request->session()->forget('social.invite');
+        $user ??= new User(['email' => $invite->email]);
+        $user->forceFill(['name' => $user->name ?: ($invite->name ?: ($name ?: Str::before($email, '@'))), 'status' => 'active', 'email_verified_at' => now()])->save();
+        Invites::apply($invite, $user);
+        $user->refresh();
+        $identity = $user->socialIdentities()->updateOrCreate(['provider' => $provider], ['provider_id' => $id, 'email' => $email]);
+        $identity->forceFill(['last_used_at' => now()])->save();
+        $conn?->forceFill(['last_used_at' => now()])->save();
+        Audit::log('security.social_linked', 'security', $user, after: ['provider' => $provider, 'email' => $email, 'via' => 'invite'], actorId: $user->id, actorType: 'user');
+
+        // From here on it's the invite's onboarding, exactly as after "Create account" (InviteController::store).
+        $app = $invite->primaryApp();
+        $request->session()->regenerate();
+        $request->session()->put(['login.user_id' => $user->id, 'login.amr' => ['fed'], 'login.via' => $provider, 'invite.flow' => true]);
+        if ($app && ! $request->session()->has('login.client_id')) {
+            $request->session()->put('login.app_key', $app->key);
+        }
+        $request->session()->put('url.intended', $back ? "https://$back/login?sso=1" : ($app?->home_url ?: route('account')));
+        if ($invite->require_mfa) {
+            $request->session()->put('invite_require_mfa', true);
+        }
+        if (! $user->mfa_exempt) {
+            return redirect()->route('login.mfa.setup');
+        }
+        $request->session()->forget(['invite.flow', 'invite_require_mfa']);
+
+        return $this->completeLogin($request, $user, ['fed'], false);
+    }
+
+    /** Back to the page the person started on (sign-in, or their invite), with a fixed message (never text from outside). */
     protected function federatedFail(?string $back, string $code)
     {
-        $path = 'login?'.http_build_query(['social_error' => $code]);
+        $invite = session()->pull('social.invite');
+        $path = $invite ? 'invite/'.rawurlencode((string) $invite).'?'.http_build_query(['social_error' => $code]) : 'login?'.http_build_query(['social_error' => $code]);
 
         return redirect()->away($back ? "https://$back/$path" : Domains::mainUrl($path));
     }

@@ -46,7 +46,12 @@ class InviteController
             return view('auth.invite-existing', ['theme' => $theme, 'invite' => $invite, 'app' => $app, 'role' => $role]);
         }
 
-        return view('auth.invite', ['theme' => $theme, 'invite' => $invite, 'app' => $app, 'role' => $role, 'token' => $token]);
+        // "Continue with Google" (and the app's other sign-in providers) can set the account up too — for the invited
+        // email only (Federated::federatedInvite). The buttons follow the same rules as the sign-in page.
+        $request->session()->put('invite.token', $token);
+
+        return view('auth.invite', ['theme' => $theme, 'invite' => $invite, 'app' => $app, 'role' => $role, 'token' => $token,
+            'socialError' => SocialController::errors()[(string) $request->query('social_error')] ?? null] + $this->providerButtons($request, $app));
     }
 
     public function store(Request $request, string $token)

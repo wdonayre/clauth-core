@@ -32,16 +32,40 @@ class ProfileController
         return AccessProfile::where('organization_id', $org->id)->findOrFail((int) $profile);
     }
 
+    /** Job roles: the list on the left and the first one open on the right (SPEC-roles §9.1). */
     public function index(string $org)
     {
         $org = $this->org($org);
+        $first = $org->accessProfiles()->first();
+
+        return view('admin.profiles.index', $this->nav($org) + ($first ? $this->detail($org, $first) : ['profile' => null]));
+    }
+
+    /** The job-role list, its app coverage and the suggestions, shared by index and show. */
+    private function nav(Organization $org): array
+    {
         $apps = $org->apps()->get();
         $profiles = $org->accessProfiles()->withCount('users')->get();
         $mapped = DB::table('access_profile_roles')->whereIn('access_profile_id', $profiles->pluck('id'))
             ->select('access_profile_id', DB::raw('count(*) as n'))->groupBy('access_profile_id')->pluck('n', 'access_profile_id');
+        $suggestions = Access::suggestions($org, auth()->user());
 
-        return view('admin.profiles.index', ['org' => $org, 'profiles' => $profiles, 'apps' => $apps, 'mapped' => $mapped,
-            'unmapped' => Access::unmappedApps($org), 'suggestionCount' => count(Access::suggestions($org, auth()->user()))]);
+        return ['org' => $org, 'profiles' => $profiles, 'appCount' => $apps->count(), 'mapped' => $mapped,
+            'unmapped' => Access::unmappedApps($org), 'suggestionCount' => count($suggestions), 'suggestion' => $suggestions[0] ?? null];
+    }
+
+    private function detail(Organization $org, AccessProfile $p): array
+    {
+        $holders = $p->users()->orderBy('name')->get();
+
+        return [
+            'profile' => $p, 'mapping' => $p->mapping(),
+            'apps' => $org->apps()->with(['roles' => fn ($q) => $q->orderBy('position')])->orderBy('name')->get(),
+            'holders' => $holders,
+            'members' => $org->users()->whereNotIn('users.id', $holders->pluck('id'))->where('status', '!=', 'disabled')->orderBy('name')->get(),
+            'canOwner' => Access::canTouchOwnerTier(auth()->user(), $org->id),
+            'tiers' => AppRole::TIERS,
+        ];
     }
 
     public function store(Request $request, string $org)
@@ -67,17 +91,8 @@ class ProfileController
     {
         $org = $this->org($org);
         $p = $this->profile($org, $profile);
-        $me = auth()->user();
-        $holders = $p->users()->orderBy('name')->get();
 
-        return view('admin.profiles.show', [
-            'org' => $org, 'profile' => $p, 'mapping' => $p->mapping(),
-            'apps' => $org->apps()->with(['roles' => fn ($q) => $q->orderBy('position')])->orderBy('name')->get(),
-            'holders' => $holders,
-            'members' => $org->users()->whereNotIn('users.id', $holders->pluck('id'))->where('status', '!=', 'disabled')->orderBy('name')->get(),
-            'canOwner' => Access::canTouchOwnerTier($me, $org->id),
-            'tiers' => AppRole::TIERS,
-        ]);
+        return view('admin.profiles.index', $this->nav($org) + $this->detail($org, $p));
     }
 
     /** Name, description and the role per app. A select that isn't sent (disabled owner-tier one) stays as it is. */
@@ -199,6 +214,9 @@ class ProfileController
         $org = $this->org($org);
         [$apps, $rows] = $this->matrix($org);
         $filter = $request->query('filter', 'all');
+        $q = mb_strtolower(trim((string) $request->query('q', '')));
+        $total = $rows->count();
+        $rows = $rows->filter(fn ($r) => $q === '' || str_contains(mb_strtolower($r['user']->name.' '.$r['user']->email.' '.$r['profiles']->pluck('name')->implode(' ')), $q));
         $rows = $rows->filter(fn ($r) => match ($filter) {
             'exceptions' => collect($r['cells'])->contains(fn ($c) => $c['override']),
             'conflicts' => collect($r['cells'])->contains(fn ($c) => $c['conflict']),
@@ -207,7 +225,7 @@ class ProfileController
             default => true,
         })->values();
 
-        return view('admin.profiles.alignment', ['org' => $org, 'apps' => $apps, 'rows' => $rows, 'filter' => $filter]);
+        return view('admin.profiles.alignment', ['org' => $org, 'apps' => $apps, 'rows' => $rows, 'filter' => $filter, 'q' => $q, 'total' => $total]);
     }
 
     public function alignmentCsv(string $org)

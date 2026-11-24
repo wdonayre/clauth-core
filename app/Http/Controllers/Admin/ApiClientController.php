@@ -40,9 +40,15 @@ class ApiClientController
     {
         $o = $this->org($org);
 
+        $all = OAuthClient::with('creator')->where('type', 'api')->where('organization_id', $o?->id)->latest()->get();
+        // The SCIM client shows on the Directory sync card, not in the API client list.
+        $isScim = fn ($c) => $o && $c->name === 'SCIM provisioning' && ($c->scopes ?? []) === ['scim'];
+
         return view('admin.api-clients', [
             'org' => $o, 'orgKey' => $o?->id ?? 'platform',
-            'clients' => OAuthClient::with('creator')->where('type', 'api')->where('organization_id', $o?->id)->latest()->get(),
+            'clients' => $all->reject($isScim)->values(),
+            'scim' => $all->filter($isScim)->first(fn ($c) => ! $c->revoked),
+            'scimUrl' => rtrim(config('clauth.issuer'), '/').'/scim/v2',
             'scopes' => collect($this->scopes($o))->mapWithKeys(fn ($s) => [$s => config("clauth.scopes.$s")]),
         ]);
     }

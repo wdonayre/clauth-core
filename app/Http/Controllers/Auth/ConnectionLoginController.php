@@ -40,13 +40,15 @@ class ConnectionLoginController
     public function redirect(Request $request, string $key)
     {
         $c = $this->connection($key);
-        if (! \App\Services\SigninPolicies::allowsVia($this->flowApp($request), $c->key)) {
+        [$invite, $inviteToken] = $this->inviteForFlow($request);
+        $flowApp = $invite ? $invite->primaryApp() : $this->flowApp($request);
+        if (! \App\Services\SigninPolicies::allowsVia($flowApp, $c->key)) {
             return redirect()->route('login')->withErrors(['email' => 'This app doesn’t use that way to sign in.']);
         }
         if ($domain = $request->attributes->get('clauth.domain')) {
             return redirect()->away(Domains::mainUrl("login/c/$key?".http_build_query(array_filter([
-                'back' => $domain->host, 'app' => $this->flowApp($request)?->key, 'remember' => $request->boolean('remember') ? 1 : null,
-                'login_hint' => $request->query('login_hint'),
+                'back' => $domain->host, 'app' => $flowApp?->key, 'remember' => $request->boolean('remember') ? 1 : null,
+                'login_hint' => $request->query('login_hint'), 'invite' => $inviteToken,
             ]))));
         }
         $back = strtolower((string) $request->query('back'));
@@ -58,6 +60,7 @@ class ConnectionLoginController
                 $request->session()->put('login.app_key', $app->key);
             }
         }
+        $this->stashInvite($request, $invite, $inviteToken);
         $state = Str::random(40);
         $verifier = Str::random(64);
         $nonce = Str::random(32);
