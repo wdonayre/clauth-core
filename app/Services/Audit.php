@@ -11,6 +11,14 @@ class Audit
 {
     private static ?string $requestId = null;
 
+    /** Set while an API client's request runs (SPEC-platform §5): its writes are logged as actor_type "api". */
+    private static ?string $clientId = null;
+
+    public static function actingClient(?string $clientId): void
+    {
+        self::$clientId = $clientId;
+    }
+
     public static function log(
         string $event,
         string $category,
@@ -25,12 +33,14 @@ class Audit
         $request = app()->runningInConsole() && ! app()->runningUnitTests() ? null : request();
         $user = $actorId === null ? auth()->user() : null;
         $actorId ??= $user?->id;
+        $actorType ??= self::$clientId ? 'api' : null;
         $actorType ??= $actorId ? (($user && $user->isAdmin() && $category === 'admin') || $category === 'role' ? 'admin' : 'user') : 'system';
 
         return AuditEvent::create([
             'at' => now(),
             'actor_user_id' => $actorId,
             'actor_type' => $actorType,
+            'actor_client_id' => self::$clientId,
             'event' => $event,
             'category' => $category,
             'subject_type' => $subject ? Str::snake(class_basename($subject)) : null,
@@ -86,6 +96,9 @@ class Audit
             'org.created' => 'Organization created',
             'org.updated' => 'Organization updated',
             'settings.updated' => 'Settings updated',
+            'api.client_created' => 'API client created',
+            'api.client_rotated' => 'API client secret rotated',
+            'api.client_revoked' => 'API client revoked',
         ][$event] ?? $event;
     }
 }

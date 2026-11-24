@@ -3,6 +3,7 @@
 @section('content')
 <header class="head">
   <div><h1>Organizations</h1><p>The businesses people belong to. Each organization decides which apps its people can use and gives roles per app.</p></div>
+  @if(auth()->user()->isOwner())<a class="btn" href="{{ route('admin.api-clients.index', 'platform') }}">Platform API clients</a>@endif
   @if($canEdit)
   <details class="modal"><summary class="btn pri">@include('partials.icon', ['i' => 'plus'])New organization</summary>
     <div class="sheet"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>New organization</h2><a class="btn sm" href="{{ route('admin.orgs.index') }}">Close</a></div>
@@ -44,6 +45,7 @@
           @if($o->suspended_at)<span class="chip bad" title="{{ $o->suspend_reason }}">Suspended</span>@endif
           <span class="chip {{ $o->status === 'active' ? 'ok' : 'bad' }}">{{ ucfirst($o->status) }}</span>
           <a class="btn sm" href="{{ route('admin.profiles.index', $o->id) }}">Access profiles</a>
+          <a class="btn sm" href="{{ route('admin.api-clients.index', $o->id) }}">API clients</a>
         </div>
       </div>
       @if($o->suspended_at)<div class="flash bad" style="margin-top:12px">Suspended {{ $o->suspended_at->diffForHumans() }}: {{ $o->suspend_reason }}</div>@endif

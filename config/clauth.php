@@ -61,5 +61,25 @@ return [
         'offline_access' => 'Stay signed in',
         'users:read' => 'Look up users (machine-to-machine)',
         'updates:write' => 'Post release notes for this app (machine-to-machine)',
+        // Platform API (SPEC-platform §5.1) — only API clients (type "api") may use these.
+        'users:write' => 'Manage people: invite, update, lock, disable (API)',
+        'orgs:read' => 'Read organizations and members (API)',
+        'orgs:write' => 'Add and remove members (API)',
+        'apps:read' => 'Read apps, roles and permissions (API)',
+        'apps:write' => 'Sync manifests, rotate and revoke app clients (API)',
+        'access:read' => 'Read grants, access profiles and who has what (API)',
+        'access:write' => 'Change access profiles and people\'s access (API)',
+        'audit:read' => 'Read the audit log (API)',
+        'settings:read' => 'Read platform settings (API, platform clients only)',
+        'settings:write' => 'Change platform settings (API, platform clients only)',
+    ],
+
+    // Scopes an API client can be given (SPEC-platform §5.1); the platform_only ones need a platform client.
+    'api' => [
+        'scopes' => ['users:read', 'users:write', 'orgs:read', 'orgs:write', 'apps:read', 'apps:write', 'access:read', 'access:write', 'audit:read', 'settings:read', 'settings:write'],
+        'platform_only' => ['settings:read', 'settings:write'],
+        'per_minute_read' => (int) env('CLAUTH_API_READ_PER_MINUTE', 600),
+        'per_minute_write' => (int) env('CLAUTH_API_WRITE_PER_MINUTE', 120),
+        'secret_days' => 365,
     ],
 ];

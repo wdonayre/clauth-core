@@ -29,6 +29,9 @@ class OidcController
             'userinfo_endpoint' => "$iss/userinfo",
             'jwks_uri' => "$iss/.well-known/jwks.json",
             'revocation_endpoint' => "$iss/oauth/revoke",
+            'introspection_endpoint' => "$iss/oauth/introspect",
+            'introspection_endpoint_auth_methods_supported' => ['client_secret_basic', 'client_secret_post'],
+            'revocation_endpoint_auth_methods_supported' => ['client_secret_basic', 'client_secret_post', 'none'],
             'end_session_endpoint' => "$iss/oauth/logout",
             'scopes_supported' => array_keys(config('clauth.scopes')),
             'response_types_supported' => ['code'],
@@ -41,6 +44,57 @@ class OidcController
             'claims_supported' => ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'amr', 'azp', 'at_hash', 'email', 'email_verified', 'name', 'orgs'],
             'prompt_values_supported' => ['none', 'login'],
         ])->header('Cache-Control', 'public, max-age=300');
+    }
+
+    /** RFC 8414 server metadata: the same document as OIDC discovery (for OAuth-only clients, MCP servers). */
+    public function oauthMetadata()
+    {
+        return $this->discovery();
+    }
+
+    /**
+     * POST /oauth/introspect (RFC 7662). Confidential clients only. A token is reported only to its own client or to
+     * another client of the same app (an app's API checking its web client's tokens); anything else is {active:false}.
+     */
+    public function introspect(Request $request)
+    {
+        $client = OAuthClient::find($request->input('client_id') ?: $request->getUser());
+        if (! $client || $client->revoked || ! $client->confidential() || ! Hash::check((string) ($request->input('client_secret') ?: $request->getPassword()), $client->secret)) {
+            return response()->json(['error' => 'invalid_client'], 401, ['WWW-Authenticate' => 'Basic realm="clauth"', 'Cache-Control' => 'no-store']);
+        }
+        $inactive = response()->json(['active' => false], 200, ['Cache-Control' => 'no-store']);
+        $raw = (string) $request->input('token');
+        $mine = fn (?string $owner) => $owner && ($owner === $client->id || ($client->app_id && OAuthClient::whereKey($owner)->value('app_id') === $client->app_id));
+        $userOk = function (?string $userId): bool {
+            return $userId === null || User::whereKey($userId)->where('status', 'active')->exists();
+        };
+
+        if ($t = SigningKeys::verify($raw)) {
+            $c = $t->claims();
+            $row = DB::table('oauth_access_tokens')->where('id', $c->get('jti'))->where('revoked', false)->first();
+            if (! $row || ! $mine($c->get('client_id')) || ! $userOk($row->user_id) || OAuthClient::whereKey($c->get('client_id'))->value('revoked')) {
+                return $inactive;
+            }
+            $aud = $c->get('aud');
+
+            return response()->json(array_filter([
+                'active' => true, 'token_type' => 'Bearer', 'scope' => $c->get('scope'), 'client_id' => $c->get('client_id'),
+                'sub' => $c->get('sub'), 'aud' => is_array($aud) && count($aud) === 1 ? $aud[0] : $aud, 'iss' => config('clauth.issuer'),
+                'exp' => $c->get('exp')?->getTimestamp(), 'iat' => $c->get('iat')?->getTimestamp(), 'jti' => $c->get('jti'),
+            ], fn ($v) => $v !== null), 200, ['Cache-Control' => 'no-store']);
+        }
+        try {
+            $p = json_decode(Crypto::decryptWithPassword($raw, Passport::tokenEncryptionKey(app('encrypter'))), true);
+        } catch (\Throwable) {
+            return $inactive;
+        }
+        $row = isset($p['refresh_token_id']) ? DB::table('oauth_refresh_tokens')->where('id', $p['refresh_token_id'])->where('revoked', false)->first() : null;
+        if (! $row || ($p['expire_time'] ?? 0) < time() || ! $mine($p['client_id'] ?? null) || ! $userOk($p['user_id'] ?? null)) {
+            return $inactive;
+        }
+
+        return response()->json(['active' => true, 'token_type' => 'refresh_token', 'client_id' => $p['client_id'], 'scope' => implode(' ', $p['scopes'] ?? []),
+            'sub' => isset($p['user_id']) ? 'usr_'.$p['user_id'] : null, 'exp' => $p['expire_time'] ?? null, 'iss' => config('clauth.issuer')], 200, ['Cache-Control' => 'no-store']);
     }
 
     public function jwks()

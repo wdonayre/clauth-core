@@ -7,6 +7,10 @@ Spec and decisions: `../SPEC.md` (in the Everyday Framework workspace). Project 
   own code (`app/OAuth`, `app/Services/SigningKeys.php`): RS256 keys live in the DB, encrypted with APP_KEY.
 - Hosted pages are Blade with one stylesheet (`public/css/clauth.css`) and one small script — no build step.
 - Admin console at `/admin` (owners and org admins, 2-step required). My account at `/account`.
+- Platform API at `/api/v1` (`routes/api.php`, `app/Http/Controllers/Api/V1`): API clients made under
+  Organization › API clients get a client-credentials token and manage people, invites, members, access profiles,
+  grants, apps and the audit log. Reference: `/api/v1/openapi.json` (built from the router). Errors are RFC 9457
+  problem+json; POST accepts `Idempotency-Key`. Token introspection at `/oauth/introspect`.
 
 ## Local
 

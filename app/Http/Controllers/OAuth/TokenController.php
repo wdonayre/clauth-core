@@ -86,8 +86,11 @@ class TokenController
 
         if ($grant === 'client_credentials') {
             $client = OAuthClient::find($request->input('client_id') ?: $request->getUser());
-            if ($client && $client->type !== 'm2m') {
-                return $this->error('unauthorized_client', 'Only machine-to-machine clients may use client credentials.');
+            if ($client && ! in_array($client->type, ['m2m', 'api'], true)) {
+                return $this->error('unauthorized_client', 'Only machine-to-machine and API clients may use client credentials.');
+            }
+            if ($client?->isApi() && $client->organization?->isSuspended()) {
+                return $this->error('unauthorized_client', 'This organization is suspended.');
             }
         }
 
@@ -95,6 +98,10 @@ class TokenController
             $psr = $server->respondToAccessTokenRequest($psrRequest, new PsrResponse);
         } catch (OAuthServerException $e) {
             return $this->convertResponse($e->generateHttpResponse(new PsrResponse));
+        }
+
+        if ($grant === 'client_credentials' && $psr->getStatusCode() === 200 && $requester) {
+            OAuthClient::whereKey($requester->id)->update(['last_used_at' => now()]);
         }
 
         if (isset($user, $client) && $user && $client && $grant === 'refresh_token') {
