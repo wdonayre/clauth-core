@@ -11,7 +11,7 @@ class Problem
     public static function make(int $status, string $title, ?string $detail = null, array $errors = []): JsonResponse
     {
         $body = array_filter([
-            'type' => 'https://helloclauth.com/docs/api/errors#'.Str::slug($title),
+            'type' => 'https://helloclauth.com/docs/api/#error-'.Str::slug($title),
             'title' => $title,
             'status' => $status,
             'detail' => $detail,

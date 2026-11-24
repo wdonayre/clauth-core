@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Api\ApiContext;
+use App\Api\Etag;
 use App\Api\Present;
 use App\Models\AccessProfile;
 use App\Models\AppRole;
@@ -29,7 +30,9 @@ class ProfilesController
     {
         $o = $this->api()->org($org);
 
-        return response()->json(Present::profile($this->api()->profile($o, $profile)->load('organization'), true));
+        $p = $this->api()->profile($o, $profile)->load('organization');
+
+        return Etag::attach(response()->json(Present::profile($p, true)), $p);
     }
 
     /** {name, description?, key?, apps?: {app_key: role_key|"none"}} */
@@ -63,11 +66,14 @@ class ProfilesController
     {
         $o = $this->api()->org($org);
         $p = $this->api()->profile($o, $profile);
+        Etag::check($p);
         $data = $request->validate(['name' => 'sometimes|required|string|max:80', 'description' => 'sometimes|nullable|string|max:190', 'apps' => 'sometimes|array', 'apps.*' => 'nullable|string']);
         $p->update(array_intersect_key($data, array_flip(['name', 'description'])));
         $this->map($o, $p, $data['apps'] ?? []);
 
-        return response()->json(Present::profile($p->fresh('organization'), true));
+        $p->touch();
+
+        return Etag::attach(response()->json(Present::profile($p->fresh('organization'), true)), $p->fresh());
     }
 
     public function destroy(string $org, string $profile)
@@ -75,6 +81,7 @@ class ProfilesController
         $o = $this->api()->org($org);
         $p = $this->api()->profile($o, $profile);
         abort_if($p->hasOwnerTier() && ! Access::canTouchOwnerTier($this->api()->actor, $o->id), 403, "Only an owner of {$o->name} can delete a profile with an Owner-tier role.");
+        Etag::check($p);
         $holders = $p->users()->get();
         $p->delete();
         foreach ($holders as $u) {

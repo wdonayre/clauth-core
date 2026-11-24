@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\Api\BarController;
 use App\Http\Controllers\Api\ReleaseNoteController;
@@ -96,6 +97,9 @@ Route::middleware('auth')->prefix('account')->name('account')->group(function ()
     Route::get('/link/{provider}', [SocialController::class, 'link'])->whereIn('provider', SocialController::PROVIDERS)->name('.social.link');
     Route::delete('/link/{provider}', [SocialController::class, 'unlink'])->whereIn('provider', SocialController::PROVIDERS)->name('.social.unlink');
     Route::delete('/consents/{app}', [AccountController::class, 'revokeConsent'])->name('.consents.revoke');
+    Route::get('/tokens', [ApiTokenController::class, 'index'])->name('.tokens');
+    Route::post('/tokens', [ApiTokenController::class, 'store'])->middleware('throttle:10,1')->name('.tokens.store');
+    Route::delete('/tokens/{id}', [ApiTokenController::class, 'revoke'])->name('.tokens.revoke');
 });
 
 // ---- Admin console ----

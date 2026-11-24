@@ -37,8 +37,9 @@ class ApiClient
                 ->header('WWW-Authenticate', 'Bearer error="invalid_token"');
         }
         $client = OAuthClient::with(['organization', 'creator'])->find($c->get('client_id'));
-        if (! $client || ! $client->isApi() || $client->revoked) {
-            return Problem::make(401, 'Not an API client', 'Only API clients (Organization › API clients) can call this API.')
+        $personal = $client?->type === 'personal';
+        if (! $client || (! $client->isApi() && ! $personal) || $client->revoked) {
+            return Problem::make(401, 'Not an API client', 'Use an API client (Organization › API clients) or a personal API token (My account › API tokens).')
                 ->header('WWW-Authenticate', 'Bearer error="invalid_token"');
         }
         $scopes = array_values(array_filter(explode(' ', (string) $c->get('scope'))));
@@ -46,9 +47,22 @@ class ApiClient
             return Problem::make(403, 'Missing scope', "This call needs the {$scope} scope. Ask for it when requesting the token (the client must be allowed it).")
                 ->header('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="'.$scope.'"');
         }
-        $actor = $client->creator;
-        $org = $client->organization;
-        $authority = $actor && $actor->status === 'active' && ($client->isPlatformApi()
+        if ($scope && str_starts_with($scope, 'me:') && ! $personal) {
+            return Problem::make(403, 'Personal token needed', '/me endpoints act on one person: use a personal API token (My account › API tokens).');
+        }
+        if ($personal) {
+            $actor = \App\Models\User::findBySub((string) $c->get('sub'));
+            $org = null;
+            // Scopes beyond what the person can do today are dropped, so a token never outlives a lost role.
+            $scopes = array_values(array_intersect($scopes, \App\Services\PersonalTokens::allowedScopes($actor ?? new \App\Models\User)));
+            if (! $actor || $actor->status !== 'active' || ($scope && ! in_array($scope, $scopes, true))) {
+                return Problem::make($actor && $actor->status === 'active' ? 403 : 401, $actor && $actor->status === 'active' ? 'Missing scope' : 'Invalid token',
+                    $actor && $actor->status === 'active' ? "This call needs the {$scope} scope, and you need to run an organization that allows it." : 'This person can no longer sign in.');
+            }
+        }
+        $actor ??= $client->creator;
+        $org ??= $personal ? null : $client->organization;
+        $authority = $personal || $actor && $actor->status === 'active' && ($client->isPlatformApi()
             ? $actor->isOwner()
             : ($actor->isOwner() || in_array($actor->orgRole($org?->id), ['owner', 'admin'], true)));
         if (! $authority) {
@@ -58,7 +72,7 @@ class ApiClient
         if ($write && $org?->isSuspended()) {
             return Problem::make(403, 'Organization suspended', 'This organization is suspended. The API is read-only until Clauth restores it.');
         }
-        $key = 'api:'.($write ? 'w' : 'r').':'.$client->id;
+        $key = 'api:'.($write ? 'w' : 'r').':'.($personal ? 'p:'.$actor->id : $client->id);
         $max = config($write ? 'clauth.api.per_minute_write' : 'clauth.api.per_minute_read');
         if (RateLimiter::tooManyAttempts($key, $max)) {
             return Problem::make(429, 'Too many requests', 'Slow down: this client has used its requests for this minute.')
@@ -69,6 +83,9 @@ class ApiClient
         app()->instance(ApiContext::class, new ApiContext($client, $actor, $scopes));
         Auth::guard('web')->setUser($actor); // services check "who is doing this" against the client's owner
         Audit::actingClient($client->id);
+        if ($personal) {
+            DB::table('oauth_access_tokens')->where('id', $c->get('jti'))->update(['updated_at' => now()]); // "last used"
+        }
         try {
             $response = $next($request);
         } finally {

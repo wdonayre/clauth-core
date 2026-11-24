@@ -21,15 +21,42 @@ class ApiContext
         public readonly array $scopes,
     ) {}
 
-    public function isPlatform(): bool
+    /** A person's own token (My account › API tokens) rather than an API client. */
+    public function isPersonal(): bool
     {
-        return $this->client->isPlatformApi();
+        return $this->client->type === 'personal';
     }
 
-    /** Organization ids this call may touch; null = every organization (platform client). */
+    /** Reaches every organization and the platform settings: platform clients, and Clauth owners' personal tokens. */
+    public function isPlatform(): bool
+    {
+        return $this->client->isPlatformApi() || ($this->isPersonal() && $this->actor->isOwner());
+    }
+
+    /** Organization ids this call may touch; null = every organization. A person's token: the orgs they run. */
     public function orgIds(): ?array
     {
-        return $this->isPlatform() ? null : [$this->client->organization_id];
+        if ($this->isPlatform()) {
+            return null;
+        }
+
+        return $this->isPersonal() ? $this->actor->adminOrgIds() : [$this->client->organization_id];
+    }
+
+    /** Organizations whose apps this call may change. */
+    public function publisherOrgIds(): ?array
+    {
+        if ($this->isPlatform()) {
+            return null;
+        }
+
+        return $this->isPersonal() ? $this->actor->devOrgIds() : [$this->client->organization_id];
+    }
+
+    /** Key for rate limits and idempotency: the client, or the person for personal tokens. */
+    public function callerKey(): string
+    {
+        return $this->isPersonal() ? 'p:'.$this->actor->id : 'c:'.$this->client->id;
     }
 
     public function has(string $scope): bool
@@ -49,6 +76,8 @@ class ApiContext
     {
         $org = Organization::where('id', $ref)->orWhere('slug', $ref)->first();
         abort_unless($org && $this->canOrg($org->id), 404, 'Organization not found.');
+        abort_if($org->isSuspended() && ! $this->isPlatform() && ! in_array(request()->method(), ['GET', 'HEAD'], true), 403,
+            'This organization is suspended. The API is read-only for it until Clauth restores it.');
 
         return $org;
     }
@@ -74,7 +103,7 @@ class ApiContext
     /** Apps this client can see: published by or installed in its organization (platform: all). */
     public function scopeApps(Builder $q): Builder
     {
-        $ids = $this->orgIds();
+        $ids = $this->orgIds() === null ? null : array_values(array_unique(array_merge($this->orgIds(), $this->publisherOrgIds() ?? [])));
 
         return $ids === null ? $q : $q->where(fn ($w) => $w->whereIn('owner_organization_id', $ids)
             ->orWhereHas('organizations', fn ($o) => $o->whereIn('organizations.id', $ids)));
@@ -91,7 +120,7 @@ class ApiContext
     /** Apps whose settings (clients, manifest) this client may change: the ones its organization publishes. */
     public function canManageApp(Application $app): bool
     {
-        return $this->isPlatform() || $app->owner_organization_id === $this->client->organization_id;
+        return $this->isPlatform() || in_array($app->owner_organization_id, $this->publisherOrgIds(), true);
     }
 
     /** Access profile by key or id inside $org. */

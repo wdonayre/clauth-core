@@ -23,10 +23,11 @@ class MiscController
         $c = $this->api()->client;
 
         return response()->json([
-            'client' => ['id' => $c->id, 'name' => $c->name, 'kind' => $this->api()->isPlatform() ? 'platform' : 'organization'],
+            'client' => ['id' => $c->id, 'name' => $c->name,
+                'kind' => $this->api()->isPersonal() ? 'personal' : ($this->api()->isPlatform() ? 'platform' : 'organization')],
             'acts_as' => $this->api()->actor->sub(),
             'scopes' => $this->api()->scopes,
-            'orgs' => $this->api()->isPlatform() ? '*' : [$c->organization?->slug],
+            'orgs' => $this->api()->isPlatform() ? '*' : \App\Models\Organization::whereIn('id', $this->api()->orgIds())->orderBy('slug')->pluck('slug')->all(),
             'read_only' => (bool) $c->organization?->isSuspended(),
         ]);
     }

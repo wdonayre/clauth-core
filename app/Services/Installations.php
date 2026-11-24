@@ -30,13 +30,14 @@ class Installations
      * Make $app available in $org. Active right away when $actor can approve for $org; otherwise a request
      * waiting for $org's admin (only for apps marked installable). Returns the resulting status.
      */
-    public static function add(Application $app, Organization $org, User $actor): string
+    public static function add(Application $app, Organization $org, User $actor, ?bool $mayApprove = null): string
     {
         $current = self::status($app, $org);
         if ($current === 'active') {
             return 'active';
         }
-        if (self::canApprove($actor, $org)) {
+        // $mayApprove = false: the caller (an API client of another organization) may only ask, even if its owner runs $org too.
+        if ($mayApprove ?? self::canApprove($actor, $org)) {
             DB::table('app_installations')->updateOrInsert(['app_id' => $app->id, 'organization_id' => $org->id], [
                 'status' => 'active', 'requested_by' => $actor->id, 'approved_by' => $actor->id, 'approved_at' => now(),
                 'created_at' => now(), 'updated_at' => now(),

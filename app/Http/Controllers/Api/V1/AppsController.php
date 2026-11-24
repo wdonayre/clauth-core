@@ -30,7 +30,7 @@ class AppsController
             unset($out['clients']); // an organization that only uses the app doesn't see its clients
         }
 
-        return response()->json($out);
+        return \App\Api\Etag::attach(response()->json($out), $a);
     }
 
     public function syncManifest(string $app)

@@ -71,7 +71,7 @@ class AppController
             'orgs' => 'array',
             'orgs.*' => 'exists:organizations,id',
             'color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-        ] + $this->policyRules($request->input('publisher')), ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.', 'publisher.in' => 'Pick the organization that owns this app.',
+        ] + self::policyRules($request->input('publisher')), ['key.regex' => 'Use lowercase letters, numbers and dashes, starting with a letter.', 'publisher.in' => 'Pick the organization that owns this app.',
             'privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
             'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
 
@@ -97,7 +97,7 @@ class AppController
 
             return $app;
         });
-        [$client, $secret] = $this->makeClient($app, $data['type'], $data['redirect_uri'] ?? null, $data['name'].' '.match ($data['type']) {
+        [$client, $secret] = self::makeClient($app, $data['type'], $data['redirect_uri'] ?? null, $data['name'].' '.match ($data['type']) {
             'public' => 'mobile/SPA', 'm2m' => 'server-to-server', default => 'web'
         });
         Audit::log('app.registered', 'app', $app, after: ['key' => $app->key, 'type' => $data['type']], appId: $app->id);
@@ -140,7 +140,7 @@ class AppController
             'orgs' => 'array',
             'orgs.*' => 'exists:organizations,id',
             'require_mfa_roles' => 'array',
-        ] + $this->policyRules($publisher), ['privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
+        ] + self::policyRules($publisher), ['privacy_url.required' => 'Apps of organizations outside Clauth’s own need a privacy policy link (shown on the consent screen).',
             'terms_url.required' => 'Add a link to the app’s terms.', 'support_email.required' => 'Add a support email people can contact.']);
         $app->update(collect($data)->except('orgs', 'visibility', 'publisher')->all() + ['require_mfa_roles' => array_values($data['require_mfa_roles'] ?? []),
             'visibility' => $data['visibility'] ?? $app->visibility,
@@ -168,7 +168,7 @@ class AppController
     public function addClient(Request $request, Application $app)
     {
         $data = $request->validate(['type' => 'required|in:web,public,m2m', 'redirect_uri' => 'required_unless:type,m2m|nullable|string', 'name' => 'required|string|max:80']);
-        [$client, $secret] = $this->makeClient($app, $data['type'], $data['redirect_uri'] ?? null, $data['name']);
+        [$client, $secret] = self::makeClient($app, $data['type'], $data['redirect_uri'] ?? null, $data['name']);
         Audit::log('app.client_added', 'app', $app, after: ['client' => $client->id, 'type' => $data['type']], appId: $app->id);
 
         return redirect()->route('admin.apps.show', [$app->key, 'tab' => 'settings'])
@@ -397,7 +397,13 @@ class AppController
     /** Keys/names only Clauth owners may use (William's apps, Clauth, trusted brands). */
     private function reservedRules(Request $request): array
     {
-        if ($request->user()->isOwner()) {
+        return self::reserved($request->user()->isOwner());
+    }
+
+    /** Also used by the API (SPEC-platform P1.1). */
+    public static function reserved(bool $owner): array
+    {
+        if ($owner) {
             return ['key' => [], 'name' => []];
         }
         $key = function (string $attr, $value, $fail) {
@@ -416,7 +422,7 @@ class AppController
     }
 
     /** Outside organizations' apps must publish where their policies live (shown on the consent screen). */
-    private function policyRules(?string $publisherId): array
+    public static function policyRules(?string $publisherId): array
     {
         $outside = $publisherId && ! Organization::whereKey($publisherId)->value('is_platform');
         $req = $outside ? 'required' : 'nullable';
@@ -601,7 +607,7 @@ class AppController
             'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'"]);
     }
 
-    private function makeClient(Application $app, string $type, ?string $redirect, string $name): array
+    public static function makeClient(Application $app, string $type, ?string $redirect, string $name): array
     {
         $secret = $type === 'public' ? null : Str::random(48);
         $client = new OAuthClient;

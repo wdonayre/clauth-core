@@ -44,7 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 $e instanceof ModelNotFoundException, $e instanceof NotFoundHttpException => Problem::make(404, 'Not found', $e instanceof NotFoundHttpException && $e->getMessage() !== '' && ! str_contains($e->getMessage(), 'could not be found') ? $e->getMessage() : 'Not found.'),
                 $e instanceof MethodNotAllowedHttpException => Problem::make(405, 'Method not allowed', $e->getMessage()),
                 $e instanceof HttpExceptionInterface => Problem::make($e->getStatusCode(), match ($e->getStatusCode()) {
-                    403 => 'Forbidden', 409 => 'Conflict', 422 => 'Unprocessable', 429 => 'Limit reached', default => 'Error',
+                    403 => 'Forbidden', 409 => 'Conflict', 412 => 'Changed since read', 422 => 'Unprocessable', 429 => 'Limit reached', default => 'Error',
                 }, $e->getMessage() ?: null),
                 default => config('app.debug') ? null : Problem::make(500, 'Server error', 'Something went wrong. Quote the request_id when asking for help.'),
             };

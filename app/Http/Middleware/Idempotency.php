@@ -23,7 +23,7 @@ class Idempotency
         if (strlen($key) > 255) {
             return Problem::make(422, 'Bad idempotency key', 'Idempotency-Key must be at most 255 characters.');
         }
-        $client = app(ApiContext::class)->client->id;
+        $client = app(ApiContext::class)->callerKey();
         $cacheKey = 'api:idem:'.hash('sha256', $client."\0".$request->path()."\0".$key);
         $fingerprint = hash('sha256', $request->getContent());
         if ($hit = Cache::get($cacheKey)) {

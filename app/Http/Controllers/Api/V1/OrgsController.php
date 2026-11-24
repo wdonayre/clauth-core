@@ -29,11 +29,11 @@ class OrgsController
     {
         $o = $this->api()->org($org);
 
-        return response()->json(Present::org($o) + [
+        return \App\Api\Etag::attach(response()->json(Present::org($o) + [
             'members' => $o->users()->count(),
             'apps' => $o->apps()->orderBy('key')->pluck('key'),
             'profiles' => $o->accessProfiles()->pluck('key'),
-        ]);
+        ]), $o);
     }
 
     public function members(Request $request, string $org)

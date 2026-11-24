@@ -6,6 +6,7 @@
     <span class="avatar lg">{{ $user->initials() }}</span>
     <div><h1>{{ $user->name }}</h1><p>{{ $user->email }}</p></div>
   </div>
+  <div class="actions"><a class="btn" href="{{ route('account.tokens') }}">API tokens</a></div>
 </header>
 
 <section aria-labelledby="apps-h">

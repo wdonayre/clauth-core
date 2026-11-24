@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Api\ApiContext;
+use App\Api\Etag;
 use App\Api\Present;
+use App\Services\Access;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\Sessions;
@@ -42,7 +44,35 @@ class UsersController
 
     public function show(string $user)
     {
-        return response()->json(Present::user($this->api()->user($user)->load('organizations', 'socialIdentities'), $this->api()->orgIds(), true));
+        $u = $this->api()->user($user)->load('organizations', 'socialIdentities');
+
+        return Etag::attach(response()->json(Present::user($u, $this->api()->orgIds(), true)), $u);
+    }
+
+    /**
+     * DELETE /users/{user} — platform only: deletes the account everywhere. Sessions end, memberships and access go,
+     * and the email is freed (the row stays, anonymised, for the audit trail). Org clients remove people from
+     * their organization with DELETE /orgs/{org}/members/{user} instead.
+     */
+    public function destroy(string $user)
+    {
+        abort_unless($this->api()->isPlatform(), 403, 'Only platform clients delete accounts. To take someone out of your organization: DELETE /orgs/{org}/members/{user}.');
+        $u = $this->api()->user($user);
+        abort_if($u->isOwner() || $u->id === $this->api()->actor->id, 422, 'Clauth owners and the caller’s own account cannot be deleted here.');
+        Etag::check($u);
+        Sessions::revokeAll($u);
+        foreach ($u->organizations as $org) {
+            Access::forgetMember($u, $org);
+        }
+        $u->organizations()->detach();
+        $u->socialIdentities()->delete();
+        $email = $u->email;
+        $u->forceFill(['email' => 'deleted+'.$u->id.'@deleted.invalid', 'name' => 'Deleted user', 'phone' => null, 'password' => null,
+            'two_factor_secret' => null, 'two_factor_confirmed_at' => null, 'two_factor_recovery_codes' => null, 'status' => 'disabled'])->save();
+        $u->delete();
+        Audit::log('user.deleted', 'admin', $u, before: ['email' => $email]);
+
+        return response()->noContent();
     }
 
     public function update(Request $request, string $user)
@@ -52,6 +82,7 @@ class UsersController
             'email' => ['sometimes', 'required', 'email', Rule::unique('users', 'email')->ignore($u->id)]]);
         abort_if(isset($data['email']) && ! $this->api()->isPlatform(), 403, 'Only platform clients can change an email address.');
         abort_if($u->isOwner() && ! $this->api()->isPlatform(), 404, 'User not found.');
+        Etag::check($u);
         $before = $u->only(array_keys($data));
         $u->update($data);
         Audit::log('user.updated', 'admin', $u, $before, $u->only(array_keys($data)));

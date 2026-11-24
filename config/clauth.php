@@ -72,6 +72,8 @@ return [
         'audit:read' => 'Read the audit log (API)',
         'settings:read' => 'Read platform settings (API, platform clients only)',
         'settings:write' => 'Change platform settings (API, platform clients only)',
+        'me:read' => 'Read your own account (personal API tokens)',
+        'me:write' => 'Change your own account and sign out sessions (personal API tokens)',
     ],
 
     // Scopes an API client can be given (SPEC-platform §5.1); the platform_only ones need a platform client.
