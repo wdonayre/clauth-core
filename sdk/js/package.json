@@ -1,0 +1,15 @@
+{
+  "name": "@clauth/js",
+  "version": "0.1.0",
+  "description": "Sign people in with Clauth from a browser app: PKCE, silent renew without refresh races, typed claims.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": { ".": { "types": "./src/index.d.ts", "default": "./src/index.js" } },
+  "files": ["src"],
+  "sideEffects": false,
+  "scripts": { "test": "node --test test/*.test.js" },
+  "keywords": ["clauth", "oidc", "oauth", "pkce", "sso"],
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/js" }
+}

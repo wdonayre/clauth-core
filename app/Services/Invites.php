@@ -47,7 +47,10 @@ class Invites
 
     public static function send(Invite $invite, string $token): void
     {
-        OrgMail::send($invite->organization, $invite->email, new InviteMail($invite, self::url($token, $invite)));
+        $link = self::url($token, $invite);
+        $mail = Templates::mail('invite', $invite->organization, ['name' => $invite->name, 'email' => $invite->email, 'link' => $link,
+            'app' => $invite->primaryApp()?->name, 'org' => $invite->organization?->name, 'inviter' => $invite->inviter?->name], User::where('email', $invite->email)->value('locale'));
+        OrgMail::send($invite->organization, $invite->email, $mail ?? new InviteMail($invite, $link));
     }
 
     /** Joins the org, creates grants, applies admin roles; marks the invite used. */

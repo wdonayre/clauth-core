@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AppWritesController;
 use App\Http\Controllers\Api\V1\ConnectionsController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\InvitesController;
+use App\Http\Controllers\Api\V1\LocalizationController;
 use App\Http\Controllers\Api\V1\LegacyUserLookup;
 use App\Http\Controllers\Api\V1\MiscController;
 use App\Http\Controllers\Api\V1\OpenApiController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Api\V1\OrgsController;
 use App\Http\Controllers\Api\V1\PolicyController;
 use App\Http\Controllers\Api\V1\ProfilesController;
 use App\Http\Controllers\Api\V1\TeamsController;
+use App\Http\Controllers\Api\V1\ThemesController;
 use App\Http\Controllers\Api\V1\UsersController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +25,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('health/live', [MiscController::class, 'live']);
 Route::get('health/ready', [MiscController::class, 'ready'])->middleware('throttle:60,1');
 Route::get('openapi.json', OpenApiController::class)->middleware('throttle:60,1');
+// App-native sign-in (SPEC-platform §8.2): no token, the flow is bound to a public client + PKCE.
+Route::post('flow/execute', \App\Http\Controllers\Api\V1\FlowController::class)->middleware('throttle:60,1');
 
 // Apps' own m2m lookup (SPEC §9) and the API's user read share this path.
 Route::get('users/{user}', LegacyUserLookup::class)->middleware('throttle:600,1');
@@ -133,6 +137,29 @@ Route::middleware(['api.client:connections:write', 'api.idempotent'])->group(fun
     Route::post('connections', [ConnectionsController::class, 'store']);
     Route::patch('connections/{key}', [ConnectionsController::class, 'update']);
     Route::delete('connections/{key}', [ConnectionsController::class, 'destroy']);
+});
+
+// Languages, wording and message templates (SPEC-platform §8.5)
+Route::middleware('api.client')->get('languages', [LocalizationController::class, 'languages']);
+Route::middleware('api.client')->get('languages/{lang}/translations', [LocalizationController::class, 'translations']);
+Route::middleware(['api.client:settings:write'])->put('languages/{lang}/translations', [LocalizationController::class, 'updateTranslations']);
+Route::middleware('api.client:orgs:read')->get('templates', [LocalizationController::class, 'templates']);
+Route::middleware(['api.client:orgs:write', 'api.idempotent'])->group(function () {
+    Route::put('templates/{key}', [LocalizationController::class, 'putTemplate']);
+    Route::delete('templates/{key}', [LocalizationController::class, 'deleteTemplate']);
+});
+
+// Themes (SPEC-platform §8.4)
+Route::middleware('api.client:apps:read')->group(function () {
+    Route::get('themes', [ThemesController::class, 'index']);
+    Route::get('themes/resolve', [ThemesController::class, 'resolve']);
+    Route::get('themes/{key}', [ThemesController::class, 'show']);
+    Route::get('themes/{key}/usages', [ThemesController::class, 'usages']);
+});
+Route::middleware(['api.client:apps:write', 'api.idempotent'])->group(function () {
+    Route::post('themes', [ThemesController::class, 'store']);
+    Route::patch('themes/{key}', [ThemesController::class, 'update']);
+    Route::delete('themes/{key}', [ThemesController::class, 'destroy']);
 });
 
 // Sign-in rules (SPEC-platform §8.1)

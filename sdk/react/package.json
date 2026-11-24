@@ -1,0 +1,14 @@
+{
+  "name": "@clauth/react",
+  "version": "0.1.0",
+  "description": "React bindings for @clauth/js: ClauthProvider, useClauth, SignedIn/SignedOut, SignInButton, ClauthCallback.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": { ".": { "types": "./src/index.d.ts", "default": "./src/index.js" } },
+  "files": ["src"],
+  "sideEffects": false,
+  "peerDependencies": { "react": ">=18", "@clauth/js": "^0.1.0" },
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/react" }
+}

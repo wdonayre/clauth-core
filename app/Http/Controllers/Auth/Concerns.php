@@ -40,7 +40,11 @@ trait Concerns
     /** The page's look: the flow's app, else (on a shared custom domain) the domain's brand app. */
     protected function theme(Request $request): array
     {
-        $theme = Theme::for($this->flowApp($request) ?? $request->attributes->get('clauth.domain')?->brandApp());
+        $domain = $request->attributes->get('clauth.domain');
+        $app = $this->flowApp($request) ?? $domain?->brandApp();
+        // A designed theme on the domain applies when the app has none of its own (SPEC-platform §8.4).
+        $designed = ! $app?->signin_theme_id && $domain?->signin_theme_id ? \App\Models\SigninTheme::find($domain->signin_theme_id) : null;
+        $theme = Theme::for($app, $designed);
         $theme['brand'] = $request->attributes->get('clauth.domain')?->brandName();
 
         return $theme;
@@ -105,7 +109,7 @@ trait Concerns
             $isFirst = ! $user->devices()->exists();
             $device = $user->devices()->create(['cookie_hash' => hash('sha256', $token)]);
             if (! $isFirst && Settings::get('new_device_email')) {
-                rescue(fn () => Mail::to($user->email)->send(new NewDeviceMail($user, (string) $request->userAgent(), (string) $request->ip())), report: true);
+                rescue(fn () => Mail::to($user->email)->send(\App\Services\Templates::mail('new_device', null, ['name' => $user->name, 'device' => (string) $request->userAgent(), 'ip' => (string) $request->ip()], $user->locale) ?? new NewDeviceMail($user, (string) $request->userAgent(), (string) $request->ip())), report: true);
             }
         }
         $device->forceFill([

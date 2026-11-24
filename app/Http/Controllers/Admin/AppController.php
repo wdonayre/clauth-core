@@ -121,7 +121,7 @@ class AppController
                 ->when(! $request->user()->isOwner(), fn ($q) => $q->whereIn('organization_id', $request->user()->devOrgIds()))->get()->sortBy('user.name') : collect(),
             'created' => session('created_client'),
             'theme' => Theme::for($app),
-            'themes' => Theme::NAMES,
+            'themes' => Theme::NAMES + \App\Services\Themes::forApp($app)->mapWithKeys(fn ($t) => ['designed:'.$t->key => $t->name])->all(),
         ]);
     }
 
@@ -308,7 +308,7 @@ class AppController
     public function branding(Request $request, Application $app)
     {
         $data = $request->validate([
-            'login_theme' => ['required', Rule::in(array_keys(Theme::NAMES))],
+            'login_theme' => ['required', 'string', 'max:80'],
             'accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'logo' => 'nullable|file|mimes:png,svg|max:512',
             'logo_dark' => 'nullable|file|mimes:png,svg|max:512',
@@ -317,8 +317,11 @@ class AppController
         if (! empty($data['accent_color']) && ! Theme::contrastOk($data['accent_color'])) {
             return back()->withErrors(['accent_color' => 'Neither black nor white text is readable on that color. Pick a lighter or darker one.']);
         }
-        $before = $app->only('login_theme', 'accent_color', 'logo_path', 'logo_dark_path');
-        $update = ['login_theme' => $data['login_theme'], 'accent_color' => $data['accent_color'] ?? null];
+        $before = $app->only('login_theme', 'signin_theme_id', 'accent_color', 'logo_path', 'logo_dark_path');
+        if ($why = \App\Services\Themes::assign($app, $data['login_theme'])) {
+            return back()->withErrors(['login_theme' => $why]);
+        }
+        $update = ['accent_color' => $data['accent_color'] ?? null];
         foreach (['logo' => 'logo_path', 'logo_dark' => 'logo_dark_path'] as $field => $col) {
             if ($request->hasFile($field)) {
                 $file = $request->file($field);
@@ -359,13 +362,17 @@ class AppController
     {
         $draft = $app->replicate();
         $draft->key = $app->key;
+        $designed = null;
         if (isset(Theme::NAMES[$request->query('theme')])) {
             $draft->login_theme = $request->query('theme');
+            $draft->signin_theme_id = null;
+        } elseif (str_starts_with((string) $request->query('theme'), 'designed:')) {
+            $designed = \App\Services\Themes::forApp($app)->firstWhere('key', substr($request->query('theme'), 9));
         }
         if (preg_match('/^#[0-9A-Fa-f]{6}$/', (string) $request->query('accent'))) {
             $draft->accent_color = $request->query('accent');
         }
-        $theme = Theme::for($draft);
+        $theme = Theme::for($draft, $designed);
         view()->share('errors', new ViewErrorBag);
         if ($request->query('mode') === 'register') {
             $invite = new Invite(['email' => 'maria.santos@example.com', 'name' => 'Maria Santos', 'grants' => []]);

@@ -80,6 +80,9 @@ return [
         'me:write' => 'Change your own account and sign out sessions (personal API tokens)',
     ],
 
+    // Languages of the sign-in pages and emails (SPEC-platform §8.5). Filipino first (decision 8); add a lang/<code>.json.
+    'locales' => ['en' => 'English', 'fil' => 'Filipino'],
+
     // Scopes an API client can be given (SPEC-platform §5.1); the platform_only ones need a platform client.
     'api' => [
         'scopes' => ['users:read', 'users:write', 'orgs:read', 'orgs:write', 'apps:read', 'apps:write', 'access:read', 'access:write', 'audit:read', 'connections:read', 'connections:write', 'authzen', 'scim', 'settings:read', 'settings:write'],

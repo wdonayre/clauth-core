@@ -37,11 +37,11 @@ class OneTimeCodes
         }
         $code = (string) random_int(100000, 999999);
         if ($channel === 'sms') {
-            Sms::send($to, "$code is your ".config('app.name', 'Clauth').' code. It expires in 5 minutes. Never share it.');
+            Sms::send($to, Templates::text('sms_code', null, ['code' => $code], __(':code is your Clauth code. It expires in 5 minutes. Never share it.', ['code' => $code])));
             Cache::add($today, 0, now()->endOfDay());
             Cache::increment($today);
         } else {
-            Mail::to($to)->send(new LoginCodeMail($code));
+            Mail::to($to)->send(Templates::mail('login_code', null, ['code' => $code]) ?? new LoginCodeMail($code));
         }
         RateLimiter::hit($dest, 3600);
         if ($ip) {

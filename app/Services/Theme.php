@@ -4,13 +4,38 @@ namespace App\Services;
 
 use App\Models\Application;
 
-/** Per-app sign-in page style (SPEC §6.1a): classic | daylight | midnight. */
+/**
+ * Sign-in page look (SPEC §6.1a, SPEC-platform §8.4). Three built-in styles (classic | daylight | midnight), and
+ * designed themes (SigninTheme) that start from one of them and set colors, font, corners, buttons and layout.
+ * An app's designed theme wins over its built-in style; on a custom domain with no app, the domain's theme applies.
+ */
 class Theme
 {
     public const NAMES = ['classic' => 'Clauth Classic', 'daylight' => 'Daylight', 'midnight' => 'Midnight'];
 
-    public static function for(?Application $app): array
+    /** Fonts a theme may use (Google Fonts; the page's CSP allows only those). */
+    public const FONTS = ['Inter', 'Manrope', 'Poppins', 'Nunito Sans', 'DM Sans', 'Space Grotesk', 'IBM Plex Sans', 'Source Sans 3', 'Lora', 'Barlow'];
+
+    /** Designed-theme settings: name => validation rule. */
+    public const SETTINGS = [
+        'base' => 'required|in:classic,daylight,midnight',
+        'accent' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        'background' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        'card' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        'font' => 'nullable|in:Inter,Manrope,Poppins,Nunito Sans,DM Sans,Space Grotesk,IBM Plex Sans,Source Sans 3,Lora,Barlow',
+        'heading_font' => 'nullable|in:Inter,Manrope,Poppins,Nunito Sans,DM Sans,Space Grotesk,IBM Plex Sans,Source Sans 3,Lora,Barlow',
+        'radius' => 'nullable|integer|min:0|max:28',
+        'buttons' => 'nullable|in:rounded,pill,square',
+        'layout' => 'nullable|in:center,split',
+        'tagline' => 'nullable|string|max:120',
+    ];
+
+    public static function for(?Application $app, ?\App\Models\SigninTheme $designed = null): array
     {
+        $designed ??= $app?->signin_theme_id ? \App\Models\SigninTheme::find($app->signin_theme_id) : null;
+        if ($designed) {
+            return self::designed($designed, $app);
+        }
         $style = $app?->login_theme && isset(self::NAMES[$app->login_theme]) ? $app->login_theme : 'classic';
         // Brand v2: Signal (#22D3EE) on dark, Deep Signal (#0E7490) on light.
         $accent = $style === 'classic' ? '#22D3EE' : ($app?->accent_color ?: ($style === 'daylight' ? '#0E7490' : '#22D3EE'));
@@ -41,7 +66,64 @@ class Theme
         $vars['pri'] = $inkPrimary ? '#0B0D12' : $accent;
         $vars['on-pri'] = $inkPrimary ? '#FFFFFF' : $onAccent;
 
-        return ['style' => $style, 'dark' => $dark, 'vars' => $vars, 'app' => $app, 'logo' => $app?->logoUrl($dark)];
+        return ['style' => $style, 'dark' => $dark, 'vars' => $vars, 'app' => $app, 'logo' => $app?->logoUrl($dark), 'fonts' => [], 'layout' => 'center', 'tagline' => null];
+    }
+
+    /** A designed theme: its base style's palette, then its own colors, fonts, corners, buttons and layout. */
+    public static function designed(\App\Models\SigninTheme $t, ?Application $app): array
+    {
+        $proxy = $app ? $app->replicate() : new Application;
+        $proxy->key = $app?->key;
+        $proxy->signin_theme_id = null;
+        $proxy->login_theme = $t->s('base', 'classic');
+        $proxy->accent_color = $t->s('accent') ?: $app?->accent_color;
+        if ($proxy->login_theme === 'classic' && $t->s('accent')) {
+            $proxy->login_theme = 'midnight'; // classic keeps Clauth cyan; a chosen accent needs a tintable base
+        }
+        $out = self::for($proxy);
+        $out['app'] = $app;
+        $out['logo'] = $app?->logoUrl($out['dark']);
+        $out['style'] = 'designed';
+        if ($bg = $t->s('background')) {
+            $out['vars']['bg'] = $bg;
+            $out['dark'] = self::luminance($bg) < 0.3;
+        }
+        if ($card = $t->s('card')) {
+            $out['vars']['card'] = $card;
+            $out['vars']['in-bg'] = $card;
+        }
+        $font = $t->s('font');
+        $heading = $t->s('heading_font') ?: $font;
+        if ($font) {
+            $out['vars']['cl-font-body'] = "\"$font\",system-ui,sans-serif";
+        }
+        if ($heading) {
+            $out['vars']['cl-font-display'] = "\"$heading\",system-ui,sans-serif";
+        }
+        $out['fonts'] = array_values(array_unique(array_filter([$font, $heading])));
+        if (($r = $t->s('radius')) !== null) {
+            $r = (int) $r;
+            $out['vars'] += ['cl-radius-sm' => max(0, $r - 4).'px', 'cl-radius-md' => $r.'px', 'cl-radius-xl' => min(32, $r * 2).'px'];
+        }
+        $out['vars']['btn-radius'] = match ($t->s('buttons')) {
+            'pill' => '999px', 'square' => '2px', default => 'var(--cl-radius-md)',
+        };
+        $out['layout'] = $t->s('layout', 'center');
+        $out['tagline'] = $t->s('tagline');
+        $out['designed'] = $t;
+
+        return $out;
+    }
+
+    /** Google Fonts URL for the theme's fonts (null when it only uses the defaults). */
+    public static function fontsUrl(array $theme): ?string
+    {
+        $extra = array_diff($theme['fonts'] ?? [], ['Inter', 'Space Grotesk']);
+        if (! $extra) {
+            return null;
+        }
+
+        return 'https://fonts.googleapis.com/css2?'.implode('&', array_map(fn ($f) => 'family='.str_replace(' ', '+', $f).':wght@400;500;600;700', $extra)).'&display=swap';
     }
 
     public static function css(array $theme): string

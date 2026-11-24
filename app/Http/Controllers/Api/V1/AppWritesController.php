@@ -248,12 +248,15 @@ class AppWritesController
         $a = $this->managed($app);
         Etag::check($a);
         $data = $request->validate([
-            'login_theme' => ['required', Rule::in(array_keys(Theme::NAMES))], 'accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'login_theme' => ['required_without:theme', Rule::in(array_keys(Theme::NAMES))], 'theme' => 'nullable|string|max:60', 'accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'logo' => 'nullable|file|mimes:png,svg|max:512', 'logo_dark' => 'nullable|file|mimes:png,svg|max:512', 'remove_logo' => 'boolean',
         ]);
         abort_if(! empty($data['accent_color']) && ! Theme::contrastOk($data['accent_color']), 422, 'Neither black nor white text is readable on that accent color.');
-        $before = $a->only('login_theme', 'accent_color', 'logo_path', 'logo_dark_path');
-        $update = ['login_theme' => $data['login_theme'], 'accent_color' => $data['accent_color'] ?? null];
+        $before = $a->only('login_theme', 'signin_theme_id', 'accent_color', 'logo_path', 'logo_dark_path');
+        if ($why = \App\Services\Themes::assign($a, ! empty($data['theme']) ? 'designed:'.$data['theme'] : $data['login_theme'])) {
+            abort(422, $why);
+        }
+        $update = ['accent_color' => $data['accent_color'] ?? null];
         foreach (['logo' => 'logo_path', 'logo_dark' => 'logo_dark_path'] as $field => $col) {
             if ($request->hasFile($field)) {
                 $file = $request->file($field);
@@ -268,7 +271,7 @@ class AppWritesController
         $a->update($update);
         Audit::log('app.branding_changed', 'app', $a, $before, $a->only(array_keys($before)), $a->id);
 
-        return response()->json(['login_theme' => $a->login_theme, 'accent_color' => $a->accent_color,
+        return response()->json(['login_theme' => $a->login_theme, 'theme' => \App\Models\SigninTheme::find($a->signin_theme_id)?->key, 'accent_color' => $a->accent_color,
             'logo_url' => $a->logoUrl(), 'logo_dark_url' => $a->logoUrl(true)]);
     }
 
@@ -380,8 +383,14 @@ class AppWritesController
     {
         $a = $this->managed($app);
         $d = $a->signInDomain() ?? abort(404, 'This app has no sign-in domain.');
-        $data = $request->validate(['display_name' => 'sometimes|nullable|string|max:80', 'trusted' => 'sometimes|boolean']);
+        $data = $request->validate(['display_name' => 'sometimes|nullable|string|max:80', 'trusted' => 'sometimes|boolean', 'theme' => 'sometimes|nullable|string|max:60']);
         abort_if(array_key_exists('trusted', $data) && ! $this->api()->actor->isOwner(), 403, 'Only Clauth owners can mark a domain trusted.');
+        if (array_key_exists('theme', $data)) {
+            $t = $data['theme'] ? \App\Services\Themes::forApp($a)->firstWhere('key', $data['theme']) : null;
+            abort_if($data['theme'] && ! $t, 422, 'That theme isn’t available to this app.');
+            $d->signin_theme_id = $t?->id;
+            unset($data['theme']);
+        }
         $before = $d->only(['display_name', 'trusted']);
         $d->fill($data)->save();
         Domains::flush($d->host);
@@ -408,6 +417,7 @@ class AppWritesController
     private function domainJson(AppDomain $d): array
     {
         return ['host' => $d->host, 'status' => $d->status, 'label' => $d->label(), 'display_name' => $d->display_name, 'trusted' => (bool) $d->trusted,
+            'theme' => $d->signin_theme_id ? \App\Models\SigninTheme::find($d->signin_theme_id)?->key : null,
             'apps' => $d->apps()->pluck('key'), 'dns' => [
                 ['type' => 'TXT', 'name' => $d->txtName(), 'value' => $d->txtValue()],
                 ['type' => 'CNAME', 'name' => $d->host, 'value' => Domains::mainHost()],

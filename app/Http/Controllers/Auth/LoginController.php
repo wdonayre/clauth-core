@@ -84,7 +84,7 @@ class LoginController
             if ($user->failed_logins >= (int) Settings::get('lockout_attempts')) {
                 $user->forceFill(['locked_until' => now()->addMinutes((int) Settings::get('lockout_minutes')), 'failed_logins' => 0])->save();
                 Audit::log('signin.locked', 'security', $user, after: ['until' => $user->locked_until->toIso8601String()], actorId: $user->id, actorType: 'system');
-                rescue(fn () => Mail::to($user->email)->send(new LockoutMail($user)), report: true);
+                rescue(fn () => Mail::to($user->email)->send(\App\Services\Templates::mail('lockout', null, ['name' => $user->name, 'minutes' => Settings::get('lockout_minutes')], $user->locale) ?? new LockoutMail($user)), report: true);
 
                 return redirect()->route('login.locked');
             }

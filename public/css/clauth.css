@@ -171,3 +171,12 @@ details.modal[open]>.sheet{position:fixed;inset:0;background:rgba(5,7,10,.7);dis
   .head h1{font-size:26px}
 }
 .or{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:13px}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--in-border)}
+
+/* Designed themes (SPEC-platform §8.4): button shape and the split layout. */
+.auth .btn-auth{border-radius:var(--btn-radius,var(--cl-radius-md))}
+.auth.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;padding:0}
+.auth.split>:not(.split-side){grid-column:2;justify-self:center;width:100%;max-width:480px;padding:40px 16px 0}
+.auth.split .split-side{grid-row:1/span 3;align-self:stretch;min-height:100vh;background:linear-gradient(160deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000));color:var(--on-accent);display:flex;align-items:flex-end;padding:48px}
+.auth.split .split-side b{font:600 32px/1.15 var(--cl-font-display);letter-spacing:-.02em;display:block}
+.auth.split .split-side p{margin:10px 0 0;font-size:17px;opacity:.85;max-width:420px}
+@media (max-width:860px){.auth.split{display:block}.auth.split>:not(.split-side){margin:0 auto}.auth.split .split-side{padding:28px 24px;min-height:0}.auth.split .split-side b{font-size:22px}}

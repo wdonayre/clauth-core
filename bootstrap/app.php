@@ -32,7 +32,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
         $middleware->alias(['admin' => EnsureAdmin::class, 'api.client' => ApiClient::class, 'api.idempotent' => Idempotency::class, 'scim' => App\Http\Middleware\ScimRequest::class]);
         $middleware->prepend(ForwardPreviousHost::class);
-        $middleware->web(prepend: [ServeCustomDomain::class], append: [SecurityHeaders::class]);
+        $middleware->prepend(App\Http\Middleware\OAuthCors::class);
+        $middleware->web(prepend: [ServeCustomDomain::class], append: [SecurityHeaders::class, App\Http\Middleware\SetLocale::class]);
         $middleware->encryptCookies(except: []);
         $middleware->redirectGuestsTo(fn () => route('login'));
     })

@@ -161,6 +161,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/orgs/{org}/apps', [Admin\OrgController::class, 'addApp'])->name('orgs.apps.store');
         Route::delete('/orgs/{org}/apps/{app}', [Admin\OrgController::class, 'removeApp'])->name('orgs.apps.destroy');
         Route::post('/orgs/{org}/requests/{app}', [Admin\OrgController::class, 'approve'])->name('orgs.requests.approve');
+        Route::get('/orgs/{org}/messages', [Admin\MessagesController::class, 'index'])->name('messages.index');
+        Route::post('/orgs/{org}/messages', [Admin\MessagesController::class, 'save'])->name('messages.save');
         Route::get('/orgs/{org}/connections', [Admin\ConnectionController::class, 'index'])->name('connections.index');
         Route::post('/orgs/{org}/connections', [Admin\ConnectionController::class, 'store'])->name('connections.store');
         Route::put('/orgs/{org}/connections/{connection}', [Admin\ConnectionController::class, 'update'])->whereNumber('connection')->name('connections.update');
@@ -196,6 +198,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Apps: Clauth owner or org owner/admin/developer of the app's publisher.
     Route::middleware('admin:apps')->group(function () {
+        Route::get('/orgs/{org}/themes', [Admin\ThemeController::class, 'index'])->name('themes.index');
+        Route::post('/orgs/{org}/themes', [Admin\ThemeController::class, 'store'])->name('themes.store');
+        Route::put('/orgs/{org}/themes/{theme}', [Admin\ThemeController::class, 'update'])->whereNumber('theme')->name('themes.update');
+        Route::delete('/orgs/{org}/themes/{theme}', [Admin\ThemeController::class, 'destroy'])->whereNumber('theme')->name('themes.destroy');
         Route::get('/apps/{app}/sign-in-rules', [Admin\SigninPolicyController::class, 'showApp'])->name('apps.policy');
         Route::put('/apps/{app}/sign-in-rules', [Admin\SigninPolicyController::class, 'updateApp']);
         Route::post('/apps/{app}/sign-in-rules/restore', [Admin\SigninPolicyController::class, 'restoreApp']);

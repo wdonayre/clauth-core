@@ -21,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->extend('translation.loader', fn ($loader) => new \App\Translation\OverrideLoader($loader));
         Passport::ignoreRoutes();
         $this->app->scoped(TokenContext::class);
     }

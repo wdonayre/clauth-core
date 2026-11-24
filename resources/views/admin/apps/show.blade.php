@@ -105,8 +105,8 @@
       <h2>Sign-in page</h2>
       <p class="small muted" style="margin:0">Only the sign-in and account-setup pages for {{ $app->name }} use this. “Powered by CLAUTH” always shows at the bottom.</p>
       <fieldset class="f" style="border:0;padding:0;margin:0"><legend class="lbl" style="margin-bottom:8px">Style</legend>
-        <div class="pills">@foreach($themes as $k => $l)<label class="pill"><input type="radio" name="login_theme" value="{{ $k }}" @checked($app->login_theme === $k)><span>{{ $l }}</span></label>@endforeach</div>
-        <span class="small muted">Clauth Classic always uses Clauth cyan. Daylight and Midnight use the accent below.</span></fieldset>
+        <div class="pills">@foreach($themes as $k => $l)<label class="pill"><input type="radio" name="login_theme" value="{{ $k }}" @checked($app->signin_theme_id ? $k === 'designed:'.\App\Models\SigninTheme::find($app->signin_theme_id)?->key : $app->login_theme === $k)><span>{{ $l }}</span></label>@endforeach</div>
+        <span class="small muted">Clauth Classic always uses Clauth cyan. Daylight and Midnight use the accent below. @if($app->publisher)Design your own under <a href="{{ route('admin.themes.index', $app->owner_organization_id) }}">{{ $app->publisher->name }} › Themes</a>.@endif</span></fieldset>
       <div class="f"><label for="acc">Accent color</label>
         <div class="actions"><input class="in mono" id="acc" name="accent_color" value="{{ old('accent_color', $app->accent_color) }}" placeholder="#FBBF24" pattern="#[0-9A-Fa-f]{6}" style="max-width:140px">
           <div class="swatches">@foreach(['#FBBF24', '#22C55E', '#6366F1', '#E1251B', '#0EA5E9'] as $c)<button type="button" class="btn sm" data-swatch="{{ $c }}" style="background:{{ $c }};border-color:{{ $c }};width:36px;padding:0" aria-label="Use {{ $c }}"></button>@endforeach</div></div>
