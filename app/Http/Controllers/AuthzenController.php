@@ -108,7 +108,35 @@ class AuthzenController
             }
         }
 
+        // An organization's outside policy engine must agree too (SPEC-platform §9.1). Unreachable = no.
+        $hits = array_values(array_filter($hits, fn ($slug) => $this->pdpAgrees($slug, $app, $subject, $action, $resource)));
+
         return $hits ? ['decision' => true, 'context' => ['orgs' => $hits]] : ['decision' => false];
+    }
+
+    private function pdpAgrees(string $slug, Application $app, $subject, $action, $resource): bool
+    {
+        $org = Organization::where('slug', $slug)->first();
+        $pdps = \App\Models\Connection::where('type', 'authzen-pdp')->where('status', 'active')
+            ->where(fn ($q) => $q->whereNull('organization_id')->orWhere('organization_id', $org?->id))->get()
+            ->filter(fn ($c) => ! $c->cfg('apps') || in_array($app->key, $c->cfg('apps'), true));
+        foreach ($pdps as $c) {
+            try {
+                $r = \Illuminate\Support\Facades\Http::acceptJson()->timeout(3)->when($c->cfg('token'), fn ($h) => $h->withToken($c->cfg('token')))
+                    ->post($c->cfg('url'), ['subject' => $subject, 'action' => $action,
+                        'resource' => ['type' => 'app', 'id' => $app->key, 'properties' => ['org' => $slug] + (array) (($resource['properties'] ?? []))]]);
+                $c->forceFill(['last_used_at' => now()])->save();
+                if (! $r->successful() || $r->json('decision') !== true) {
+                    return false;
+                }
+            } catch (\Throwable $e) {
+                report($e);
+
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** The orgs claim the person's token for this app would carry, limited to $orgs (null = all). */

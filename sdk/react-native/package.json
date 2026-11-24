@@ -1,0 +1,15 @@
+{
+  "name": "@clauth/react-native",
+  "version": "0.1.0",
+  "description": "Clauth sign-in for React Native / Expo: your own sign-in screens over Clauth's flow API, or the browser; PKCE, secure token storage, renewal.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": { ".": { "types": "./src/index.d.ts", "default": "./src/index.js" } },
+  "files": ["src"],
+  "peerDependencies": { "react": ">=18" },
+  "peerDependenciesMeta": { "react": { "optional": true } },
+  "scripts": { "test": "node --test test/*.test.js" },
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/react-native" }
+}

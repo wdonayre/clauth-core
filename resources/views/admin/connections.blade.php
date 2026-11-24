@@ -6,7 +6,7 @@
     if (str_contains($rule, 'boolean')) {
         return '<label class="cb"><input type="hidden" name="config['.$name.']" value="0"><input type="checkbox" name="config['.$name.']" value="1"'.($value ? ' checked' : '').'> '.e($label).'</label>';
     }
-    if ($name === 'domains') {
+    if ($name === 'domains' || $name === 'apps') {
         return '<div class="f"><label for="'.$id.'">'.e($label).'</label><textarea class="in mono" id="'.$id.'" name="config[domains]" rows="2" placeholder="acme.com">'.e(implode("\n", (array) $value)).'</textarea></div>';
     }
     if ($name === 'driver' || $name === 'encryption') {
@@ -53,7 +53,7 @@
       <details style="margin-top:10px"><summary class="btn sm">{{ $label }}</summary>
         <form class="form" method="post" action="{{ route('admin.connections.store', $orgKey) }}" style="margin-top:10px">@csrf
           <input type="hidden" name="type" value="{{ $type }}">
-          <div class="f"><label>Name {{ in_array($type, ['oidc', 'oauth', 'meta']) ? '(shown as “Continue with …”)' : '' }}</label><input class="in" name="name" required maxlength="80" placeholder="{{ ['oidc' => 'Microsoft 365', 'oauth' => 'Our portal', 'meta' => 'Facebook', 'sms' => 'Semaphore', 'email-smtp' => 'Our mail server', 'http' => 'HR system check'][$type] ?? '' }}"></div>
+          <div class="f"><label>Name {{ in_array($type, ['oidc', 'oauth', 'meta']) ? '(shown as “Continue with …”)' : '' }}</label><input class="in" name="name" required maxlength="80" placeholder="{{ ['oidc' => 'Microsoft 365', 'oauth' => 'Our portal', 'meta' => 'Facebook', 'sms' => 'Semaphore', 'email-smtp' => 'Our mail server', 'http' => 'HR system check', 'authzen-pdp' => 'Our policy engine'][$type] ?? '' }}"></div>
           @foreach($fields[$type] as $name => $def){!! $fieldInput($name, $def, $name === 'show_button' ? true : null, $type, 'n'.$type) !!}@endforeach
           <div class="actions"><button class="btn pri">Add</button></div>
         </form>

@@ -1,0 +1,14 @@
+{
+  "name": "@clauth/node",
+  "version": "0.1.0",
+  "description": "Use Clauth from a Node.js server: verify access tokens (JWKS), Express middleware, permission checks, client credentials and AuthZEN.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": { ".": { "types": "./src/index.d.ts", "default": "./src/index.js" } },
+  "files": ["src"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test test/*.test.js" },
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/node" }
+}

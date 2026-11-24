@@ -17,6 +17,9 @@ class IdTokenResponse extends BearerTokenResponse
     {
         $scopes = array_map(fn ($s) => $s->getIdentifier(), $accessToken->getScopes());
         $params = ['scope' => implode(' ', $scopes)];
+        if ($d = app(TokenContext::class)->authorizationDetails) {
+            $params['authorization_details'] = $d; // RFC 9396 §7
+        }
         $userId = $accessToken->getUserIdentifier();
         if (! in_array('openid', $scopes, true) || $userId === null || ! ($user = User::find($userId))) {
             return $params;

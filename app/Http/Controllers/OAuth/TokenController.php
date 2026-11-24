@@ -54,6 +54,7 @@ class TokenController
                     $ctx->nonce = $meta['nonce'] ?? null;
                     $ctx->amr = $meta['amr'] ?? ['pwd'];
                     $ctx->authTime = $meta['auth_time'] ?? null;
+                    $ctx->authorizationDetails = $meta['authorization_details'] ?? null;
                 }
             } catch (\Throwable) {
                 // league rejects the bad code below

@@ -13,4 +13,7 @@ class TokenContext
 
     /** Agent tokens (SPEC-platform §9.3): the app the agent asked for (`audience`). */
     public ?\App\Models\Application $audience = null;
+
+    /** RFC 9396: what the person approved for this code exchange (first access token only). */
+    public ?array $authorizationDetails = null;
 }

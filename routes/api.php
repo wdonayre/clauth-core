@@ -90,6 +90,7 @@ Route::middleware(['api.client:access:write', 'api.idempotent'])->group(function
 
 Route::middleware(['api.client:apps:read'])->group(function () {
     Route::get('cimd/preview', [AppWritesController::class, 'cimdPreview']);
+    Route::get('apps/{app}/authorization-detail-types', [AppWritesController::class, 'detailTypes']);
     Route::get('apps', [AppsController::class, 'index']);
     Route::get('apps/{app}', [AppsController::class, 'show']);
 });
@@ -100,6 +101,8 @@ Route::middleware(['api.client:apps:write', 'api.idempotent'])->group(function (
     Route::post('apps/{app}/manifest/sync', [AppsController::class, 'syncManifest']);
     Route::post('apps/{app}/clients', [AppWritesController::class, 'addClient']);
     Route::post('apps/{app}/registration-tokens', [AppWritesController::class, 'registrationToken']);
+    Route::put('apps/{app}/authorization-detail-types/{type}', [AppWritesController::class, 'putDetailType'])->where('type', '.+');
+    Route::delete('apps/{app}/authorization-detail-types/{type}', [AppWritesController::class, 'deleteDetailType'])->where('type', '.+');
     Route::patch('apps/{app}/clients/{client}', [AppWritesController::class, 'updateClient']);
     Route::post('apps/{app}/roles', [AppWritesController::class, 'storeRole']);
     Route::patch('apps/{app}/roles/{role}', [AppWritesController::class, 'updateRole']);

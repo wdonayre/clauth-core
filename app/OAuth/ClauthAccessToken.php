@@ -69,6 +69,9 @@ class ClauthAccessToken extends AccessToken
             ->expiresAt($this->getExpiryDateTime())
             ->withClaim('client_id', $this->getClient()->getIdentifier())
             ->withClaim('scope', implode(' ', $scopes));
+        if ($ctx->authorizationDetails) {
+            $builder = $builder->withClaim('authorization_details', $ctx->authorizationDetails);
+        }
 
         $userId = $this->getUserIdentifier();
         if ($userId !== null && $user = User::find($userId)) {

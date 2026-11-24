@@ -30,6 +30,7 @@ class Connections
         'sms' => 'SMS gateway',
         'email-smtp' => 'Email sender (SMTP)',
         'http' => 'Your own system (asked before each sign-in)',
+        'authzen-pdp' => 'Outside policy engine (AuthZEN): also asked when apps check access',
     ];
 
     public const PLATFORM_ONLY = ['meta', 'sms'];
@@ -84,6 +85,11 @@ class Connections
                 'url' => ['URL Clauth posts to (HTTPS)', 'required|url|starts_with:https://'],
                 'secret' => ['Signing secret (HMAC-SHA256 of the body, header X-Clauth-Signature)', 'required|string|min:16|max:255', true],
             ],
+            'authzen-pdp' => [
+                'url' => ['Evaluation URL (POST, AuthZEN 1.0)', 'required|url|starts_with:https://'],
+                'token' => ['Bearer token it expects', 'nullable|string|max:500', true],
+                'apps' => ['Only for these app keys (one per line; empty = every app)', 'array'],
+            ],
             'email-smtp' => [
                 'host' => ['SMTP host', 'required|string|max:190'],
                 'port' => ['Port', 'required|integer|between:1,65535'],
@@ -115,7 +121,7 @@ class Connections
         foreach ($fields as $name => [$label, $rule]) {
             $secret = $fields[$name][2] ?? false;
             $v = $input[$name] ?? null;
-            if ($name === 'domains' && is_string($v)) {
+            if (in_array($name, ['domains', 'apps'], true) && is_string($v)) {
                 $v = collect(preg_split('/[\s,]+/', $v))->map(fn ($d) => strtolower(trim($d, " @.\t")))->filter()->unique()->values()->all();
             }
             if ($secret && ($v === null || $v === '') && isset($old[$name])) {
@@ -128,6 +134,7 @@ class Connections
             $rules[$name] = $rule;
         }
         $rules['domains.*'] = 'string|max:190|regex:/^([a-z0-9-]+\.)+[a-z]{2,}$/';
+        $rules['apps.*'] = 'string|max:60';
         $v = validator($data, $rules, [], collect($fields)->map(fn ($f) => $f[0])->all());
         $v->validate();
         if ($org && in_array($type, ['oidc', 'oauth'], true) && empty($data['domains'])) {

@@ -125,6 +125,33 @@ class AuthorizeController
             return $this->deny($server, $authRequest, $request, 'access_denied', $why);
         }
 
+        // Rich authorization request (RFC 9396): the person approves each item every time.
+        $details = null;
+        if (($raw = $request->query('authorization_details')) !== null) {
+            $details = \App\Services\AuthDetails::parse((string) $raw, $app);
+            if (is_string($details)) {
+                return $this->deny($server, $authRequest, $request, 'invalid_authorization_details', $details);
+            }
+            $hash = hash('sha256', $client->id.'|'.$raw);
+            $ans = $request->session()->pull('details.answer.'.$hash);
+            if ($ans === 'no') {
+                return $this->deny($server, $authRequest, $request, 'access_denied', 'You chose not to approve.');
+            }
+            if ($ans !== 'yes') {
+                if ($prompt->contains('none')) {
+                    return $this->deny($server, $authRequest, $request, 'consent_required');
+                }
+                $request->session()->put('details.request', ['url' => $request->fullUrl(), 'hash' => $hash]);
+
+                return response()->view('auth.details', ['app' => $app, 'user' => $user, 'theme' => Theme::for($app),
+                    'items' => array_map(fn ($i) => \App\Services\AuthDetails::describe($i, $app), $details)]);
+            }
+            $details = \App\Services\AuthDetails::process($app, $details, $user);
+            if (is_string($details)) {
+                return $this->deny($server, $authRequest, $request, 'access_denied', $details);
+            }
+        }
+
         // Consent (SPEC-organizations §6): apps outside the person's own organizations ask once.
         $answer = $request->session()->pull('consent.answer.'.$client->id);
         if ($answer === 'no') {
@@ -167,6 +194,7 @@ class AuthorizeController
                     'nonce' => $request->query('nonce'),
                     'amr' => $request->session()->get('auth.amr', ['pwd']),
                     'auth_time' => $request->session()->get('auth.time', time()),
+                    'authorization_details' => $details,
                 ], 600);
             } catch (\Throwable) {
                 // nonce is optional; continue
@@ -184,6 +212,16 @@ class AuthorizeController
         $request->session()->forget('login.client_id');
 
         return $this->convertResponse($psr);
+    }
+
+    /** POST /oauth/details — the person's answer to an authorization_details request. */
+    public function details(Request $request)
+    {
+        $req = $request->session()->pull('details.request');
+        abort_unless($req && $request->user(), 404);
+        $request->session()->put('details.answer.'.$req['hash'], $request->input('decision') === 'approve' ? 'yes' : 'no');
+
+        return redirect()->to($req['url']);
     }
 
     /** Same check as Auth\Concerns::isTrustedDevice: a trusted, unexpired device cookie, and not a Clauth admin. */

@@ -253,6 +253,46 @@ class AppWritesController
             'uses' => $data['uses'] ?? null, 'expires_at' => now()->addDays($data['days'] ?? 30)->toIso8601String()], 201);
     }
 
+    // ---- RFC 9396 authorization detail types ----
+
+    private function detailJson(object $t): array
+    {
+        return ['type' => $t->type, 'description' => $t->description, 'schema' => json_decode($t->schema, true), 'processor_url' => $t->processor_url, 'processor_secret_set' => (bool) $t->processor_secret];
+    }
+
+    public function detailTypes(string $app)
+    {
+        $a = $this->api()->app($app);
+
+        return response()->json(['data' => \App\Services\AuthDetails::types($a)->values()->map(fn ($t) => $this->detailJson($t))]);
+    }
+
+    /** PUT /apps/{app}/authorization-detail-types/{type} {description?, schema: JSON Schema, processor_url?, processor_secret?} */
+    public function putDetailType(Request $request, string $app, string $type)
+    {
+        $a = $this->managed($app);
+        abort_unless(preg_match('/^[A-Za-z0-9_.:\/-]{1,120}$/', $type), 422, 'Types are 1–120 letters, digits and _ . : / -');
+        $data = $request->validate(['description' => 'nullable|string|max:190', 'schema' => 'required|array', 'schema.type' => 'required|in:object',
+            'processor_url' => 'nullable|url|starts_with:https://|max:500', 'processor_secret' => 'nullable|string|min:16|max:255']);
+        $old = DB::table('authorization_detail_types')->where(['app_id' => $a->id, 'type' => $type])->first();
+        DB::table('authorization_detail_types')->updateOrInsert(['app_id' => $a->id, 'type' => $type], [
+            'description' => $data['description'] ?? null, 'schema' => json_encode($request->input('schema')), 'processor_url' => $data['processor_url'] ?? null, // the whole schema, not just the validated keys
+            'processor_secret' => isset($data['processor_secret']) ? \Illuminate\Support\Facades\Crypt::encryptString($data['processor_secret']) : $old?->processor_secret,
+            'updated_at' => now(), 'created_at' => $old?->created_at ?? now()]);
+        Audit::log('app.detail_type_saved', 'app', $a, after: ['type' => $type], appId: $a->id);
+
+        return response()->json($this->detailJson(DB::table('authorization_detail_types')->where(['app_id' => $a->id, 'type' => $type])->first()));
+    }
+
+    public function deleteDetailType(string $app, string $type)
+    {
+        $a = $this->managed($app);
+        DB::table('authorization_detail_types')->where(['app_id' => $a->id, 'type' => $type])->delete();
+        Audit::log('app.detail_type_deleted', 'app', $a, before: ['type' => $type], appId: $a->id);
+
+        return response()->noContent();
+    }
+
     /** GET /cimd/preview?url= — read a client ID metadata document before registering it. */
     public function cimdPreview(Request $request)
     {

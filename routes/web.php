@@ -93,6 +93,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'update'])->name
 
 // Custom-domain ownership proof; answered by ServeCustomDomain on the app's domain, 404 everywhere else.
 Route::get('/.well-known/clauth-domain/{token}', fn () => response('Not found', 404))->where('token', '[a-z0-9]{32}');
+Route::post('/oauth/details', [AuthorizeController::class, 'details'])->middleware(['auth', 'throttle:30,1'])->name('oauth.details');
 Route::post('/oauth/consent', ConsentController::class)->middleware(['auth', 'throttle:30,1'])->name('oauth.consent');
 Route::get('/sso/check', [SsoController::class, 'check'])->middleware('throttle:60,1')->name('sso.check');
 Route::post('/sso/check', [SsoController::class, 'confirm'])->middleware('throttle:60,1')->name('sso.confirm');

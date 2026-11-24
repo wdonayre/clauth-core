@@ -34,6 +34,7 @@ class OidcController
             'device_authorization_endpoint' => "$iss/oauth/device",
             'backchannel_authentication_endpoint' => "$iss/oauth/bc-authorize",
             'registration_endpoint' => "$iss/oauth/register",
+            'authorization_details_types_supported' => \Illuminate\Support\Facades\DB::table('authorization_detail_types')->distinct()->orderBy('type')->pluck('type')->all(),
             'backchannel_token_delivery_modes_supported' => ['poll'],
             'backchannel_user_code_parameter_supported' => false,
             'introspection_endpoint_auth_methods_supported' => ['client_secret_basic', 'client_secret_post'],
