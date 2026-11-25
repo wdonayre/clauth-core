@@ -1,3 +1,4 @@
+import type { Brand } from '@clauth/js';
 import type { ReactNode, ButtonHTMLAttributes } from 'react';
 import type { Clauth, ClauthConfig, OrgClaim, UserClaims } from '@clauth/js';
 
@@ -19,3 +20,6 @@ export function SignedIn(props: { children?: ReactNode }): ReactNode;
 export function SignedOut(props: { children?: ReactNode }): ReactNode;
 export function SignInButton(props: ButtonHTMLAttributes<HTMLButtonElement> & { returnTo?: string; loginHint?: string }): JSX.Element;
 export function ClauthCallback(props: { onDone?: (returnTo: string | null) => void; onError?: (e: Error) => void; fallback?: ReactNode }): ReactNode;
+
+/** The app's brand from Clauth (null until loaded). */
+export function useClauthBrand(): Brand | null;

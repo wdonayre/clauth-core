@@ -31,6 +31,9 @@ Route::get('openapi.json', OpenApiController::class)->middleware('throttle:60,1'
 // App-native sign-in (SPEC-platform §8.2): no token, the flow is bound to a public client + PKCE.
 Route::post('flow/execute', \App\Http\Controllers\Api\V1\FlowController::class)->middleware('throttle:60,1');
 
+// Brand for apps' sign-in buttons (SPEC-branding B3): public.
+Route::get('brand', \App\Http\Controllers\Api\V1\BrandController::class)->middleware('throttle:600,1');
+
 // Catch-up list (SPEC-provisioning E1): the app's own server client or an API client; the controller checks.
 Route::get('apps/{app}/people', [WebhooksController::class, 'people'])->middleware('throttle:120,1');
 

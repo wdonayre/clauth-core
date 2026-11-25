@@ -63,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
         Route::get('/bar/v1', BarScriptController::class)->name('bar.v1');
         // Branded accounts: an organization's public logo (no session), and every sign-in page and email knows its brand.
         Route::get('/brand/{org}/logo', [\App\Http\Controllers\BrandController::class, 'logo'])->name('brand.logo');
-        \Illuminate\Support\Facades\View::composer(['layouts.auth', 'auth.*', 'mail.*', 'pages.*'], function ($view) {
+        \Illuminate\Support\Facades\View::composer(['layouts.auth', 'layouts.portal', 'auth.*', 'mail.*', 'pages.*', 'account.*'], function ($view) {
             if (! array_key_exists('brand', $view->getData())) {
                 $app = $view->getData()['app'] ?? null;
                 $view->with('brand', \App\Services\Brand::current($app instanceof \App\Models\Application ? $app : null));

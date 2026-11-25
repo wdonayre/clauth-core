@@ -1,0 +1,12 @@
+/* Branded account portal (SPEC-branding B2): top bar instead of the console sidebar. */
+.console.portal{flex-direction:column;flex-wrap:nowrap}
+.portal-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--surface)}
+.portal-brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px;color:var(--text) !important}
+.portal-brand img{width:32px;height:32px;border-radius:8px;object-fit:contain}
+.portal-ico{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.portal-nav{display:flex;align-items:center;gap:12px}
+.portal-nav form{margin:0}
+.portal-main{width:100%;max-width:960px;margin:0 auto;padding:28px 24px;box-sizing:border-box;flex:1}
+.portal-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;padding:18px 24px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line)}
+.portal-foot nav{display:flex;gap:14px}
+@media (max-width:640px){.portal-top{padding:12px 16px}.portal-main{padding:20px 16px}.portal-foot{padding:16px}}

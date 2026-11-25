@@ -27,10 +27,32 @@ export function useClauth() {
 export const SignedIn = ({ children }) => (useClauth().isSignedIn ? children : null);
 export const SignedOut = ({ children }) => (useClauth().isSignedIn ? null : children);
 
-/** A button that starts sign-in. Extra props go to the <button>. */
-export function SignInButton({ children = 'Sign in', returnTo, loginHint, ...rest }) {
-  const { signIn } = useClauth();
-  return createElement('button', { type: 'button', ...rest, onClick: () => signIn({ returnTo, loginHint }) }, children);
+/**
+ * A button that starts sign-in. Without children it says what Clauth tells it for this app ("Continue with CakesbyGrace
+ * Account", or "Sign in with Clauth"). Extra props go to the <button>.
+ */
+export function SignInButton({ children, returnTo, loginHint, ...rest }) {
+  const { signIn, clauth } = useClauth();
+  const [label, setLabel] = useState(null);
+  useEffect(() => {
+    if (children || !clauth?.brand) return undefined;
+    let live = true;
+    clauth.brand().then((b) => { if (live) setLabel(b.button); }).catch(() => {});
+    return () => { live = false; };
+  }, [clauth, children]);
+  return createElement('button', { type: 'button', ...rest, onClick: () => signIn({ returnTo, loginHint }) }, children ?? label ?? 'Sign in');
+}
+
+/** The app's brand from Clauth (null until loaded). */
+export function useClauthBrand() {
+  const { clauth } = useClauth();
+  const [brand, setBrand] = useState(null);
+  useEffect(() => {
+    let live = true;
+    clauth?.brand?.().then((b) => { if (live) setBrand(b); }).catch(() => {});
+    return () => { live = false; };
+  }, [clauth]);
+  return brand;
 }
 
 /** Put on the redirect route: finishes sign-in, then calls onDone(returnTo) (default: go there). */

@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\URL;
 class ServeCustomDomain
 {
     /** Paths an app's domain may serve. */
+    /** My account on a branded organization's domain: the account portal (SPEC-branding B2). Linking providers and API tokens stay on the main domain. */
+    private const PORTAL = '#^account(/(profile|password|2fa(/disable|/codes)?|sessions/(web|app)/[^/]+|sessions/revoke-all|consents/[^/]+|phone(/verify)?|sms-two-step))?$#';
+
     private const ALLOWED = '#^(login(/.*)?|logout|forgot-password|reset-password(/.*)?|invite/[^/]+|oauth/authorize|oauth/consent|oauth/logout|signout-everywhere|privacy|terms|help|report|sso/accept|apps/[^/]+/logo|up)$#';
 
     public function handle(Request $request, Closure $next)
@@ -49,10 +52,11 @@ class ServeCustomDomain
 
             return response('This sign-in address isn’t set up.', 404, ['Content-Type' => 'text/plain; charset=utf-8']);
         }
+        $portal = \App\Services\Brand::level($domain->organization, true) !== 'clauth';
         if ($path === '') {
-            return redirect('/login');
+            return redirect($portal ? '/account' : '/login');
         }
-        if (! preg_match(self::ALLOWED, $path)) {
+        if (! preg_match(self::ALLOWED, $path) && ! ($portal && preg_match(self::PORTAL, $path))) {
             // My account, admin, API… live on the main domain.
             return $request->isMethod('GET') && ! str_starts_with($path, 'api/')
                 ? redirect()->away(Domains::mainUrl($request->getRequestUri()))

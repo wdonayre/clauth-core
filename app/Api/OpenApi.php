@@ -150,6 +150,7 @@ class OpenApi
         'GET /secrets' => ['Secret names (?org=); values are never shown', 'Config'],
         'PUT /secrets/{name}' => ['Set a secret (${secret:NAME} in imports), stored encrypted', 'Config', ['value' => 'string', 'org' => 'slug (omit = platform)']],
         'DELETE /secrets/{name}' => ['Delete a secret', 'Config', ['org' => 'slug']],
+        'GET /brand' => ['Public: how an app names its sign-in (?app=<key> or ?client_id=<id>): level, account name, button text, logo, color, sign-in and account addresses', 'Branding'],
         'GET /apps/{app}/people' => ['Everyone with access to the app, with the orgs claim their token carries (?since= for changes). The app’s own server client (users:read) or an API client', 'Webhooks'],
         'GET /apps/{app}/webhooks' => ['Webhook endpoints of the app', 'Webhooks'],
         'POST /apps/{app}/webhooks' => ['Add an endpoint; the signing secret is in this response only', 'Webhooks', ['url' => 'https URL', 'events' => 'access.granted|access.changed|access.removed|user.updated|user.disabled|user.enabled|invite.accepted (empty = all)']],

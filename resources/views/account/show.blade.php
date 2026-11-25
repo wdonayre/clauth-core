@@ -1,4 +1,4 @@
-@extends('layouts.console')
+@extends(($portal ?? false) ? 'layouts.portal' : 'layouts.console')
 @section('title', 'My account')
 @push('head')<link rel="stylesheet" href="/css/pages/settings.css?v={{ filemtime(public_path('css/pages/settings.css')) }}">@endpush
 @push('end')<script src="/js/pages/settings.js?v={{ filemtime(public_path('js/pages/settings.js')) }}" defer></script>@endpush
@@ -8,7 +8,7 @@
 <div class="acct">
 <header class="head">
   <div><h1>Hi, {{ $first }}</h1><p>Open an app, or manage how you sign in.</p></div>
-  <div class="actions"><a class="btn" href="{{ route('account.tokens') }}">@include('partials.icon', ['i' => 'key', 'iconSize' => 16])API tokens</a></div>
+  @unless($portal ?? false)<div class="actions"><a class="btn" href="{{ route('account.tokens') }}">@include('partials.icon', ['i' => 'key', 'iconSize' => 16])API tokens</a></div>@endunless
 </header>
 
 {{-- ---------- Apps ---------- --}}
@@ -121,7 +121,7 @@
   @foreach($web as $s)
     <div class="set"><div class="m"><span class="mi">@include('partials.icon', ['i' => 'monitor', 'iconSize' => 20])</span>
         <div><b>{{ \Illuminate\Support\Str::limit(\App\Support\Agent::short($s->user_agent), 48) }}</b> @if($s->id === $currentSession)<span class="badge muted">This device</span>@endif
-          <p>Clauth · {{ $s->ip_address }} · {{ $s->id === $currentSession ? 'active now' : \Carbon\Carbon::createFromTimestamp($s->last_activity)->diffForHumans() }}</p></div></div>
+          <p>{{ $brand['name'] }} · {{ $s->ip_address }} · {{ $s->id === $currentSession ? 'active now' : \Carbon\Carbon::createFromTimestamp($s->last_activity)->diffForHumans() }}</p></div></div>
       @unless($s->id === $currentSession)<form method="post" action="{{ route('account.sessions.web', $s->id) }}">@csrf @method('delete')<button class="btn">Sign out</button></form>@endunless
     </div>
   @endforeach
@@ -136,7 +136,7 @@
 {{-- ---------- Appearance (console.js saves the choice: same key as the sidebar switch) ---------- --}}
 <section class="card pad" aria-labelledby="look-h">
   <h2 id="look-h">Appearance</h2>
-  <p class="muted small" style="margin:2px 0 14px">Applies to Clauth in this browser.</p>
+  <p class="muted small" style="margin:2px 0 14px">Applies to {{ $brand['name'] }} in this browser.</p>
   <div class="themepick" role="radiogroup" aria-labelledby="look-h" data-theme-switch>
     <button type="button" role="radio" aria-checked="false" data-mode="light"><span class="pv l" aria-hidden="true"><span class="sd"></span><span class="mn"><i></i><i></i></span></span>Light</button>
     <button type="button" role="radio" aria-checked="false" data-mode="dark"><span class="pv d" aria-hidden="true"><span class="sd"></span><span class="mn"><i></i><i></i></span></span>Dark</button>
@@ -151,11 +151,13 @@
   <div class="set"><div><b>Email</b><p>{{ $user->email }} · ask your admin to change it</p></div></div>
 </section>
 
+@unless($portal ?? false)
 <section class="card" aria-labelledby="dev-h">
   <h2 id="dev-h" class="ch">For developers</h2>
   <div class="set"><div><b>Personal API tokens</b><p>For scripts and tools that act as you. A token can only do what you can do.</p></div>
     <a class="btn" href="{{ route('account.tokens') }}">Manage tokens</a></div>
 </section>
+@endunless
 </div>
 
 {{-- ---------- Dialogs ---------- --}}

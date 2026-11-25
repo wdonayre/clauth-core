@@ -155,8 +155,12 @@
       const fresh = this.freshIds || [];
       const date = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return ''; } };
 
+      // Branded accounts (SPEC-branding B3): the organization's name instead of Clauth's when it brands its accounts.
+      const brand = d.brand || { level: 'clauth' };
+      const brandFoot = brand.level === 'clauth' ? `<span>Powered by <span class="wm" aria-label="Clauth"><svg viewBox="0 0 120 120" aria-hidden="true"><path d="M84.51 39.43A32 32 0 1 0 84.51 80.57" fill="none" stroke="#F2F5F9" stroke-width="14"/><circle cx="60" cy="54" r="9" fill="#22D3EE"/><path d="M55 57h10l2.5 17h-15z" fill="#22D3EE"/></svg>clauth</span></span>`
+        : `<span>${esc(brand.account)}${brand.level === 'cobrand' ? ' · Secured by Clauth' : ''}</span>`;
       this.root.innerHTML = `<style>${CSS}</style>
-        <nav class="bar" aria-label="Clauth">
+        <nav class="bar" aria-label="${esc(brand.level === 'clauth' ? 'Clauth' : brand.name)}">
           <a class="app" href="${esc(safeUrl(d.app.url || '/'))}">${this.icon(d.app)}<span class="name">${esc(d.app.name)}</span></a>
           <span class="sp"></span>
           ${orgs.length > 1
@@ -205,7 +209,7 @@
           <a class="item" role="menuitem" href="${esc(safeUrl(d.links.account))}">My account — password, 2-step, devices</a>
           ${logout ? `<a class="item" role="menuitem" href="${esc(safeUrl(logout))}">Sign out of ${esc(d.app.name)}</a>` : ''}
           <a class="item danger" role="menuitem" href="${esc(safeUrl(d.links.signout_everywhere))}">Sign out everywhere</a>
-          <div class="foot"><span>Powered by <span class="wm" aria-label="Clauth"><svg viewBox="0 0 120 120" aria-hidden="true"><path d="M84.51 39.43A32 32 0 1 0 84.51 80.57" fill="none" stroke="#F2F5F9" stroke-width="14"/><circle cx="60" cy="54" r="9" fill="#22D3EE"/><path d="M55 57h10l2.5 17h-15z" fill="#22D3EE"/></svg>clauth</span></span><a href="${esc(safeUrl(d.links.privacy))}">Privacy</a><a href="${esc(safeUrl(d.links.terms))}">Terms</a></div>
+          <div class="foot">${brandFoot}<a href="${esc(safeUrl(d.links.privacy))}">Privacy</a><a href="${esc(safeUrl(d.links.terms))}">Terms</a></div>
         </div>`;
 
       this.root.querySelectorAll('[data-menu]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(b.dataset.menu); }));

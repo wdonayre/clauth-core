@@ -20,7 +20,15 @@ export interface OrgClaim { roles: string[]; permissions: string[]; teams?: stri
 
 export interface UserClaims { sub: string; email?: string; name?: string; amr?: string[]; iss: string; aud: string | string[]; exp: number; [k: string]: unknown }
 
+export interface Brand {
+  app: string; level: 'clauth' | 'cobrand' | 'whitelabel'; name: string; account_name: string; button: string;
+  logo: string | null; color: string | null; secured_by_clauth: boolean; login_url: string | null; account_url: string;
+  support_email: string | null; privacy_url: string | null; terms_url: string | null;
+}
+
 export interface Clauth {
+  /** How this app names its sign-in; use `button` as the sign-in button text. */
+  brand(): Promise<Brand>;
   signIn(opts?: { returnTo?: string; prompt?: 'login' | 'none' | 'consent'; loginHint?: string; lang?: string; redirect?: boolean }): Promise<string>;
   handleRedirect(url?: string): Promise<{ returnTo: string | null }>;
   isSignedIn(): boolean;

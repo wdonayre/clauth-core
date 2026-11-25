@@ -66,6 +66,7 @@ class BarController
                 && $g->app->organizations->contains('id', $g->organization_id));
 
         $iss = config('clauth.issuer');
+        $brand = \App\Services\Brand::forApp($app);
         $present = fn (Application $a) => [
             'key' => $a->key, 'name' => $a->name, 'letter' => $a->letter(), 'color' => $a->color,
             'icon' => $a->logoUrl(true), // dark-background variant: the bar is dark
@@ -81,11 +82,13 @@ class BarController
             'apps' => $grants->unique('app_id')->sortBy('app.name')->values()
                 ->filter(fn ($g) => $g->app->home_url)->map(fn ($g) => $present($g->app) + ['current' => $g->app_id === $app->id])->values()->all(),
             'updates' => $this->updates($user, $app),
+            // The organization's brand when it brands its accounts (SPEC-branding B3); level "clauth" = Clauth's own look.
+            'brand' => ['level' => $brand['level'], 'name' => $brand['name'], 'account' => $brand['account'], 'logo' => $brand['logo']],
             'links' => [
-                'account' => $iss.'/account',
+                'account' => $brand['level'] !== 'clauth' ? $brand['account_url'] : $iss.'/account',
                 'signout_everywhere' => $iss.'/signout-everywhere',
-                'privacy' => $iss.'/privacy',
-                'terms' => $iss.'/terms',
+                'privacy' => $brand['privacy_url'] ?: $iss.'/privacy',
+                'terms' => $brand['terms_url'] ?: $iss.'/terms',
             ],
         ])->header('Cache-Control', 'private, max-age=60');
     }

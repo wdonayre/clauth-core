@@ -109,6 +109,31 @@ class Brand
         return $b;
     }
 
+    /**
+     * The brand an app should show (SPEC-branding B3): its active sign-in domain's organization (white-label allowed
+     * there), else its publisher on the main address. Adds the sign-in and account portal addresses.
+     */
+    public static function forApp(Application $app): array
+    {
+        $domain = \App\Models\AppDomain::where('status', 'active')->whereHas('apps', fn ($q) => $q->where('apps.id', $app->id))->with('organization')->first();
+        $b = $domain ? self::of($domain->organization, true) : self::of($app->publisher, false);
+        $base = $domain ? 'https://'.$domain->host : rtrim((string) config('clauth.issuer'), '/');
+
+        return $b + ['login_url' => $domain ? $base : null,
+            'account_url' => $base.'/account',
+            'button' => $b['level'] === 'clauth' ? __('Sign in with Clauth') : __('Continue with :account', ['account' => $b['account']])];
+    }
+
+    /** What apps may show publicly: no models, no internal fields. */
+    public static function publicJson(Application $app): array
+    {
+        $b = self::forApp($app);
+
+        return ['app' => $app->key, 'level' => $b['level'], 'name' => $b['name'], 'account_name' => $b['account'], 'button' => $b['button'],
+            'logo' => $b['logo'], 'color' => $b['color'], 'secured_by_clauth' => $b['secured_by'], 'login_url' => $b['login_url'],
+            'account_url' => $b['account_url'], 'support_email' => $b['support_email'], 'privacy_url' => $b['privacy_url'], 'terms_url' => $b['terms_url']];
+    }
+
     /** Run $fn (build and send an email) with $org's brand. */
     public static function forMail(?Organization $org, callable $fn): mixed
     {

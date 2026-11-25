@@ -23,7 +23,10 @@ class AccountController
     public function show(Request $request)
     {
         $user = $request->user();
-        $grants = Grant::with(['app', 'organization', 'role'])->where('user_id', $user->id)->get()
+        // On an organization's own domain this is its account portal: its brand, and only its apps (SPEC-branding B2).
+        $domain = $request->attributes->get('clauth.domain');
+        $grants = Grant::with(['app', 'organization', 'role'])->where('user_id', $user->id)
+            ->when($domain, fn ($q) => $q->where('organization_id', $domain->organization_id))->get()
             ->filter(fn ($g) => $g->app && $g->app->status !== 'paused' && ! $g->app->isSuspended() && $g->app->organizations->contains('id', $g->organization_id));
         $apps = $grants->groupBy('app_id')->map(fn ($gs) => [
             'app' => $gs->first()->app,
@@ -35,6 +38,7 @@ class AccountController
         $appSessions = ClientSession::with('app')->where('user_id', $user->id)->orderByDesc('last_used_at')->get();
 
         return view('account.show', [
+            'portal' => (bool) $domain, 'brand' => $domain ? \App\Services\Brand::of($domain->organization, true) : \App\Services\Brand::clauth(),
             'user' => $user, 'apps' => $apps, 'web' => $web, 'appSessions' => $appSessions,
             'currentSession' => $request->session()->getId(), 'mfaRequired' => Claims::policyRequiresMfa($user),
             'google' => SocialController::enabled('google') ? ['identity' => $user->socialIdentities()->where('provider', 'google')->first()] : null,

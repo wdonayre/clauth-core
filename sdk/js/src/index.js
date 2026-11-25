@@ -50,6 +50,7 @@ export function createClauth(config) {
   const listeners = new Set();
   let discovery = null;
   let inflight = null;
+  let brandCache = null;
 
   const read = () => { try { return JSON.parse(store.get(key) || 'null'); } catch { return null; } };
   const write = (t) => { t ? store.set(key, JSON.stringify(t)) : store.del(key); listeners.forEach((f) => { try { f(t ? decodeJwt(t.id_token) : null); } catch {} }); };
@@ -132,6 +133,20 @@ export function createClauth(config) {
       if (!flow || !q.get('code') || q.get('state') !== flow.state) throw new ClauthError('invalid_state', 'This sign-in did not start here, or it expired. Sign in again.');
       save(await tokenRequest({ grant_type: 'authorization_code', code: q.get('code'), redirect_uri: redirectUri, code_verifier: flow.verifier }), flow.nonce);
       return { returnTo: flow.returnTo };
+    },
+
+    /**
+     * How this app names its sign-in (branded accounts): { level, account_name, button, logo, color, login_url, account_url, … }.
+     * Use `button` as the sign-in button's text ("Continue with CakesbyGrace Account"). Cached for the page's life.
+     */
+    async brand() {
+      if (!brandCache) {
+        brandCache = fetchImpl(`${issuer}/api/v1/brand?client_id=${encodeURIComponent(clientId)}`).then((r) => {
+          if (!r.ok) throw new ClauthError('brand_failed', `Could not read ${issuer}/api/v1/brand`);
+          return r.json();
+        }).catch((e) => { brandCache = null; throw e; });
+      }
+      return brandCache;
     },
 
     isSignedIn: () => !!read(),
