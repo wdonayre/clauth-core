@@ -95,6 +95,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'update'])->name
 Route::get('/.well-known/clauth-domain/{token}', fn () => response('Not found', 404))->where('token', '[a-z0-9]{32}');
 Route::post('/oauth/details', [AuthorizeController::class, 'details'])->middleware(['auth', 'throttle:30,1'])->name('oauth.details');
 Route::post('/oauth/consent', ConsentController::class)->middleware(['auth', 'throttle:30,1'])->name('oauth.consent');
+Route::post('/oauth/join', \App\Http\Controllers\OAuth\JoinController::class)->middleware(['auth', 'throttle:30,1'])->name('oauth.join');
 Route::get('/sso/check', [SsoController::class, 'check'])->middleware('throttle:60,1')->name('sso.check');
 Route::post('/sso/check', [SsoController::class, 'confirm'])->middleware('throttle:60,1')->name('sso.confirm');
 Route::get('/sso/accept', [SsoController::class, 'accept'])->middleware('throttle:60,1')->name('sso.accept');

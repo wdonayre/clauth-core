@@ -211,6 +211,7 @@ class AuditController
             'user.invite_accepted' => ["$who accepted their invite".($e->organization ? ' to '.e($e->organization->name) : ''), null],
             'user.invite_revoked' => ["$actor cancelled the invite to ".$bold($a['email'] ?? 'someone'), null],
             'user.signed_up' => ["$who signed up through $app".$org, null],
+            'user.joined_app' => ["$who joined $app with their Clauth account".$org, null],
             'user.created_on_signin' => ["$who joined".($e->organization ? ' '.e($e->organization->name) : '').' on first sign-in', isset($a['connection']) ? 'Through '.e($a['connection']) : null],
             'user.disabled' => ["$actor turned off $subjPoss account", null],
             'user.enabled' => ["$actor turned $subjPoss account back on", null],

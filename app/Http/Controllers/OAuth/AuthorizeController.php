@@ -4,6 +4,7 @@ namespace App\Http\Controllers\OAuth;
 
 use App\Models\ClientSession;
 use App\Models\OAuthClient;
+use App\Services\AppJoin;
 use App\Services\Audit;
 use App\Services\Claims;
 use App\Services\Consents;
@@ -22,8 +23,8 @@ use League\OAuth2\Server\Exception\OAuthServerException;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * GET /oauth/authorize — Authorization Code + PKCE (SPEC §6.1). No consent screen; access is
- * checked against grants before a code is issued, then the user is redirected back instantly.
+ * GET /oauth/authorize — Authorization Code + PKCE (SPEC §6.1). Access is checked against grants before a code is
+ * issued; a person not in an open sign-up app is offered "Join :app" first (AppJoin).
  */
 class AuthorizeController
 {
@@ -115,6 +116,19 @@ class AuthorizeController
         }
 
         if (! Claims::canUse($user, $app)) {
+            // Open sign-up app, person already has a Clauth account: offer to join instead of a dead end.
+            if ($request->session()->pull('join.answer.'.$client->id) === 'no') {
+                return $this->deny($server, $authRequest, $request, 'access_denied', 'You chose not to join.');
+            }
+            if ($offer = AppJoin::offer($user, $app)) {
+                if ($prompt->contains('none')) {
+                    return $this->deny($server, $authRequest, $request, 'consent_required');
+                }
+                $request->session()->put('join.request', ['url' => $request->fullUrl(), 'client' => $client->id]);
+
+                return response()->view('auth.join', ['app' => $app->loadMissing('publisher'), 'user' => $user, 'theme' => Theme::for($app),
+                    'role' => $offer['role'], 'scopes' => array_values(array_filter(explode(' ', (string) $request->query('scope'))))]);
+            }
             Audit::log('signin.denied', 'signin', $user, after: ['app' => $app->key], appId: $app->id, actorId: $user->id, actorType: 'user');
 
             return $this->deny($server, $authRequest, $request, 'access_denied', 'You don’t have access to this app.');

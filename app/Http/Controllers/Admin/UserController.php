@@ -493,6 +493,7 @@ class UserController
             'user.invite_accepted' => [[['t' => 'accepted the invite'], ...($org ? [['t' => ' to '], ['b' => $org]] : [])], null],
             'user.invite_revoked' => [[['t' => 'cancelled an invite']], $org],
             'user.signed_up' => [[['t' => 'signed up']], $where],
+            'user.joined_app' => [[['t' => 'joined with their Clauth account']], $where],
             'user.created_on_signin' => [[['t' => 'was created on first sign-in']], $where],
             'user.updated' => [[['t' => isset($after['joined_org']) ? 'added them to ' : (isset($after['left_org']) ? 'removed them from ' : 'updated the profile')],
                 ...((isset($after['joined_org']) || isset($after['left_org'])) ? [['b' => $org ?? 'an organization']] : [])],

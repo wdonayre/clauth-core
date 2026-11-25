@@ -273,5 +273,14 @@
   "to": "sa",
   "to your Clauth account": "sa iyong Clauth account",
   "wants:": "ay humihiling ng:",
-  "your admin": "ang iyong admin"
+  "your admin": "ang iyong admin",
+  "Join :app": "Sumali sa :app",
+  "You’re signed in to Clauth, but you don’t have a :app account yet. Continue and :app makes one from your Clauth account. No new password.": "Naka-sign in ka sa Clauth, pero wala ka pang account sa :app. Magpatuloy at gagawa ang :app ng account mula sa iyong Clauth account. Walang bagong password.",
+  ":app will get": "Makukuha ng :app",
+  "Your name and profile photo": "Ang iyong pangalan at profile photo",
+  "Your email address": "Ang iyong email address",
+  "You join as :role": "Sasali ka bilang :role",
+  "in :org": "sa :org",
+  "Never your password, your other apps or other organizations": "Hindi kailanman ang iyong password, ibang apps o ibang organisasyon",
+  "By continuing you agree to :app’s": "Sa pagpapatuloy, sumasang-ayon ka sa :app:"
 }
