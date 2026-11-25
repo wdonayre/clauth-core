@@ -13,7 +13,7 @@ class LoginCodeMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: "{$this->code} is your Clauth code");
+        return new Envelope(subject: "{$this->code} is your ".\App\Services\Brand::current()['name'].' code');
     }
 
     public function content(): Content

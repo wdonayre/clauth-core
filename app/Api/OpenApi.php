@@ -28,6 +28,8 @@ class OpenApi
         'POST /invites/{invite}/resend' => ['New link (the old one stops working) and email', 'Invites', ['send' => 'bool (default true)']],
         'GET /orgs' => ['Organizations this client can see', 'Organizations'],
         'GET /orgs/{org}' => ['One organization ({org} = id or slug)', 'Organizations'],
+        'GET /orgs/{org}/branding' => ['Branding: allowed and chosen level, account name, color, logo, support and legal links', 'Organizations'],
+        'PATCH /orgs/{org}/branding' => ['Change the branding (up to the allowed level; `allowed` itself only for Clauth platform clients)', 'Organizations', ['mode' => 'clauth|cobrand|whitelabel', 'account_name' => 'string', 'color' => '#RRGGBB', 'support_email' => 'email', 'privacy_url' => 'https URL', 'terms_url' => 'https URL', 'allowed' => 'clauth|cobrand|whitelabel (platform only)']],
         'GET /orgs/{org}/members' => ['Members of the organization', 'Organizations'],
         'PUT /orgs/{org}/members/{user}' => ['Add an existing person (email or usr_ id) or change their org role', 'Organizations', ['role' => 'member|developer|admin|owner']],
         'DELETE /orgs/{org}/members/{user}' => ['Remove from the organization (their profiles, exceptions and grants there go too)', 'Organizations'],

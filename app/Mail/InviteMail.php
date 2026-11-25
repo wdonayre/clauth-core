@@ -19,7 +19,7 @@ class InviteMail extends Mailable
     {
         $app = $this->invite->primaryApp();
 
-        return new Envelope(subject: $app ? "You’re invited to {$app->name}" : 'You’re invited to Clauth');
+        return new Envelope(subject: $app ? "You’re invited to {$app->name}" : 'You’re invited to '.\App\Services\Brand::current()['name']);
     }
 
     public function content(): Content

@@ -3,7 +3,7 @@
 @section('card')
   <div class="ttl">
     <h1>{{ __('Continue as :name?', ['name' => $user->name ?: $user->email]) }}</h1>
-    <p class="lede">{{ __('You\'re signed in to Clauth.') }} <strong>{{ $domain->brandName() }}</strong> {{ __('signs people in at') }} <strong>{{ $domain->host }}</strong>@if($domain->organization), {{ __('run by :org', ['org' => $domain->organization->name]) }}@endif.</p>
+    <p class="lede">{{ __('You\'re signed in to your :account.', ['account' => $brand['account']]) }} <strong>{{ $domain->brandName() }}</strong> {{ __('signs people in at') }} <strong>{{ $domain->host }}</strong>@if($domain->organization), {{ __('run by :org', ['org' => $domain->organization->name]) }}@endif.</p>
   </div>
   <div class="notice">{{ __('Continue there as :email?', ['email' => $user->email]) }}</div>
   <form method="post" action="{{ route('sso.confirm') }}" class="btn-row wrap">

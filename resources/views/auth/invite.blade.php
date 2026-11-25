@@ -4,7 +4,7 @@
 @php
   $min = (int) \App\Services\Settings::get('password_min_length');
   $org = $invite->organization;
-  $who = $org?->name ?? $app?->name ?? 'Clauth';
+  $who = $org?->name ?? $app?->name ?? $brand['name'];
   $initials = collect(preg_split('/\s+/', trim($who)))->filter()->take(2)->map(fn ($w) => mb_strtoupper(mb_substr($w, 0, 1)))->implode('');
   $icoColor = $app?->color ?: '#0B0D12';
 @endphp

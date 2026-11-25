@@ -13,7 +13,7 @@ class LockoutMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Your Clauth account was locked');
+        return new Envelope(subject: 'Your '.\App\Services\Brand::current()['account'].' was locked');
     }
 
     public function content(): Content

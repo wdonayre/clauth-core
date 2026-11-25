@@ -50,6 +50,33 @@
     </div>
   </section>
 
+  @php($allowed = \App\Services\Brand::rank($org->branding_allowed))
+  @php($brandNow = \App\Services\Brand::of($org, true))
+  <section class="card" aria-labelledby="b-h"><h2 id="b-h" class="ch">Branding</h2>
+    <form method="post" action="{{ route('admin.orgs.branding', $org->id) }}">@csrf @method('put')
+      <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+        <p class="small muted" style="margin:0">How {{ $org->name }}’s sign-in pages, emails and account pages look to its people. Clauth allows {{ $org->name }} up to <b>{{ \App\Services\Brand::LEVELS[$org->branding_allowed ?? 'clauth'] }}</b>@if($allowed === 0) — ask Clauth to allow branding @endif.</p>
+        <fieldset class="f"><legend>Look</legend>
+          @foreach(['clauth' => ['Clauth', 'Clauth’s name and logo, as today.'], 'cobrand' => ['Co-branded', 'Your account name, logo and color, with a small “Secured by Clauth”.'], 'whitelabel' => ['White-label', 'No mention of Clauth. Only on your own sign-in domain; elsewhere it shows as co-branded.']] as $k => [$l, $d])
+            <label class="cb" @if(\App\Services\Brand::rank($k) > $allowed) style="opacity:.55" @endif><input type="radio" name="branding_mode" value="{{ $k }}" @checked(old('branding_mode', $org->branding_mode ?? 'clauth') === $k) @disabled(\App\Services\Brand::rank($k) > $allowed)><span><b>{{ $l }}</b><span class="hint">{{ $d }}</span></span></label>
+          @endforeach
+          @error('branding_mode')<span class="err">{{ $message }}</span>@enderror
+        </fieldset>
+        <div class="frow">
+          <label class="f"><span>Account name <span class="hint">— what people call their login</span></span><input class="in" name="account_name" maxlength="60" value="{{ old('account_name', $org->account_name) }}" placeholder="{{ $org->name }} Account">@error('account_name')<span class="err">{{ $message }}</span>@enderror</label>
+          <label class="f"><span>Color</span><input class="in mono" name="brand_color" value="{{ old('brand_color', $org->brand_color) }}" placeholder="#0E7490" pattern="#[0-9A-Fa-f]{6}">@error('brand_color')<span class="err">{{ $message }}</span>@enderror</label>
+          <label class="f"><span>Support email</span><input class="in" type="email" name="support_email" maxlength="190" value="{{ old('support_email', $org->support_email) }}" placeholder="help@{{ parse_url($org->website ?? '', PHP_URL_HOST) ?: 'example.com' }}">@error('support_email')<span class="err">{{ $message }}</span>@enderror</label>
+        </div>
+        <div class="frow">
+          <label class="f"><span>Privacy policy <span class="hint">— white-label only</span></span><input class="in" type="url" name="privacy_url" maxlength="300" value="{{ old('privacy_url', $org->privacy_url) }}" placeholder="https://">@error('privacy_url')<span class="err">{{ $message }}</span>@enderror</label>
+          <label class="f"><span>Terms <span class="hint">— white-label only</span></span><input class="in" type="url" name="terms_url" maxlength="300" value="{{ old('terms_url', $org->terms_url) }}" placeholder="https://">@error('terms_url')<span class="err">{{ $message }}</span>@enderror</label>
+        </div>
+        <p class="small muted" style="margin:0">The logo above is used. Right now people see: <b>{{ $brandNow['account'] }}</b>@if($brandNow['level'] === 'whitelabel') (no Clauth) @elseif($brandNow['level'] === 'cobrand') · Secured by Clauth @endif.</p>
+      </div>
+      <div class="card-f"><button class="btn pri">Save branding</button></div>
+    </form>
+  </section>
+
   <section class="card" aria-labelledby="s-h"><h2 id="s-h" class="ch">Status &amp; limits</h2>
     <div class="set"><div><b>Status</b><p>@if($org->is_platform)Your own business — no usage limits.@elseif($org->verified_at)Verified — higher limits.@else Unverified — starter limits until Clauth reviews it.@endif</p></div>
       @if($org->suspended_at)<span class="badge bad">Suspended</span>@elseif($org->status !== 'active')<span class="badge bad">{{ ucfirst($org->status) }}</span>@else<span class="badge ok">Active</span>@endif</div>
@@ -61,6 +88,7 @@
       <form method="post" action="{{ route('admin.orgs.update', $org->id) }}" class="card-body" style="border-top:1px solid var(--line-3);display:flex;flex-direction:column;gap:14px">@csrf @method('put')
         <input type="hidden" name="name" value="{{ $org->name }}">
         <p class="lbl" style="margin:0">Clauth owner controls</p>
+        <label class="f" style="max-width:320px"><span>Branding allowed <span class="hint">— how far {{ $org->name }} may brand its accounts</span></span><select class="in" name="branding_allowed">@foreach(\App\Services\Brand::LEVELS as $k => $l)<option value="{{ $k }}" @selected(($org->branding_allowed ?? 'clauth') === $k)>{{ $l }}</option>@endforeach</select></label>
         <label class="f" style="max-width:320px"><span>Status</span><select class="in" name="status"><option value="active" @selected($org->status === 'active')>Active</option><option value="disabled" @selected($org->status === 'disabled')>Disabled (no app access)</option></select></label>
         <input type="hidden" name="is_platform" value="0"><label class="cb"><input type="checkbox" name="is_platform" value="1" @checked($org->is_platform)><span>One of my own businesses</span></label>
         @unless($org->is_platform)

@@ -13,7 +13,7 @@ class TemplateMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->subjectLine ?: 'Clauth');
+        return new Envelope(subject: $this->subjectLine ?: \App\Services\Brand::current()['name']);
     }
 
     public function content(): Content

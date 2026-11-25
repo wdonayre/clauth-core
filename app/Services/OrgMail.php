@@ -15,8 +15,18 @@ class OrgMail
 {
     public static function send(?Organization $org, string $to, Mailable $mail, ?Connection $c = null): void
     {
+        Brand::forMail($org, fn () => self::deliver($org, $to, $mail, $c));
+    }
+
+    private static function deliver(?Organization $org, string $to, Mailable $mail, ?Connection $c): void
+    {
         $c ??= Connections::mailerFor($org);
         if (! $c) {
+            // Clauth's own sender; a branded organization's name shows as the sender name (SPEC-branding §5.5).
+            $b = Brand::current();
+            if ($b['level'] !== 'clauth') {
+                $mail->from(config('mail.from.address'), $b['account']);
+            }
             Mail::to($to)->send($mail);
 
             return;

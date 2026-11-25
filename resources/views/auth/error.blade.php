@@ -20,6 +20,6 @@
       <a class="btn-auth sec" href="{{ route('login') }}">{{ __('Use another account') }}</a>
     </div>
   @else
-    <a class="btn-auth pri" href="{{ route('login') }}">{{ __('Go to Clauth sign in') }}</a>
+    <a class="btn-auth pri" href="{{ route('login') }}">{{ __('Go to sign in') }}</a>
   @endauth
 @endsection

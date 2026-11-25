@@ -127,6 +127,33 @@ class OrgController
         return back()->with('status', "{$org->name} saved.");
     }
 
+    /**
+     * Branding (SPEC-branding B1): the level the organization wants (up to what Clauth allows it), account name,
+     * color, support email and legal links. Owners/admins of the organization and Clauth owners.
+     */
+    public function branding(Request $request, Organization $org)
+    {
+        $this->visibleOrg($org);
+        $data = $request->validate(\App\Services\Brand::SETTINGS);
+        $msg = self::saveBranding($org, $data);
+
+        return $msg ? back()->withErrors(['branding_mode' => $msg])->withInput() : back()->with('status', "{$org->name} branding saved.");
+    }
+
+    /** Shared by the console and the API; returns an error message, or null when saved. */
+    public static function saveBranding(Organization $org, array $data): ?string
+    {
+        if (isset($data['branding_mode']) && \App\Services\Brand::rank($data['branding_mode']) > \App\Services\Brand::rank($org->branding_allowed)) {
+            return 'Clauth allows '.$org->name.' up to “'.\App\Services\Brand::LEVELS[$org->branding_allowed ?? 'clauth'].'”. Ask Clauth to allow more.';
+        }
+        $keys = array_keys(\App\Services\Brand::SETTINGS);
+        $before = $org->only($keys);
+        $org->update(array_intersect_key($data, array_flip($keys)));
+        Audit::log('org.branding_updated', 'admin', $org, $before, $org->only($keys), orgId: $org->id);
+
+        return null;
+    }
+
     /** Upload the organization's logo (PNG or SVG, 512 KB; same rules and disk as app logos). Owners/admins of it, Clauth owners. */
     public function logo(Request $request, Organization $org)
     {
@@ -238,15 +265,21 @@ class OrgController
     /** Clauth owners: name, status and whether it is one of William's own (platform) organizations. */
     public function update(Request $request, Organization $org)
     {
-        $before = $org->only('name', 'status', 'is_platform', 'verified_at', 'limits');
+        $before = $org->only('name', 'status', 'is_platform', 'verified_at', 'limits', 'branding_allowed');
         $keys = array_keys(config('clauth.limits.verified'));
         $data = $request->validate(['name' => 'required|string|max:120', 'status' => 'required|in:active,disabled', 'is_platform' => 'nullable|boolean',
-            'verified' => 'nullable|boolean', 'limits' => 'array', 'limits.*' => 'nullable|integer|min:0|max:1000000']);
+            'verified' => 'nullable|boolean', 'limits' => 'array', 'limits.*' => 'nullable|integer|min:0|max:1000000',
+            'branding_allowed' => 'nullable|in:clauth,cobrand,whitelabel']);
         $verified = $request->boolean('is_platform') || $request->boolean('verified');
         $limits = collect($data['limits'] ?? [])->only($keys)->reject(fn ($v) => $v === null || $v === '')->map(fn ($v) => (int) $v)->all();
         $org->update(['name' => $data['name'], 'status' => $data['status'], 'is_platform' => $request->boolean('is_platform'),
-            'verified_at' => $verified ? ($org->verified_at ?? now()) : null, 'limits' => $limits ?: null]);
-        Audit::log('org.updated', 'admin', $org, $before, $org->only('name', 'status', 'is_platform', 'verified_at', 'limits'), orgId: $org->id);
+            'verified_at' => $verified ? ($org->verified_at ?? now()) : null, 'limits' => $limits ?: null]
+            + (isset($data['branding_allowed']) ? ['branding_allowed' => $data['branding_allowed']] : []));
+        // Lowering what's allowed lowers the organization's choice with it.
+        if (\App\Services\Brand::rank($org->branding_mode) > \App\Services\Brand::rank($org->branding_allowed)) {
+            $org->update(['branding_mode' => $org->branding_allowed]);
+        }
+        Audit::log('org.updated', 'admin', $org, $before, $org->only('name', 'status', 'is_platform', 'verified_at', 'limits', 'branding_allowed'), orgId: $org->id);
 
         return back()->with('status', "{$org->name} saved.");
     }

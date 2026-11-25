@@ -13,7 +13,7 @@ class NewDeviceMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'New sign-in to your Clauth account');
+        return new Envelope(subject: 'New sign-in to your '.\App\Services\Brand::current()['account']);
     }
 
     public function content(): Content

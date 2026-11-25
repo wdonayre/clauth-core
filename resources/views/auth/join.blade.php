@@ -15,7 +15,7 @@
   </div>
   <div class="ttl">
     <h1>{{ __('Join :app', ['app' => $app->name]) }}</h1>
-    <p class="lede">{{ __('You’re signed in to Clauth, but you don’t have a :app account yet. Continue and :app makes one from your Clauth account. No new password.', ['app' => $app->name]) }}</p>
+    <p class="lede">{{ __('You’re signed in to :brand, but you don’t have a :app account yet. Continue and :app makes one from your :account. No new password.', ['app' => $app->name, 'brand' => $brand['name'], 'account' => $brand['account']]) }}</p>
   </div>
   <div class="acct">
     <span class="app-ico muted sm" aria-hidden="true">{{ $me }}</span>

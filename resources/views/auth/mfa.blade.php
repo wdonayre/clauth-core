@@ -5,7 +5,7 @@
   <span class="sico" aria-hidden="true">@include('partials.icon', ['i' => $recovery ? 'key' : 'phone', 'iconSize' => 22])</span>
   <div class="ttl">
     <h1>{{ $recovery ? __('Use a recovery code') : __('Enter your code') }}</h1>
-    <p class="lede">{{ $recovery ? __('Type one of your saved recovery codes.') : ($smsSent ? __('Enter the 6-digit code we texted to :phone.', ['phone' => $phone]) : ($totp ? __('Open your authenticator app and type the 6-digit code for Clauth.') : __('We’ll text a 6-digit code to :phone.', ['phone' => $phone]))) }}</p>
+    <p class="lede">{{ $recovery ? __('Type one of your saved recovery codes.') : ($smsSent ? __('Enter the 6-digit code we texted to :phone.', ['phone' => $phone]) : ($totp ? __('Open your authenticator app and type the 6-digit code for :brand.', ['brand' => $brand['name']]) : __('We’ll text a 6-digit code to :phone.', ['phone' => $phone]))) }}</p>
   </div>
   @include('partials.errors')
   @if($sms && ! $recovery && ! $totp && ! $smsSent)

@@ -172,6 +172,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/orgs/{org}/settings', [Admin\OrgController::class, 'settings'])->name('orgs.settings');
         Route::put('/orgs/{org}/general', [Admin\OrgController::class, 'general'])->name('orgs.general');
         Route::post('/orgs/{org}/logo', [Admin\OrgController::class, 'logo'])->name('orgs.logo');
+        Route::put('/orgs/{org}/branding', [Admin\OrgController::class, 'branding'])->name('orgs.branding');
         Route::delete('/orgs/{org}/logo', [Admin\OrgController::class, 'removeLogo'])->name('orgs.logo.destroy');
         Route::get('/orgs/{org}/logo', [Admin\OrgController::class, 'showLogo'])->name('orgs.logo.show');
         Route::post('/orgs/{org}/roles', [Admin\OrgController::class, 'role'])->name('orgs.roles');

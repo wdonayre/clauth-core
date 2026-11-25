@@ -4,7 +4,7 @@
   <span class="sico" aria-hidden="true">@include('partials.icon', ['i' => 'mail', 'iconSize' => 22])</span>
   <div class="ttl">
     <h1>{{ __('Accept your invite') }}</h1>
-    <p class="lede">{{ __('You already have a Clauth account for :email. Sign in to accept.', ['email' => $invite->email]) }}</p>
+    <p class="lede">{{ __('You already have a :account for :email. Sign in to accept.', ['email' => $invite->email, 'account' => $brand['account']]) }}</p>
   </div>
   <div class="notice">
     <strong>{{ $invite->inviter?->name ?? __('Your admin') }}</strong> {{ __('invited you') }}@if($app) {{ __('to') }} <strong>{{ $app->name }}</strong>@endif

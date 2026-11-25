@@ -172,4 +172,45 @@ class OrgsController
             ]]),
         ];
     }
+
+    /** GET /orgs/{org}/branding (SPEC-branding §3). */
+    public function branding(string $org)
+    {
+        return response()->json(self::brandingJson($this->api()->org($org)));
+    }
+
+    public static function brandingJson(\App\Models\Organization $o): array
+    {
+        $b = \App\Services\Brand::of($o, true);
+
+        return ['allowed' => $o->branding_allowed ?? 'clauth', 'mode' => $o->branding_mode ?? 'clauth', 'effective_on_own_domain' => $b['level'],
+            'effective_on_main_address' => \App\Services\Brand::level($o, false), 'account_name' => $b['level'] === 'clauth' ? null : $b['account'],
+            'account_name_set' => $o->account_name, 'color' => $o->brand_color, 'logo' => \App\Services\Brand::logoIsPublic($o) ? \App\Services\Brand::logoUrl($o) : null,
+            'support_email' => $o->support_email, 'privacy_url' => $o->privacy_url, 'terms_url' => $o->terms_url];
+    }
+
+    /** PATCH /orgs/{org}/branding — {mode, account_name, color, support_email, privacy_url, terms_url}; `allowed` for platform clients only. */
+    public function patchBranding(Request $request, string $org)
+    {
+        $o = $this->api()->org($org);
+        $in = $request->all();
+        $map = ['mode' => 'branding_mode', 'color' => 'brand_color'];
+        foreach ($map as $from => $to) {
+            if (array_key_exists($from, $in)) {
+                $in[$to] = $in[$from];
+            }
+        }
+        if (array_key_exists('allowed', $in)) {
+            abort_unless($this->api()->isPlatform(), 403, 'Only Clauth owners can change how far an organization may brand.');
+            validator($in, ['allowed' => 'in:clauth,cobrand,whitelabel'])->validate();
+            $o->update(['branding_allowed' => $in['allowed']] + (\App\Services\Brand::rank($o->branding_mode) > \App\Services\Brand::rank($in['allowed']) ? ['branding_mode' => $in['allowed']] : []));
+            \App\Services\Audit::log('org.updated', 'admin', $o, after: ['branding_allowed' => $in['allowed']], orgId: $o->id);
+        }
+        $data = validator($in, \App\Services\Brand::SETTINGS)->validate();
+        if ($msg = \App\Http\Controllers\Admin\OrgController::saveBranding($o, $data)) {
+            abort(422, $msg);
+        }
+
+        return response()->json(self::brandingJson($o->fresh()));
+    }
 }

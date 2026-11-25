@@ -26,7 +26,7 @@ class TwoFactor
 
     public static function qrSvg(User $user, string $secret): string
     {
-        $uri = self::engine()->getQRCodeUrl('Clauth', $user->email, $secret);
+        $uri = self::engine()->getQRCodeUrl(\App\Services\Brand::current()['name'], $user->email, $secret);
         $writer = new Writer(new ImageRenderer(new RendererStyle(184, 1), new SvgImageBackEnd));
 
         return $writer->writeString($uri);

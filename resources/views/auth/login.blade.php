@@ -5,7 +5,8 @@
 @section('card')
   <div class="ttl">
     <h1>{{ __('Sign in') }}</h1>
-    @if(! $app && empty($theme['brand']))<p class="lede">{{ __('to your Clauth account') }}</p>@endif
+    @if(! $app && empty($theme['brand']))<p class="lede">{{ __('to your :account', ['account' => $brand['account']]) }}</p>
+    @elseif($brand['level'] !== 'clauth')<p class="lede">{{ __('with your :account', ['account' => $brand['account']]) }}</p>@endif
     @if($app && ! $app->isFirstParty())<p class="lede small">@include('partials.publisher', ['app' => $app])</p>@endif
   </div>
   @include('partials.errors')

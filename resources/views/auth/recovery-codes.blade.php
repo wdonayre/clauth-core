@@ -10,7 +10,7 @@
   <ul class="codes" id="codes" aria-label="{{ __('Recovery codes') }}">@foreach($codes as $c)<li>{{ $c }}</li>@endforeach</ul>
   <div class="btn-row noprint">
     <button class="btn-auth sec sm" type="button" data-copy="#codes">{{ __('Copy') }}</button>
-    <a class="btn-auth sec sm" download="clauth-recovery-codes.txt" href="data:text/plain;charset=utf-8,{{ rawurlencode("Clauth recovery codes\n\n".implode("\n", $codes)."\n") }}">{{ __('Download') }}</a>
+    <a class="btn-auth sec sm" download="{{ \Illuminate\Support\Str::slug($brand['name']) }}-recovery-codes.txt" href="data:text/plain;charset=utf-8,{{ rawurlencode($brand['name']." recovery codes\n\n".implode("\n", $codes)."\n") }}">{{ __('Download') }}</a>
     <button class="btn-auth sec sm" type="button" data-print>{{ __('Print') }}</button>
   </div>
   <form class="stack noprint" method="post" action="{{ url('/login/2fa/codes') }}">

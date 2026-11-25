@@ -57,6 +57,7 @@ Route::middleware(['api.client:orgs:read'])->group(function () {
     Route::get('orgs', [OrgsController::class, 'index']);
     Route::get('orgs/{org}', [OrgsController::class, 'show']);
     Route::get('orgs/{org}/members', [OrgsController::class, 'members']);
+    Route::get('orgs/{org}/branding', [OrgsController::class, 'branding']);
     Route::get('orgs/{org}/teams', [TeamsController::class, 'index']);
     Route::get('orgs/{org}/teams/{team}', [TeamsController::class, 'show']);
     Route::get('orgs/{org}/fields', [TeamsController::class, 'fields']);
@@ -64,6 +65,7 @@ Route::middleware(['api.client:orgs:read'])->group(function () {
 });
 Route::middleware(['api.client:orgs:write', 'api.idempotent'])->group(function () {
     Route::put('orgs/{org}/members/{user}', [OrgsController::class, 'putMember']);
+    Route::patch('orgs/{org}/branding', [OrgsController::class, 'patchBranding']);
     Route::delete('orgs/{org}/members/{user}', [OrgsController::class, 'removeMember']);
     Route::post('orgs/{org}/teams', [TeamsController::class, 'store']);
     Route::patch('orgs/{org}/teams/{team}', [TeamsController::class, 'update']);
