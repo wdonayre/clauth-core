@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\ProfilesController;
 use App\Http\Controllers\Api\V1\TeamsController;
 use App\Http\Controllers\Api\V1\ThemesController;
 use App\Http\Controllers\Api\V1\UsersController;
+use App\Http\Controllers\Api\V1\WebhooksController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +30,9 @@ Route::get('health/ready', [MiscController::class, 'ready'])->middleware('thrott
 Route::get('openapi.json', OpenApiController::class)->middleware('throttle:60,1');
 // App-native sign-in (SPEC-platform §8.2): no token, the flow is bound to a public client + PKCE.
 Route::post('flow/execute', \App\Http\Controllers\Api\V1\FlowController::class)->middleware('throttle:60,1');
+
+// Catch-up list (SPEC-provisioning E1): the app's own server client or an API client; the controller checks.
+Route::get('apps/{app}/people', [WebhooksController::class, 'people'])->middleware('throttle:120,1');
 
 // Apps' own m2m lookup (SPEC §9) and the API's user read share this path.
 Route::get('users/{user}', LegacyUserLookup::class)->middleware('throttle:600,1');
@@ -201,6 +205,19 @@ Route::middleware(['api.client:apps:write', 'api.idempotent'])->group(function (
     Route::post('themes', [ThemesController::class, 'store']);
     Route::patch('themes/{key}', [ThemesController::class, 'update']);
     Route::delete('themes/{key}', [ThemesController::class, 'destroy']);
+});
+
+// Webhooks (SPEC-provisioning E1)
+Route::middleware('api.client:apps:read')->group(function () {
+    Route::get('apps/{app}/webhooks', [WebhooksController::class, 'index']);
+    Route::get('apps/{app}/webhooks/{id}/deliveries', [WebhooksController::class, 'deliveries'])->whereNumber('id');
+});
+Route::middleware(['api.client:apps:write', 'api.idempotent'])->group(function () {
+    Route::post('apps/{app}/webhooks', [WebhooksController::class, 'store']);
+    Route::patch('apps/{app}/webhooks/{id}', [WebhooksController::class, 'update'])->whereNumber('id');
+    Route::delete('apps/{app}/webhooks/{id}', [WebhooksController::class, 'destroy'])->whereNumber('id');
+    Route::post('apps/{app}/webhooks/{id}/test', [WebhooksController::class, 'test'])->whereNumber('id');
+    Route::post('apps/{app}/deliveries/{delivery}/redeliver', [WebhooksController::class, 'redeliver']);
 });
 
 // Sign-in rules (SPEC-platform §8.1)

@@ -28,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        \App\Models\Grant::observe(\App\Observers\GrantObserver::class);
+        \App\Models\User::observe(\App\Observers\UserObserver::class);
         if (str_starts_with(config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }

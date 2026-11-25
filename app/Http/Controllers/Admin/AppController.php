@@ -30,7 +30,7 @@ use Illuminate\Validation\Rule;
 class AppController
 {
     /** Old tab names (bookmarks, links in emails and tests) map onto the redesigned tabs. */
-    public const TABS = ['roles', 'people', 'signin', 'settings', 'developer'];
+    public const TABS = ['roles', 'people', 'signin', 'settings', 'developer', 'webhooks'];
 
     public const TAB_ALIASES = ['users' => 'people', 'brand' => 'signin', 'integration' => 'developer', 'permissions' => 'roles', 'clients' => 'developer'];
 
@@ -160,6 +160,10 @@ class AppController
                 ->join('access_profiles as p', 'p.id', '=', 'r.access_profile_id')->where('r.app_id', $app->id)
                 ->get(['u.user_id', 'p.organization_id', 'r.app_role_id', 'p.name'])
                 ->groupBy(fn ($r) => $r->user_id.'|'.$r->organization_id.'|'.$r->app_role_id)->map(fn ($g) => $g->pluck('name')->all());
+        }
+        if ($tab === 'webhooks') {
+            $data['webhooks'] = DB::table('webhook_endpoints')->where('app_id', $app->id)->orderBy('id')->get();
+            $data['deliveries'] = $data['webhooks']->mapWithKeys(fn ($w) => [$w->id => DB::table('webhook_deliveries')->where('webhook_endpoint_id', $w->id)->orderByDesc('created_at')->limit(20)->get()]);
         }
         if ($tab === 'developer') {
             $data['regTokens'] = DB::table('registration_tokens')->where('app_id', $app->id)->orderByDesc('created_at')->get();

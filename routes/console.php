@@ -24,3 +24,7 @@ Schedule::command('passport:purge --hours=24')->dailyAt('03:50');
 Schedule::command('clauth:domains check')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('clauth:domains check --all')->dailyAt('04:20')->withoutOverlapping();
 Schedule::command('clauth:orgs-purge')->dailyAt('04:40')->withoutOverlapping();
+
+// Webhooks to apps (SPEC-provisioning E1): retries of failed deliveries, and the 30-day delivery log.
+Schedule::call(fn () => \App\Services\Webhooks::sendDue())->everyMinute()->name('clauth:webhooks')->withoutOverlapping();
+Schedule::call(fn () => \Illuminate\Support\Facades\DB::table('webhook_deliveries')->where('created_at', '<', now()->subDays(30))->delete())->dailyAt('03:45');

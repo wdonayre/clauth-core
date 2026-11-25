@@ -80,6 +80,9 @@ class Invites
                 rescue(fn () => OrgData::setValues($user, $org, $invite->fields, $by), report: true);
             }
             Access::resolve($user, $org, 'invite accepted', $by);
+            foreach (\App\Models\Application::whereIn('id', \App\Models\Grant::where('user_id', $user->id)->where('organization_id', $org->id)->pluck('app_id'))->get() as $app) {
+                Webhooks::emit($app, 'invite.accepted', ['user' => Webhooks::user($user), 'org' => $org->slug, 'invite' => (string) $invite->id, 'data' => $invite->data ?? null]);
+            }
         }
         if ($invite->clauth_role === 'owner') {
             $user->forceFill(['clauth_role' => 'owner'])->save();

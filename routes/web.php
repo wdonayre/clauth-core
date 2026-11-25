@@ -256,6 +256,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/apps/{app}/roles-access', [Admin\AppController::class, 'accessRole'])->name('apps.roles.access');
         Route::post('/apps/{app}/permissions', [Admin\AppController::class, 'storePermission'])->name('apps.permissions.store');
         Route::post('/apps/{app}/clients', [Admin\AppController::class, 'addClient'])->name('apps.clients.store');
+        Route::post('/apps/{app}/webhooks', [Admin\WebhookController::class, 'store'])->name('apps.webhooks.store');
+        Route::patch('/apps/{app}/webhooks/{id}', [Admin\WebhookController::class, 'update'])->whereNumber('id')->name('apps.webhooks.update');
+        Route::delete('/apps/{app}/webhooks/{id}', [Admin\WebhookController::class, 'destroy'])->whereNumber('id')->name('apps.webhooks.destroy');
+        Route::post('/apps/{app}/webhooks/{id}/test', [Admin\WebhookController::class, 'test'])->whereNumber('id')->name('apps.webhooks.test');
+        Route::post('/apps/{app}/deliveries/{delivery}/redeliver', [Admin\WebhookController::class, 'redeliver'])->name('apps.deliveries.redeliver');
         Route::put('/apps/{app}/clients/{client}', [Admin\AppController::class, 'updateClient'])->name('apps.clients.update');
         Route::post('/apps/{app}/clients/{client}/rotate', [Admin\AppController::class, 'rotateSecret'])->name('apps.clients.rotate');
         Route::post('/apps/{app}/clients/{client}/revoke', [Admin\AppController::class, 'revokeClient'])->name('apps.clients.revoke');

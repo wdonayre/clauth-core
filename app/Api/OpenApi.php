@@ -148,6 +148,14 @@ class OpenApi
         'GET /secrets' => ['Secret names (?org=); values are never shown', 'Config'],
         'PUT /secrets/{name}' => ['Set a secret (${secret:NAME} in imports), stored encrypted', 'Config', ['value' => 'string', 'org' => 'slug (omit = platform)']],
         'DELETE /secrets/{name}' => ['Delete a secret', 'Config', ['org' => 'slug']],
+        'GET /apps/{app}/people' => ['Everyone with access to the app, with the orgs claim their token carries (?since= for changes). The app’s own server client (users:read) or an API client', 'Webhooks'],
+        'GET /apps/{app}/webhooks' => ['Webhook endpoints of the app', 'Webhooks'],
+        'POST /apps/{app}/webhooks' => ['Add an endpoint; the signing secret is in this response only', 'Webhooks', ['url' => 'https URL', 'events' => 'access.granted|access.changed|access.removed|user.updated|user.disabled|user.enabled|invite.accepted (empty = all)']],
+        'PATCH /apps/{app}/webhooks/{id}' => ['Change URL or events, switch off/on (on = resend recent failures), rotate the secret', 'Webhooks', ['url' => 'https URL', 'events' => 'list', 'status' => 'active|disabled', 'rotate_secret' => 'bool']],
+        'DELETE /apps/{app}/webhooks/{id}' => ['Remove an endpoint', 'Webhooks'],
+        'POST /apps/{app}/webhooks/{id}/test' => ['Send a ping now and see the answer', 'Webhooks'],
+        'GET /apps/{app}/webhooks/{id}/deliveries' => ['Recent deliveries (30 days; ?status=)', 'Webhooks'],
+        'POST /apps/{app}/deliveries/{delivery}/redeliver' => ['Send a delivery again', 'Webhooks'],
         'GET /audit' => ['Audit log (filters: category, event, org, user, since, until)', 'Audit'],
         'GET /settings' => ['Platform settings (platform clients only)', 'Settings'],
         'PATCH /settings' => ['Change platform settings (platform clients only)', 'Settings', ['require_mfa_everyone' => 'bool', 'password_min_length' => 'int', 'session_idle_hours' => 'int', '…' => 'see GET /settings']],
@@ -183,7 +191,7 @@ class OpenApi
                 'parameters' => array_map(fn ($p) => ['name' => $p, 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string']], $m[1]),
                 'responses' => ['200' => ['description' => 'OK'], 'default' => ['description' => 'Error', 'content' => ['application/problem+json' => ['schema' => ['$ref' => '#/components/schemas/Problem']]]]],
             ];
-            if ($route->gatherMiddleware() && collect($route->gatherMiddleware())->contains(fn ($m) => is_string($m) && str_starts_with($m, 'api.client')) || $path === '/users/{user}') {
+            if ($route->gatherMiddleware() && collect($route->gatherMiddleware())->contains(fn ($m) => is_string($m) && str_starts_with($m, 'api.client')) || in_array($path, ['/users/{user}', '/apps/{app}/people'], true)) {
                 $op['security'] = str_starts_with((string) $scope, 'me:') ? [['personalToken' => []]]
                     : [['clientCredentials' => $scope ? [$scope] : []], ['personalToken' => []]];
             } else {

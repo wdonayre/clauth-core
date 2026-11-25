@@ -27,7 +27,7 @@
 </header>
 
 <nav class="tabs" aria-label="App sections">
-  @foreach(['roles' => 'Roles', 'people' => 'People', 'signin' => 'Sign-in page', 'settings' => 'Settings', 'developer' => 'Developer'] as $k => $l)
+  @foreach(['roles' => 'Roles', 'people' => 'People', 'signin' => 'Sign-in page', 'settings' => 'Settings', 'developer' => 'Developer', 'webhooks' => 'Webhooks'] as $k => $l)
     <a class="{{ $tab === $k ? 'on' : '' }}" href="{{ $tabUrl($k) }}" @if($tab === $k) aria-current="page" @endif>{{ $l }}@if($k === 'people')<span class="n">{{ $peopleCount }}</span>@endif</a>
   @endforeach
 </nav>
