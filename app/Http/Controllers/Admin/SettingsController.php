@@ -31,7 +31,7 @@ class SettingsController
             // Sign-in methods section: Google comes from the server's .env; the rest are platform connections.
             'google' => SocialController::enabled('google'),
             'googleCallback' => Domains::mainUrl('login/google/callback'),
-            'providers' => Connection::whereNull('organization_id')->whereIn('type', ['oidc', 'oauth', 'meta'])->orderBy('name')->get(),
+            'providers' => Connection::whereNull('organization_id')->whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->orderBy('name')->get(),
             'sms' => Connections::sms(),
             'smsAvailable' => Sms::available(),
             'types' => Connections::TYPES,

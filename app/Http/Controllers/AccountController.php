@@ -43,7 +43,7 @@ class AccountController
             'currentSession' => $request->session()->getId(), 'mfaRequired' => Claims::policyRequiresMfa($user),
             'google' => SocialController::enabled('google') ? ['identity' => $user->socialIdentities()->where('provider', 'google')->first()] : null,
             // Other sign-in providers this person can link: platform ones and their organizations' (SPEC-platform §7).
-            'linkable' => \App\Models\Connection::whereIn('type', ['oidc', 'oauth', 'meta'])->where('status', 'active')
+            'linkable' => \App\Models\Connection::whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->where('status', 'active')
                 ->where(fn ($q) => $q->whereNull('organization_id')->orWhereIn('organization_id', $user->organizations()->pluck('organizations.id')))
                 ->orderBy('name')->get()->map(fn ($c) => ['c' => $c, 'identity' => $user->socialIdentities()->where('provider', $c->key)->first()]),
             'codesLeft' => count($user->two_factor_recovery_codes ?? []),

@@ -8,6 +8,9 @@
       if (str_contains($rule, 'boolean')) {
           return '<label class="cb"><input type="hidden" name="config['.$name.']" value="0"><input type="checkbox" name="config['.$name.']" value="1"'.($value ? ' checked' : '').'> '.e($label).'</label>';
       }
+      if ($name === 'private_key') {
+          return '<label class="f" for="'.$id.'"><span>'.e($label).($value ? ' <span class="hint">(set — leave empty to keep)</span>' : '').'</span><textarea class="in mono" id="'.$id.'" name="config['.$name.']" rows="4" autocomplete="off" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></label>';
+      }
       if ($name === 'domains' || $name === 'apps') {
           return '<label class="f" for="'.$id.'"><span>'.e($label).'</span><textarea class="in mono" id="'.$id.'" name="config['.$name.']" rows="2" placeholder="'.($name === 'apps' ? 'xpenses' : 'acme.com').'">'.e(implode("\n", (array) $value)).'</textarea></label>';
       }
@@ -18,7 +21,7 @@
       return '<label class="f" for="'.$id.'"><span>'.e($label).($secret && $value ? ' <span class="hint">(set — leave empty to keep)</span>' : '').'</span><input class="in'.($secret ? ' mono' : '').'" id="'.$id.'" name="config['.$name.']" '.($secret ? 'type="password" autocomplete="new-password"' : 'value="'.e((string) $value).'"').'></label>';
   };
   $examples = ['oidc' => 'Microsoft 365', 'oauth' => 'Our portal', 'meta' => 'Facebook', 'sms' => 'Semaphore', 'email-smtp' => 'Our mail server', 'http' => 'HR system check', 'authzen-pdp' => 'Our policy engine'];
-  $icons = ['oidc' => 'key', 'oauth' => 'link', 'meta' => 'globe', 'sms' => 'phone', 'email-smtp' => 'mail', 'http' => 'code', 'authzen-pdp' => 'shield'];
+  $icons = ['apple' => 'key', 'oidc' => 'key', 'oauth' => 'link', 'meta' => 'globe', 'sms' => 'phone', 'email-smtp' => 'mail', 'http' => 'code', 'authzen-pdp' => 'shield'];
   $groups = $connections->groupBy(fn ($c) => $c->isSignIn() ? 'signin' : 'other');
   $newType = old('type');
 @endphp
@@ -61,20 +64,52 @@
   <div class="card-h"><div><h2 id="add-h">Add a connection</h2>
     <p>@if($org)Microsoft Entra: issuer <code>https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code>. Okta: <code>https://&lt;your-org&gt;.okta.com</code>. A provider signs in only people whose email is on the listed domains and who belong to {{ $org->name }} alone (or new people, if account creation is on).@else Semaphore, Twilio or Vonage keys come from their dashboards. Text-message sign-in and the daily limit are in Settings.@endif</p></div></div>
   <div class="types">
-    @foreach($types as $type => $label)
+    @foreach(array_diff_key($types, array_flip(\App\Services\Connections::NO_CARD)) as $type => $label)
       <div class="prov"><b style="font-weight:600;display:flex;align-items:center;gap:8px">@include('partials.icon', ['i' => $icons[$type] ?? 'link', 'iconSize' => 16]){{ $label }}</b>
         <button class="btn sm" type="button" data-open-dialog="#add-{{ $type }}">Add</button></div>
     @endforeach
   </div>
 </section>
 
-@foreach($types as $type => $label)
+@php($presets = \App\Services\Connections::PRESETS)
+@php($preset = old('preset', 'google'))
+<dialog class="dlg" id="add-oidc" aria-labelledby="add-oidc-h" data-provider-dialog @if(in_array($newType, ['oidc', 'apple'], true) && $errors->any() && ! $errors->has('test')) data-open-on-load @endif>
+  <form method="post" action="{{ route('admin.connections.store', $orgKey) }}">@csrf
+    <input type="hidden" name="type" value="{{ $presets[$preset][1] ?? 'oidc' }}" data-provider-type>
+    <div class="dlg-h"><h2 id="add-oidc-h">Add a sign-in provider</h2><p>People see a “Continue with …” button for it on the sign-in page.</p></div>
+    <div class="dlg-b">
+      <label class="f"><span>Provider</span>
+        <select class="in" name="preset" data-provider-select>
+          @foreach($presets as $k => [$l, $t, $n, $iss, $sc, $anchor])
+            <option value="{{ $k }}" data-type="{{ $t }}" data-name="{{ $n }}" data-issuer="{{ $iss }}" data-scopes="{{ $sc }}" data-guide="{{ \App\Services\Connections::GUIDES }}#{{ $anchor }}" data-guide-label="{{ $k === 'other' ? 'How to connect an OpenID Connect provider' : 'How to set up '.$n.' sign-in' }}" @selected($preset === $k)>{{ $l }}</option>
+          @endforeach
+        </select></label>
+      @php($pg = $presets[$preset] ?? $presets['google'])
+      <p class="small" style="margin:-4px 0 0"><a href="{{ \App\Services\Connections::GUIDES }}#{{ $pg[5] }}" target="_blank" rel="noopener" data-provider-guide>{{ $preset === 'other' ? 'How to connect an OpenID Connect provider' : 'How to set up '.$pg[2].' sign-in' }} ↗</a></p>
+      <div class="pastebox" style="border:0;padding:0"><span class="small muted">Redirect URL to register with the provider (shown again after you add it):</span>
+        <div class="line"><span class="code" id="new-cb" style="flex:1;min-width:0;word-break:break-all" data-redirect-preview data-base="{{ \App\Services\Domains::mainUrl('login/c/') }}" data-prefix="{{ $org ? $org->slug.'-' : '' }}">{{ \App\Services\Domains::mainUrl('login/c/'.\Illuminate\Support\Str::limit(\Illuminate\Support\Str::slug(($org ? $org->slug.'-' : '').(old('name') ?: $pg[2])), 32, '').'/callback') }}</span><button class="btn sm" type="button" data-copy="#new-cb">Copy</button></div></div>
+      <label class="f"><span>Name (shown as “Continue with …”)</span><input class="in" name="name" required maxlength="80" placeholder="Microsoft 365" value="{{ in_array($newType, ['oidc', 'apple'], true) ? old('name') : $pg[2] }}" data-provider-name></label>
+      @foreach(['oidc', 'apple'] as $ft)
+        @php($on = ($pg[1] ?? 'oidc') === $ft)
+        <fieldset data-fields-for="{{ $ft }}" @unless($on) hidden disabled @endunless style="display:{{ $on ? 'flex' : 'none' }};flex-direction:column;gap:14px;border:0;padding:0;margin:0;min-width:0">
+          @foreach(\App\Services\Connections::fields($ft, (bool) $org) as $name => $def)
+            @php($val = $name === 'show_button' ? true : ($newType === $ft ? old('config.'.$name) : ($name === 'issuer' ? (str_contains((string) ($pg[3] ?? ''), '<') ? null : $pg[3]) : ($name === 'scopes' ? ($pg[4] ?? '') : null))))
+            {!! $fieldInput($name, $def, $val, $ft, 'n'.$ft) !!}
+          @endforeach
+        </fieldset>
+      @endforeach
+    </div>
+    <div class="dlg-f"><button class="btn" type="button" data-close-dialog>Cancel</button><button class="btn pri">Add</button></div>
+  </form>
+</dialog>
+
+@foreach(array_diff_key($types, array_flip(['oidc', 'apple'])) as $type => $label)
   <dialog class="dlg" id="add-{{ $type }}" aria-labelledby="add-{{ $type }}-h" @if($newType === $type && $errors->any() && ! $errors->has('test')) data-open-on-load @endif>
     <form method="post" action="{{ route('admin.connections.store', $orgKey) }}">@csrf
       <input type="hidden" name="type" value="{{ $type }}">
       <div class="dlg-h"><h2 id="add-{{ $type }}-h">Add {{ $label }}</h2></div>
       <div class="dlg-b">
-        <label class="f"><span>Name {{ in_array($type, ['oidc', 'oauth', 'meta']) ? '(shown as “Continue with …”)' : '' }}</span><input class="in" name="name" required maxlength="80" placeholder="{{ $examples[$type] ?? '' }}" value="{{ $newType === $type ? old('name') : '' }}"></label>
+        <label class="f"><span>Name {{ in_array($type, \App\Models\Connection::SIGN_IN_TYPES) ? '(shown as “Continue with …”)' : '' }}</span><input class="in" name="name" required maxlength="80" placeholder="{{ $examples[$type] ?? '' }}" value="{{ $newType === $type ? old('name') : '' }}"></label>
         @foreach($fields[$type] as $name => $def){!! $fieldInput($name, $def, $name === 'show_button' ? true : null, $type, 'n'.$type) !!}@endforeach
       </div>
       <div class="dlg-f"><button class="btn" type="button" data-close-dialog>Cancel</button><button class="btn pri">Add</button></div>

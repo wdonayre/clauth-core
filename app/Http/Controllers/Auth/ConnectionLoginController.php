@@ -71,6 +71,10 @@ class ConnectionLoginController
             if ($c->type === 'meta') {
                 return redirect()->away(self::META.'?'.http_build_query($params + ['scope' => 'email,public_profile']));
             }
+            if ($c->type === 'apple') {
+                // Apple: asking for name/email requires form_post (it POSTs back; see the session-less POST route).
+                return redirect()->away($this->discovery($c)['authorization_endpoint'].'?'.http_build_query($params + ['scope' => 'name email', 'response_mode' => 'form_post', 'nonce' => $nonce]));
+            }
             $params += ['code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '='), 'code_challenge_method' => 'S256'];
             if ($c->type === 'oidc') {
                 $params += ['scope' => $c->cfg('scopes') ?: 'openid email profile', 'nonce' => $nonce, 'prompt' => 'select_account']
@@ -143,6 +147,7 @@ class ConnectionLoginController
                 'oidc' => $this->oidc($c, (string) $request->query('code'), $flow),
                 'oauth' => $this->oauth($c, (string) $request->query('code'), $flow),
                 'meta' => $this->meta($c, (string) $request->query('code')),
+                'apple' => $this->apple($c, (string) $request->query('code'), $flow, (string) $request->query('user')),
             };
         } catch (Throwable $e) {
             report($e);
@@ -196,6 +201,38 @@ class ConnectionLoginController
         return [(string) ($claims['sub'] ?? ''), $email, filter_var($claims['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN), $claims['name'] ?? null];
     }
 
+    /** Sign in with Apple: the client secret is a short-lived ES256 JWT; the name comes only on the first sign-in (`user`). */
+    private function apple(Connection $c, string $code, array $flow, string $user): array
+    {
+        $d = $this->discovery($c);
+        $tok = Http::asForm()->acceptJson()->timeout(15)->post($d['token_endpoint'], [
+            'grant_type' => 'authorization_code', 'code' => $code, 'redirect_uri' => $this->callbackUrl($c),
+            'client_id' => $c->cfg('client_id'), 'client_secret' => self::appleSecret($c),
+        ])->throw()->json();
+        $claims = $this->jwtClaims((string) ($tok['id_token'] ?? ''));
+        if (rtrim((string) ($claims['iss'] ?? ''), '/') !== Connections::APPLE_ISSUER || ! in_array($c->cfg('client_id'), (array) ($claims['aud'] ?? []), true)
+            || ($claims['exp'] ?? 0) < time() - 60 || ($claims['nonce'] ?? null) !== $flow['nonce']) {
+            throw new \RuntimeException("ID token from {$c->key} failed checks (iss/aud/exp/nonce).");
+        }
+        $n = json_decode($user, true)['name'] ?? null;
+        $name = is_array($n) ? trim(($n['firstName'] ?? '').' '.($n['lastName'] ?? '')) : null;
+        $email = isset($claims['email']) && filter_var($claims['email'], FILTER_VALIDATE_EMAIL) ? $claims['email'] : null;
+
+        return [(string) ($claims['sub'] ?? ''), $email, filter_var($claims['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN), $name ?: null];
+    }
+
+    /** Apple's client secret: a JWT signed with the connection's .p8 key (Team ID as issuer, Services ID as subject). */
+    public static function appleSecret(Connection $c): string
+    {
+        $key = \Lcobucci\JWT\Signer\Key\InMemory::plainText((string) $c->cfg('private_key'));
+        $cfg = \Lcobucci\JWT\Configuration::forAsymmetricSigner(new \Lcobucci\JWT\Signer\Ecdsa\Sha256, $key, $key);
+        $now = new \DateTimeImmutable('@'.time());
+
+        return $cfg->builder()->issuedBy((string) $c->cfg('team_id'))->issuedAt($now)->expiresAt($now->modify('+5 minutes'))
+            ->permittedFor(Connections::APPLE_ISSUER)->relatedTo((string) $c->cfg('client_id'))->withHeader('kid', (string) $c->cfg('key_id'))
+            ->getToken($cfg->signer(), $cfg->signingKey())->toString();
+    }
+
     private function oauth(Connection $c, string $code, array $flow): array
     {
         $tok = Http::asForm()->acceptJson()->timeout(15)->post($c->cfg('token_url'), [
@@ -223,10 +260,12 @@ class ConnectionLoginController
 
     private function discovery(Connection $c): array
     {
-        return Cache::remember('oidc-discovery:'.$c->id.':'.md5($c->cfg('issuer')), 3600, function () use ($c) {
-            $d = Http::acceptJson()->timeout(10)->get(rtrim($c->cfg('issuer'), '/').'/.well-known/openid-configuration')->throw()->json();
+        $issuer = $c->type === 'apple' ? Connections::APPLE_ISSUER : (string) $c->cfg('issuer');
+
+        return Cache::remember('oidc-discovery:'.$c->id.':'.md5($issuer), 3600, function () use ($issuer) {
+            $d = Http::acceptJson()->timeout(10)->get(rtrim($issuer, '/').'/.well-known/openid-configuration')->throw()->json();
             if (empty($d['authorization_endpoint']) || empty($d['token_endpoint'])) {
-                throw new \RuntimeException("{$c->cfg('issuer')} has no usable discovery document.");
+                throw new \RuntimeException("{$issuer} has no usable discovery document.");
             }
 
             return $d;

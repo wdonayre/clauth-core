@@ -98,7 +98,7 @@ class SigninPolicies
             }
         }
         $publisher = $app?->publisher ?? $org;
-        $connKeys = Connection::whereIn('type', ['oidc', 'oauth', 'meta'])->where(fn ($q) => $q->whereNull('organization_id')
+        $connKeys = Connection::whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->where(fn ($q) => $q->whereNull('organization_id')
             ->when($publisher, fn ($w) => $w->orWhere('organization_id', $publisher->id)))->pluck('key')->all();
         $httpKeys = Connection::where('type', 'http')->where(fn ($q) => $q->whereNull('organization_id')
             ->when($publisher, fn ($w) => $w->orWhere('organization_id', $publisher->id)))->pluck('key')->all();

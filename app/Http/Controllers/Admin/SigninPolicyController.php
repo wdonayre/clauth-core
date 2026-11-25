@@ -37,7 +37,7 @@ class SigninPolicyController
 
         return view('admin.signin-policy', [
             'kind' => $kind, 'ref' => $ref, 'app' => $app, 'org' => $org, 'own' => $own, 'rules' => $rules, 'source' => $source,
-            'connections' => Connection::whereIn('type', ['oidc', 'oauth', 'meta'])->where(fn ($q) => $q->whereNull('organization_id')->when($publisher, fn ($w) => $w->orWhere('organization_id', $publisher->id)))->orderBy('name')->get(),
+            'connections' => Connection::whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->where(fn ($q) => $q->whereNull('organization_id')->when($publisher, fn ($w) => $w->orWhere('organization_id', $publisher->id)))->orderBy('name')->get(),
             'checks' => Connection::where('type', 'http')->where(fn ($q) => $q->whereNull('organization_id')->when($publisher, fn ($w) => $w->orWhere('organization_id', $publisher->id)))->orderBy('name')->get(),
             'profiles' => $app?->publisher?->accessProfiles()->get() ?? collect(),
             'versions' => $own?->versions()->with('changer')->limit(20)->get() ?? collect(),

@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Connection extends Model
 {
+    /** Connection types that are sign-in buttons. */
+    public const SIGN_IN_TYPES = ['oidc', 'oauth', 'meta', 'apple'];
+
     protected $guarded = ['id'];
 
     protected $hidden = ['config'];
@@ -32,7 +35,7 @@ class Connection extends Model
 
     public function isSignIn(): bool
     {
-        return in_array($this->type, ['oidc', 'oauth', 'meta'], true);
+        return in_array($this->type, self::SIGN_IN_TYPES, true);
     }
 
     public function isActive(): bool

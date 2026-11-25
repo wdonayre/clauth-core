@@ -23,7 +23,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>@yield('title', __('Sign in')) · {{ $tApp?->name ?? $brand['account'] }}</title>
+<title>@yield('title', __('Sign in')) · {{ $tApp?->name ?? ($brand['level'] === 'clauth' ? 'Clauth' : $brand['account']) }}</title>
 @if($white && $brand['logo'])
 <link rel="icon" href="{{ $brand['logo'] }}">
 <link rel="apple-touch-icon" href="{{ $brand['logo'] }}">

@@ -109,7 +109,7 @@
   <section class="card" aria-labelledby="si-h"><h2 id="si-h" class="ch">Sign-in</h2>
     <div class="set" style="border-top:0"><div><b>Sign-in rules</b><p>How people in {{ $org->name }} sign in, and what they must set up first.</p></div><a class="btn" href="{{ route('admin.orgs.policy', $org->id) }}">Open</a></div>
     @if(Route::has('admin.themes.index'))<div class="set"><div><b>Themes</b><p>How sign-in pages look for {{ $org->name }}’s apps.</p></div><a class="btn" href="{{ route('admin.themes.index', $org->id) }}">Open</a></div>@endif
-    @if(Route::has('admin.connections.index'))<div class="set"><div><b>Sign-in providers &amp; senders</b><p>Extra sign-in buttons (Microsoft, Okta, other OIDC), the text-message gateway and {{ $org->name }}’s own email sender.</p></div><a class="btn" href="{{ route('admin.connections.index', $org->id) }}">Open</a></div>@endif
+    @if(Route::has('admin.connections.index'))<div class="set"><div><b>Sign-in providers &amp; senders</b><p>Extra sign-in buttons (Google, Microsoft, Okta, Apple, other OIDC), the text-message gateway and {{ $org->name }}’s own email sender.</p></div><a class="btn" href="{{ route('admin.connections.index', $org->id) }}">Open</a></div>@endif
     @if(Route::has('admin.messages.index'))<div class="set"><div><b>Messages</b><p>Change the wording of sign-in pages and emails people from {{ $org->name }} see.</p></div><a class="btn" href="{{ route('admin.messages.index', $org->id) }}">Open</a></div>@endif
   </section>
 

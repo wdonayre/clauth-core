@@ -92,6 +92,8 @@ class ConnectionController
         $c = $this->find($o, $connection);
         try {
             $msg = match ($c->type) {
+                'apple' => tap('Key works and Apple answers: '.Http::acceptJson()->timeout(10)->get(\App\Services\Connections::APPLE_ISSUER.'/.well-known/openid-configuration')->throw()->json('issuer'),
+                    fn () => \App\Http\Controllers\Auth\ConnectionLoginController::appleSecret($c)),
                 'oidc' => tap('Discovery works: '.Http::acceptJson()->timeout(10)->get(rtrim($c->cfg('issuer'), '/').'/.well-known/openid-configuration')->throw()->json('issuer'),
                     fn () => null),
                 'sms' => tap('Test text sent.', fn () => Sms::send(Sms::normalise((string) $request->input('phone')) ?? abort(422, 'Enter a mobile number to send the test to.'),

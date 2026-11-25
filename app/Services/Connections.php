@@ -15,7 +15,8 @@ use Illuminate\Validation\ValidationException;
  * Connections (SPEC-platform §7): the schema of each type, validation, masking of secrets, and which sign-in
  * buttons a page shows. Google stays configured on the server (.env) and is not a row here.
  *
- *   oidc        any OpenID Connect provider (Microsoft Entra, Okta, Google Workspace, another Clauth) — platform or org
+ *   oidc        any OpenID Connect provider (Google, Microsoft Entra, Okta, another Clauth) — platform or org
+ *   apple       Sign in with Apple (OIDC, but its client secret is a JWT Clauth signs with the .p8 key, and it posts back)
  *   oauth       a plain OAuth 2 provider with a userinfo URL — platform or org
  *   meta        Facebook — platform only
  *   sms         SMS gateway for one-time codes (Semaphore, Twilio, Vonage) — platform only
@@ -24,7 +25,8 @@ use Illuminate\Validation\ValidationException;
 class Connections
 {
     public const TYPES = [
-        'oidc' => 'OpenID Connect (Microsoft, Okta, Google Workspace…)',
+        'oidc' => 'Sign-in provider (Google, Microsoft, Okta, Apple, any OpenID Connect)',
+        'apple' => 'Sign in with Apple',
         'oauth' => 'OAuth 2 provider',
         'meta' => 'Facebook',
         'sms' => 'SMS gateway',
@@ -34,6 +36,25 @@ class Connections
     ];
 
     public const PLATFORM_ONLY = ['meta', 'sms'];
+
+    /** Types added from another type's dialog instead of their own card (Apple: the sign-in provider dropdown). */
+    public const NO_CARD = ['apple'];
+
+    public const GUIDES = 'https://helloclauth.com/docs/sign-in-providers/';
+
+    /**
+     * Provider presets for the "Sign-in provider" dialog: what to prefill and which setup guide to open.
+     * key => [label, type, name, issuer (placeholder when it needs your tenant/org), scopes, guide anchor]
+     */
+    public const PRESETS = [
+        'google' => ['Google', 'oidc', 'Google', 'https://accounts.google.com', 'openid email profile', 'google'],
+        'microsoft' => ['Microsoft (Entra ID / Microsoft 365)', 'oidc', 'Microsoft', 'https://login.microsoftonline.com/<tenant-id>/v2.0', 'openid email profile', 'microsoft'],
+        'okta' => ['Okta', 'oidc', 'Okta', 'https://<your-org>.okta.com', 'openid email profile', 'okta'],
+        'apple' => ['Apple', 'apple', 'Apple', null, null, 'apple'],
+        'other' => ['Other OpenID Connect provider', 'oidc', '', '', 'openid email profile', 'other'],
+    ];
+
+    public const APPLE_ISSUER = 'https://appleid.apple.com';
 
     public const ORG_ONLY = ['email-smtp'];
 
@@ -69,6 +90,12 @@ class Connections
                 'id_field' => ['User id field', 'nullable|string|max:60'],
                 'email_field' => ['Email field', 'nullable|string|max:60'],
                 'name_field' => ['Name field', 'nullable|string|max:60'],
+            ] + $signIn + $orgSignIn,
+            'apple' => [
+                'client_id' => ['Services ID (client ID), e.g. com.example.signin', 'required|string|max:255'],
+                'team_id' => ['Team ID', 'required|string|alpha_num|size:10'],
+                'key_id' => ['Key ID', 'required|string|alpha_num|size:10'],
+                'private_key' => ['Private key (.p8 file contents)', 'required|string|max:2000|starts_with:-----BEGIN PRIVATE KEY-----', true],
             ] + $signIn + $orgSignIn,
             'meta' => [
                 'client_id' => ['App ID', 'required|string|max:100'],
@@ -137,7 +164,7 @@ class Connections
         $rules['apps.*'] = 'string|max:60';
         $v = validator($data, $rules, [], collect($fields)->map(fn ($f) => $f[0])->all());
         $v->validate();
-        if ($org && in_array($type, ['oidc', 'oauth'], true) && empty($data['domains'])) {
+        if ($org && in_array($type, ['oidc', 'oauth', 'apple'], true) && empty($data['domains'])) {
             throw ValidationException::withMessages(['domains' => 'List the email domains of your people (e.g. acme.com).']);
         }
 
@@ -179,7 +206,7 @@ class Connections
             $orgIds->push($domain->organization_id);
         }
 
-        return Connection::whereIn('type', ['oidc', 'oauth', 'meta'])->where('status', 'active')
+        return Connection::whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->where('status', 'active')
             ->where(fn ($q) => $q->whereNull('organization_id')->orWhereIn('organization_id', $orgIds->unique()->all()))
             ->orderByRaw('organization_id is null')->orderBy('name')->get()
             ->filter(fn (Connection $c) => $c->cfg('show_button', true));
@@ -190,7 +217,7 @@ class Connections
     {
         $domain = strtolower(Str::after($email, '@'));
 
-        return Connection::whereIn('type', ['oidc', 'oauth'])->where('status', 'active')->whereNotNull('organization_id')->get()
+        return Connection::whereIn('type', ['oidc', 'oauth', 'apple'])->where('status', 'active')->whereNotNull('organization_id')->get()
             ->first(fn (Connection $c) => $c->cfg('require') && in_array($domain, $c->cfg('domains', []), true));
     }
 
@@ -229,6 +256,6 @@ class Connections
                 && in_array(strtolower(Str::after($user->email, '@')), $c->cfg('domains', []), true);
         }
 
-        return $c->cfg('trust_email', $c->type === 'oidc') && $emailVerified;
+        return $c->cfg('trust_email', in_array($c->type, ['oidc', 'apple'], true)) && $emailVerified;
     }
 }

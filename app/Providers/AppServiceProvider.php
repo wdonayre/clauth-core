@@ -61,6 +61,11 @@ class AppServiceProvider extends ServiceProvider
         // The Clauth bar script. Registered here (not in routes/web.php) so it carries no session or cookies.
         // No .js ending on purpose: the web server caches *.js forever, and bar updates must reach apps within minutes.
         Route::get('/bar/v1', BarScriptController::class)->name('bar.v1');
+        // Sign in with Apple posts back (form_post). This route has no session on purpose: a cross-site POST carries no
+        // session cookie, and starting one would replace the visitor's. It hands the answer to the normal GET callback.
+        Route::post('/login/c/{key}/callback', fn (\Illuminate\Http\Request $r, string $key) => redirect()->to(
+            \App\Services\Domains::mainUrl("login/c/$key/callback").'?'.http_build_query(array_filter($r->only(['code', 'state', 'error', 'user']))), 303
+        ))->where('key', '[a-z0-9-]{1,40}')->middleware('throttle:30,1')->name('login.connection.callback.post');
         // Branded accounts: an organization's public logo (no session), and every sign-in page and email knows its brand.
         Route::get('/brand/{org}/logo', [\App\Http\Controllers\BrandController::class, 'logo'])->name('brand.logo');
         \Illuminate\Support\Facades\View::composer(['layouts.auth', 'layouts.portal', 'auth.*', 'mail.*', 'pages.*', 'account.*'], function ($view) {
