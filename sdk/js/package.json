@@ -11,5 +11,5 @@
   "sideEffects": false,
   "scripts": { "test": "node --test test/*.test.js" },
   "keywords": ["clauth", "oidc", "oauth", "pkce", "sso"],
-  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/js" }
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth-core", "directory": "sdk/js" }
 }

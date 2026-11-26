@@ -10,5 +10,5 @@
   "files": ["src"],
   "sideEffects": false,
   "peerDependencies": { "react": ">=18", "@clauth/js": "^0.1.0" },
-  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/react" }
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth-core", "directory": "sdk/react" }
 }

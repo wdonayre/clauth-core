@@ -11,5 +11,5 @@
   "peerDependencies": { "react": ">=18" },
   "peerDependenciesMeta": { "react": { "optional": true } },
   "scripts": { "test": "node --test test/*.test.js" },
-  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth", "directory": "sdk/react-native" }
+  "repository": { "type": "git", "url": "https://github.com/wdonayre/clauth-core", "directory": "sdk/react-native" }
 }

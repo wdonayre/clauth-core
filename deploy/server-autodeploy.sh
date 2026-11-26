@@ -19,7 +19,7 @@ APP_HOST="${APP_HOST:-auth.example.com}"
 SITE_USER="${SITE_USER:-clauth}"
 BASE="${BASE:-/home/${SITE_USER}/htdocs/${APP_HOST}}"
 PHP_BIN="$(command -v php8.5)"
-REPO="git@github.com:wdonayre/clauth.git"
+REPO="git@github.com:wdonayre/clauth-core.git"
 GIT_KEY="/root/.ssh/clauth-github-deploy"  # read-only deploy key on the repo
 ENABLED=1
 CONF="$BASE/shared/autodeploy.conf"; STATE="$BASE/shared/.autodeploy-current"
