@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers\OAuth;
 
+use App\Http\Controllers\OrganizationRequestController;
+use App\Models\AccessRequest;
 use App\Models\ClientSession;
 use App\Models\OAuthClient;
+use App\Models\UserDevice;
 use App\Services\AppJoin;
 use App\Services\Audit;
+use App\Services\AuthDetails;
 use App\Services\Claims;
 use App\Services\Consents;
 use App\Services\Domains;
+use App\Services\Settings;
 use App\Services\SigninPolicies;
 use App\Services\Theme;
 use Defuse\Crypto\Crypto;
@@ -129,6 +134,17 @@ class AuthorizeController
                 return response()->view('auth.join', ['app' => $app->loadMissing('publisher'), 'user' => $user, 'theme' => Theme::for($app),
                     'role' => $offer['role'], 'scopes' => array_values(array_filter(explode(' ', (string) $request->query('scope'))))]);
             }
+            // Someone from outside the app's organization (often a brand-new account): instead of a dead end, let them
+            // ask that organization for access, or set up their own organization (SPEC-signup.md).
+            if (! $prompt->contains('none') && $app->publisher && ! $user->organizations()->whereKey($app->owner_organization_id)->exists()) {
+                $request->session()->put('join.request', ['url' => $request->fullUrl(), 'client' => $client->id]);
+                Audit::log('signin.denied', 'signin', $user, after: ['app' => $app->key, 'by' => 'no access yet: offered to ask or set up an organization'], appId: $app->id, actorId: $user->id, actorType: 'user');
+
+                return response()->view('auth.no-access', ['app' => $app->loadMissing('publisher'), 'user' => $user, 'theme' => Theme::for($app),
+                    'asked' => AccessRequest::where(['user_id' => $user->id, 'app_id' => $app->id, 'status' => 'pending'])->exists(),
+                    'orgsOpen' => (bool) Settings::get('legal_reviewed'),
+                    'openRequest' => OrganizationRequestController::openFor($user)]);
+            }
             Audit::log('signin.denied', 'signin', $user, after: ['app' => $app->key], appId: $app->id, actorId: $user->id, actorType: 'user');
 
             return $this->deny($server, $authRequest, $request, 'access_denied', 'You don’t have access to this app.');
@@ -142,7 +158,7 @@ class AuthorizeController
         // Rich authorization request (RFC 9396): the person approves each item every time.
         $details = null;
         if (($raw = $request->query('authorization_details')) !== null) {
-            $details = \App\Services\AuthDetails::parse((string) $raw, $app);
+            $details = AuthDetails::parse((string) $raw, $app);
             if (is_string($details)) {
                 return $this->deny($server, $authRequest, $request, 'invalid_authorization_details', $details);
             }
@@ -158,9 +174,9 @@ class AuthorizeController
                 $request->session()->put('details.request', ['url' => $request->fullUrl(), 'hash' => $hash]);
 
                 return response()->view('auth.details', ['app' => $app, 'user' => $user, 'theme' => Theme::for($app),
-                    'items' => array_map(fn ($i) => \App\Services\AuthDetails::describe($i, $app), $details)]);
+                    'items' => array_map(fn ($i) => AuthDetails::describe($i, $app), $details)]);
             }
-            $details = \App\Services\AuthDetails::process($app, $details, $user);
+            $details = AuthDetails::process($app, $details, $user);
             if (is_string($details)) {
                 return $this->deny($server, $authRequest, $request, 'access_denied', $details);
             }
@@ -245,7 +261,7 @@ class AuthorizeController
         if (! $token || $user->isAdmin()) {
             return false;
         }
-        $device = \App\Models\UserDevice::where('user_id', $user->id)->where('cookie_hash', hash('sha256', $token))->first();
+        $device = UserDevice::where('user_id', $user->id)->where('cookie_hash', hash('sha256', $token))->first();
 
         return (bool) ($device?->trusted_until?->isFuture());
     }

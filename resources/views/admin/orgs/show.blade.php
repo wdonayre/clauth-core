@@ -8,6 +8,24 @@
 @include('partials.ui.org-tabs', ['org' => $org])
 @include('admin.orgs._meta')
 
+@if($accessRequests->isNotEmpty())
+  <section class="card pad acc-reqs" aria-labelledby="ar-h">
+    <h2 id="ar-h" style="font-size:15px">{{ $accessRequests->count() === 1 ? '1 person asked for access' : $accessRequests->count().' people asked for access' }}</h2>
+    <p class="small muted" style="margin:0">They have a Clauth account but aren’t in {{ $org->name }}. Approving adds them as a member with the role you pick.</p>
+    @foreach($accessRequests as $ar)
+      <div class="acc-req">
+        <div class="grow"><b>{{ $ar->user->name }}</b> <span class="muted small">{{ $ar->user->email }}</span><div class="small">wants <b>{{ $ar->app->name }}</b> · {{ $ar->created_at->diffForHumans() }}@if($ar->note) · “{{ $ar->note }}”@endif</div></div>
+        <form method="post" action="{{ route('admin.orgs.access-requests.approve', [$org->id, $ar->id]) }}" class="acc-f">@csrf
+          <label class="sr-only" for="ar-role-{{ $ar->id }}">Role in {{ $ar->app->name }}</label>
+          <select class="in" id="ar-role-{{ $ar->id }}" name="role" required>@foreach($ar->app->roles->where('assignable', true)->where('tier', '!=', 'owner') as $role)<option value="{{ $role->id }}">{{ $role->name }}</option>@endforeach</select>
+          <button class="btn sm pri" type="submit">Approve</button>
+        </form>
+        <form method="post" action="{{ route('admin.orgs.access-requests.decline', [$org->id, $ar->id]) }}" data-confirm="Decline {{ $ar->user->name }}’s request?">@csrf<button class="btn sm" type="submit">Decline</button></form>
+      </div>
+    @endforeach
+  </section>
+@endif
+
 <div class="org-split">
   <div class="main" style="display:flex;flex-direction:column;gap:12px">
     <form class="toolbar" method="get" action="{{ route('admin.orgs.show', $org->id) }}" role="search">

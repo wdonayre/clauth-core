@@ -8,6 +8,7 @@ use App\Models\AuditEvent;
 use App\Models\Organization;
 use App\Models\OrganizationRequest;
 use App\Models\User;
+use App\Services\Access;
 use App\Services\TwoFactor;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -123,7 +124,7 @@ class OrgPagesTest extends ClauthTestCase
         $r = OrganizationRequest::create(['org_name' => 'Bar Co', 'slug' => 'bar-co', 'website' => 'https://www.bar.test', 'contact_name' => 'Dana',
             'contact_email' => 'dana@bar.test', 'purpose' => 'Sign-in for our payroll app.', 'email_verified_at' => now()]);
         $this->as($this->owner)->get('/admin/orgs')->assertSee('Bar Co')->assertSee('/admin/org-requests/'.$r->id);
-        $this->as($this->owner)->get('/admin/org-requests/'.$r->id)->assertOk()->assertSee('Bar Co wants to use Clauth')
+        $this->as($this->owner)->get('/admin/org-requests/'.$r->id)->assertOk()->assertSee('Their request')
             ->assertSee('Email matches the website’s domain')->assertSee('Short name is free')->assertSee('Approve');
         $this->as($this->olga)->get('/admin/org-requests/'.$r->id)->assertNotFound();
         $this->as($this->owner)->post('/admin/org-requests/'.$r->id.'/approve')->assertSessionHasNoErrors();
@@ -131,6 +132,7 @@ class OrgPagesTest extends ClauthTestCase
         $this->assertSame('https://www.bar.test', $org->website);
         $this->as($this->owner)->get('/admin/org-requests/'.$r->id)->assertOk()->assertSee('Approved')->assertSee('Open Bar Co')->assertDontSee('Note to Dana');
     }
+
     public function test_logo_upload_serve_and_remove(): void
     {
         Storage::fake('local');
@@ -193,7 +195,7 @@ class OrgPagesTest extends ClauthTestCase
             ->assertSee('2 people have the same app roles by hand')->assertSee('Create “Xpenses Member”', false)
             ->assertSee(route('admin.profiles.suggest.accept', $this->cbg->id));
         $this->as($this->owner)->from('/admin/orgs/'.$this->cbg->id)->post('/admin/orgs/'.$this->cbg->id.'/profiles/suggest',
-            ['key' => \App\Services\Access::suggestions($this->cbg, $this->owner)[0]['key'], 'name' => 'Xpenses Member'])
+            ['key' => Access::suggestions($this->cbg, $this->owner)[0]['key'], 'name' => 'Xpenses Member'])
             ->assertRedirect('/admin/orgs/'.$this->cbg->id)->assertSessionHasNoErrors();
         $p = AccessProfile::where('organization_id', $this->cbg->id)->where('name', 'Xpenses Member')->firstOrFail();
         $this->assertSame(2, $p->users()->count());

@@ -135,6 +135,8 @@
       <h2 id="legal-h" class="ch">Outside organizations</h2>
       <div class="set"><div><b>Legal documents reviewed</b><p>A lawyer has reviewed the <a href="{{ route('terms') }}" target="_blank" rel="noopener">Terms</a>, <a href="{{ route('privacy') }}" target="_blank" rel="noopener">Privacy Policy</a> and <a href="{{ route('dpa') }}" target="_blank" rel="noopener">Data Processing Agreement</a>. Turning this on lets outside organizations request to join.</p></div>
         <label class="sw"><input type="checkbox" form="{{ $F }}" name="legal_reviewed" value="1" @checked($s['legal_reviewed']) aria-label="Legal documents reviewed"><span></span></label></div>
+      <div class="set"><div><b>Anyone can create an account</b><p>Shows <b>Create an account</b> on the sign-in page. An account alone opens no app; setting up an organization still needs your approval (Organizations › Requests).</p></div>
+        <label class="sw"><input type="checkbox" form="{{ $F }}" name="account_signup" value="1" @checked($s['account_signup']) aria-label="Anyone can create an account"><span></span></label></div>
       <div class="set"><div class="muted small">Changes here are saved with <b>Save settings</b>.</div><button class="btn pri" type="submit" form="{{ $F }}">Save settings</button></div>
     </section>
 

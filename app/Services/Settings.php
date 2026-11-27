@@ -27,6 +27,9 @@ class Settings
         // Outside organizations can only request to join once a lawyer has reviewed the Terms, Privacy Policy and
         // Data Processing Agreement and William ticks this (SPEC-organizations §10.5).
         'legal_reviewed' => false,
+        // Anyone can create a Clauth account on the sign-in page (an account alone opens no app). Setting up an
+        // organization still needs a Clauth owner's approval, and only once legal_reviewed is on.
+        'account_signup' => true,
     ];
 
     public static function all(): array

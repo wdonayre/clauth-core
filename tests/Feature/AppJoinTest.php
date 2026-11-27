@@ -56,15 +56,32 @@ class AppJoinTest extends ClauthTestCase
         $this->assertSame('access_denied', $r[3]['error'] ?? null);
     }
 
-    public function test_invite_only_app_still_says_no_access(): void
+    /** Invite-only for this person: the "no access yet" page (ask / set up an organization); Back still denies. */
+    private function noAccessThenBack($r): void
     {
-        $this->denied($this->authorizeCode($this->makeUser('ana@gmail.com')));
+        $this->assertFalse(is_array($r), 'expected the no-access page');
+        $r->assertOk()->assertSee('is invite-only', false)->assertSee('Ask CakesbyGrace for access', false);
+        $back = $this->keep($this->post('/oauth/join', ['decision' => 'cancel']));
+        $this->denied($this->authorizeCodeFrom($back));
+    }
+
+    private function authorizeCodeFrom($r): array
+    {
+        $r = $this->keep($this->get((string) $r->headers->get('Location')));
+        parse_str((string) parse_url((string) $r->headers->get('Location'), PHP_URL_QUERY), $q);
+
+        return [$q['code'] ?? null, $q['state'] ?? null, null, $q];
+    }
+
+    public function test_invite_only_app_offers_to_ask_for_access(): void
+    {
+        $this->noAccessThenBack($this->authorizeCode($this->makeUser('ana@gmail.com')));
     }
 
     public function test_not_offered_when_email_domain_not_allowed(): void
     {
         $this->openSignUp(['open_domains' => 'cakesbygrace.ph']);
-        $this->denied($this->authorizeCode($this->makeUser('ana@gmail.com')));
+        $this->noAccessThenBack($this->authorizeCode($this->makeUser('ana@gmail.com')));
     }
 
     public function test_not_offered_to_someone_already_in_the_organization(): void

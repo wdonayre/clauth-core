@@ -55,8 +55,11 @@ class DashboardController
                     $add('warn', '◷', "{$names}: sign-in domain {$d->host} isn’t live yet", $d->label(), $href, 'Check');
                 }
             }
-            if ($n = OrganizationRequest::where('status', 'pending')->whereNotNull('email_verified_at')->count()) {
-                $add('info', '+', "$n organization request(s) to review", 'People asking to use Clauth for their company.', route('admin.orgs.index'), 'Review');
+            if ($n = OrganizationRequest::waiting()->count()) {
+                $oldest = OrganizationRequest::waiting()->oldest('updated_at')->first();
+                $add('info', '+', $n === 1 ? '1 organization request is waiting' : "$n organization requests are waiting",
+                    OrganizationRequest::waiting()->latest()->limit(3)->pluck('org_name')->join(', ').'. The oldest is from '.$oldest->updated_at->diffForHumans().'.',
+                    route('admin.org-requests.index'), 'Review');
             }
             if ($n = Report::where('status', 'open')->count()) {
                 $add('danger', '!', "$n sign-in page report(s) to review", 'Someone flagged a sign-in page as suspicious.', route('admin.reports'), 'Review');

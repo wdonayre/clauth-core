@@ -6,7 +6,11 @@
   @if(! $pending)
     <div class="ttl">
       <h1>{{ __('Create your account') }}</h1>
-      <p class="lede">{{ __('You’ll use it to sign in to :app.', ['app' => $app->name]) }}</p>
+      @if($mode === 'app')
+        <p class="lede">{{ __('You’ll use it to sign in to :app.', ['app' => $app->name]) }}</p>
+      @else
+        <p class="lede">{{ __('One account for every app that uses :brand.', ['brand' => $brand['name']]) }}</p>
+      @endif
     </div>
     @include('partials.errors')
     <form class="stack" method="post" action="{{ url('/signup') }}">@csrf
@@ -20,6 +24,9 @@
       <div class="field"><label for="password_confirmation">{{ __('Type it again') }}</label><input class="input" id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required></div>
       <label class="check top"><input type="checkbox" name="terms" value="1" required> <span>{{ __('I agree to the') }} <a href="{{ route('terms') }}" target="_blank">{{ __('Terms') }}</a> {{ __('and') }} <a href="{{ route('privacy') }}" target="_blank">{{ __('Privacy policy') }}</a></span></label>
       <button class="btn-auth pri" type="submit">{{ __('Continue') }}</button>
+      @if($mode === 'account')
+        <p class="fine">{{ __('An account on its own doesn’t open any app. You get access when an organization invites you, or when your own organization is approved.') }}</p>
+      @endif
     </form>
   @else
     <span class="sico" aria-hidden="true">@include('partials.icon', ['i' => 'mail', 'iconSize' => 22])</span>

@@ -9,6 +9,7 @@ use App\Models\Invite;
 use App\Models\Organization;
 use App\Models\OrganizationRequest;
 use App\Models\User;
+use App\Services\Claims;
 use App\Services\Invites;
 use App\Services\OrgLifecycle;
 use App\Services\Settings;
@@ -56,47 +57,63 @@ class OnboardingTest extends ClauthTestCase
     public function test_closed_until_the_legal_documents_are_reviewed(): void
     {
         $this->get('/organizations/new')->assertOk()->assertSee('isn’t open to new organizations yet', false);
-        $this->post('/organizations/new', $this->form)->assertNotFound();
+        $this->post('/organizations/new', $this->form)->assertRedirect('/login');            // needs an account
+        $this->actingAs($this->makeUser('ana@foo.test'))->post('/organizations/new', $this->form)->assertNotFound();
         $this->get('/terms')->assertOk()->assertSee('Draft — needs review by a lawyer');
         $this->get('/dpa')->assertOk()->assertSee('Data Processing Agreement');
     }
 
-    public function test_request_confirm_approve_invites_the_contact_as_owner(): void
+    public function test_signed_in_request_approve_makes_the_person_owner(): void
     {
         $this->withoutMiddleware(ThrottleRequests::class);
         Settings::set(['legal_reviewed' => true]);
         $this->get('/terms')->assertOk()->assertDontSee('Draft — needs review by a lawyer');
-        $this->post('/organizations/new', ['agree' => 0] + $this->form)->assertSessionHasErrors('agree');
-        $this->post('/organizations/new', ['slug' => 'cebucake-x'] + $this->form)->assertSessionHasErrors('slug'); // reserved prefix
-        $this->post('/organizations/new', $this->form + ['website_url' => 'spam'])->assertOk();             // honeypot: silently dropped
+        $this->get('/organizations/new')->assertOk()->assertSee('First create a Clauth account');
+        $ana = $this->makeUser('ana@foo.test', ['name' => 'Ana Cruz']);
+        $form = ['org_name' => 'Foo Ltd', 'slug' => 'foo-ltd', 'website' => 'https://foo.test', 'country' => 'Philippines', 'team_size' => '11-50',
+            'purpose' => 'Single sign-on for our staff rostering and payroll apps.', 'agree' => 1];
+        $this->actingAs($ana)->get('/organizations/new')->assertOk()->assertSee('Set up your organization')->assertSee('ana@foo.test');
+        $this->actingAs($ana)->post('/organizations/new', ['agree' => 0] + $form)->assertSessionHasErrors('agree');
+        $this->actingAs($ana)->post('/organizations/new', ['slug' => 'cebucake-x'] + $form)->assertSessionHasErrors('slug'); // reserved prefix
+        $this->actingAs($ana)->post('/organizations/new', $form + ['website_url' => 'spam'])->assertRedirect('/account'); // honeypot: dropped
         $this->assertSame(0, OrganizationRequest::count());
 
-        $this->post('/organizations/new', $this->form)->assertOk()->assertSee('Check your email');
-        $link = null;
-        Mail::assertSent(OrgRequestMail::class, function ($m) use (&$link) {
-            $link = $m->link;
-
-            return $m->hasTo('ana@foo.test') && $m->kind === 'verify';
-        });
-        // Not shown to William until the email is confirmed.
-        $this->as($this->owner)->get('/admin/orgs')->assertDontSee('Requests to join');
-        $this->get($link)->assertOk()->assertSee('email confirmed');
-        $this->as($this->owner)->get('/admin')->assertSee('organization request(s) to review');
+        $this->actingAs($ana)->post('/organizations/new', $form)->assertRedirect('/account');
         $req = OrganizationRequest::firstOrFail();
-        $this->as($this->owner)->get('/admin/orgs')->assertSee('Requests to join')->assertSee('Foo Ltd')->assertSee('/admin/org-requests/'.$req->id);
-        $this->as($this->owner)->get('/admin/org-requests/'.$req->id)->assertOk()->assertSee('Single sign-on for our staff')->assertSee('Short name is free');
+        $this->assertSame([$ana->id, 'ana@foo.test', 'pending'], [$req->user_id, $req->contact_email, $req->status]);
+        $this->assertNotNull($req->email_verified_at, 'the account’s email is already proven');
+        Mail::assertSent(OrgRequestMail::class, fn ($m) => $m->hasTo('owner@clauth.test') && $m->kind === 'new');
+        // One open request per account.
+        $this->actingAs($ana)->post('/organizations/new', ['slug' => 'foo-two'] + $form)->assertRedirect('/account')->assertSessionHasErrors('request');
+        $this->actingAs($ana)->get('/account')->assertSee('Foo Ltd is waiting for review')->assertSee('Edit request');
 
-        $this->as($this->owner)->post('/admin/org-requests/'.$req->id.'/approve')->assertSessionHasNoErrors();
+        $this->as($this->owner)->get('/admin')->assertSee('1 organization request is waiting');
+        $this->as($this->owner)->get('/admin/org-requests')->assertOk()->assertSee('Foo Ltd')->assertSee('Email matches website')->assertSee('Clauth sign-up');
+        $this->as($this->owner)->get('/admin/org-requests/'.$req->id)->assertOk()->assertSee('Single sign-on for our staff')->assertSee('Short name is free')->assertSee('First request from this account');
+
+        $this->as($this->owner)->post('/admin/org-requests/'.$req->id.'/approve', ['people_limit' => 25, 'apps_limit' => 3, 'branding_allowed' => 'cobrand'])->assertSessionHasNoErrors();
         $org = Organization::where('slug', 'foo-ltd')->firstOrFail();
         $this->assertFalse($org->is_platform);
         $this->assertNull($org->verified_at);
         $this->assertFalse($org->needsTerms(), 'accepted on the request form');
-        $invite = Invite::where('email', 'ana@foo.test')->firstOrFail();
+        $this->assertSame([25, 3, 'cobrand'], [$org->limit('people'), $org->limit('apps'), $org->branding_allowed]);
+        $this->assertSame('owner', $ana->fresh()->orgRole($org->id), 'no invite: the account that asked is the owner');
+        $this->assertSame(0, Invite::where('email', 'ana@foo.test')->count());
+        Mail::assertSent(OrgRequestMail::class, fn ($m) => $m->hasTo('ana@foo.test') && $m->kind === 'approved');
+        $this->assertTrue(Claims::policyRequiresMfa($ana->fresh()), 'owners must use 2-step');
+        $this->actingAs($ana->fresh())->get('/account')->assertSee('Foo Ltd is approved');
+    }
+
+    public function test_legacy_public_form_request_still_invites_the_contact(): void
+    {
+        $req = OrganizationRequest::create(['org_name' => 'Old Co', 'slug' => 'old-co', 'contact_name' => 'Ana Cruz', 'contact_email' => 'ana@old.test',
+            'purpose' => 'Single sign-on for our staff apps.', 'email_verified_at' => now()]);
+        $this->as($this->owner)->post('/admin/org-requests/'.$req->id.'/approve')->assertSessionHasNoErrors();
+        $org = Organization::where('slug', 'old-co')->firstOrFail();
+        $invite = Invite::where('email', 'ana@old.test')->firstOrFail();
         $this->assertSame('owner', $invite->org_role);
         Mail::assertSent(InviteMail::class);
-
-        // Accepting the invite makes Ana the organization's owner.
-        $ana = User::where('email', 'ana@foo.test')->first();
+        $ana = User::where('email', 'ana@old.test')->first() ?? $this->makeUser('ana@old.test');
         Invites::apply($invite, $ana);
         $this->assertSame('owner', $ana->orgRole($org->id));
     }

@@ -2,8 +2,11 @@
 
 use App\Models\Application;
 use App\Models\AuditEvent;
+use App\Models\OrganizationRequest;
 use App\Services\Manifest;
 use App\Services\SigningKeys;
+use App\Services\Webhooks;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 // Signing-key rotation steps (activate staged keys after 7 days, retire old ones after tokens expired).
@@ -26,5 +29,8 @@ Schedule::command('clauth:domains check --all')->dailyAt('04:20')->withoutOverla
 Schedule::command('clauth:orgs-purge')->dailyAt('04:40')->withoutOverlapping();
 
 // Webhooks to apps (SPEC-provisioning E1): retries of failed deliveries, and the 30-day delivery log.
-Schedule::call(fn () => \App\Services\Webhooks::sendDue())->everyMinute()->name('clauth:webhooks')->withoutOverlapping();
-Schedule::call(fn () => \Illuminate\Support\Facades\DB::table('webhook_deliveries')->where('created_at', '<', now()->subDays(30))->delete())->dailyAt('03:45');
+Schedule::call(fn () => Webhooks::sendDue())->everyMinute()->name('clauth:webhooks')->withoutOverlapping();
+Schedule::call(fn () => DB::table('webhook_deliveries')->where('created_at', '<', now()->subDays(30))->delete())->dailyAt('03:45');
+
+// Organization requests with no answer from either side for 30 days close by themselves (SPEC-signup.md).
+Schedule::call(fn () => OrganizationRequest::expireDue())->dailyAt('04:50')->name('clauth:org-requests-expire')->withoutOverlapping();

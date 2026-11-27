@@ -31,7 +31,7 @@ class SettingsController
             // Sign-in methods section: Google comes from the server's .env; the rest are platform connections.
             'google' => SocialController::enabled('google'),
             'googleCallback' => Domains::mainUrl('login/google/callback'),
-            'providers' => Connection::whereNull('organization_id')->whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->orderBy('name')->get(),
+            'providers' => Connection::whereNull('organization_id')->whereIn('type', Connection::SIGN_IN_TYPES)->orderBy('name')->get(),
             'sms' => Connections::sms(),
             'smsAvailable' => Sms::available(),
             'types' => Connections::TYPES,
@@ -59,8 +59,9 @@ class SettingsController
             'sms_daily_cap' => 'required|integer|min:0|max:100000',
             'support_email' => 'required|email',
             'legal_reviewed' => 'boolean',
+            'account_signup' => 'boolean',
         ]);
-        foreach (['require_mfa_everyone', 'require_mfa_admin_tiers', 'breached_password_check', 'new_device_email', 'legal_reviewed', 'email_code_signin', 'sms_signin'] as $b) {
+        foreach (['require_mfa_everyone', 'require_mfa_admin_tiers', 'breached_password_check', 'new_device_email', 'legal_reviewed', 'account_signup', 'email_code_signin', 'sms_signin'] as $b) {
             $data[$b] = $request->boolean($b);
         }
         $before = array_intersect_key(Settings::all(), $data);

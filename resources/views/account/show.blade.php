@@ -10,6 +10,9 @@
   <div><h1>Hi, {{ $first }}</h1><p>Open an app, or manage how you sign in.</p></div>
   @unless($portal ?? false)<div class="actions"><a class="btn" href="{{ route('account.tokens') }}">@include('partials.icon', ['i' => 'key', 'iconSize' => 16])API tokens</a></div>@endunless
 </header>
+@unless($portal ?? false)
+  @include('account._org-request')
+@endunless
 
 {{-- ---------- Apps ---------- --}}
 <section aria-labelledby="apps-h">

@@ -2,17 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Api\OpenApi;
 use App\Mail\LoginCodeMail;
 use App\Models\AccessProfile;
+use App\Models\AppRole;
 use App\Models\Connection;
+use App\Models\Grant;
 use App\Models\OAuthClient;
 use App\Models\User;
+use App\Services\Claims;
+use App\Services\Settings;
 use App\Services\SigninPolicies;
 use App\Services\TwoFactor;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /** P4a: sign-in policies (+ history, open sign-up, http check), PAR, device sign-in (SPEC-platform §8.1, §8.3). */
 class PlatformP4aTest extends ClauthTestCase
@@ -62,11 +68,11 @@ class PlatformP4aTest extends ClauthTestCase
         $maria = $this->makeUser();
         $this->grant($maria, $this->cbg, 'member');
         SigninPolicies::save($this->xp, null, SigninPolicies::validate(['two_step' => 'always'], $this->xp, null), $this->admin);
-        $this->assertTrue(\App\Services\Claims::mfaRequired($maria, $this->xp));
+        $this->assertTrue(Claims::mfaRequired($maria, $this->xp));
 
         // Password not allowed for Xpenses: the form is gone and a password session must sign in again.
         SigninPolicies::save($this->xp, null, SigninPolicies::validate(['password' => false, 'email_code' => true], $this->xp, null), $this->admin);
-        \App\Services\Settings::set(['email_code_signin' => true]);
+        Settings::set(['email_code_signin' => true]);
         $this->actingAs($maria)->withSession(['auth.via' => 'password', 'auth.mfa' => false]);
         $this->keep($this->get($this->authorizeUrl()))->assertRedirect('/login');
         $this->assertGuest();
@@ -94,8 +100,10 @@ class PlatformP4aTest extends ClauthTestCase
         $staff = AccessProfile::create(['organization_id' => $this->cbg->id, 'key' => 'staff', 'name' => 'Staff']);
         DB::table('access_profile_roles')->insert(['access_profile_id' => $staff->id, 'app_id' => $this->xp->id, 'app_role_id' => $this->role('member')->id]);
         $this->keep($this->get($this->authorizeUrl()));
+        Settings::set(['account_signup' => false]);
         $this->get('/signup')->assertNotFound();
-        SigninPolicies::save($this->xp, null, SigninPolicies::validate(['registration' => 'open', 'open_domains' => "cakesbygrace.ph", 'open_profile' => 'staff'], $this->xp, null), $this->admin);
+        Settings::set(['account_signup' => true]);
+        SigninPolicies::save($this->xp, null, SigninPolicies::validate(['registration' => 'open', 'open_domains' => 'cakesbygrace.ph', 'open_profile' => 'staff'], $this->xp, null), $this->admin);
         $this->keep($this->get('/login'))->assertSee('Create an account');
 
         $form = ['name' => 'Ana Reyes', 'email' => 'ana@gmail.com', 'password' => 'a long enough password', 'password_confirmation' => 'a long enough password', 'terms' => '1'];
@@ -111,15 +119,15 @@ class PlatformP4aTest extends ClauthTestCase
         $this->keep($this->post('/signup/verify', ['code' => $code]))->assertRedirect();
         $ana = User::firstWhere('email', 'ana@cakesbygrace.ph');
         $this->assertSame(['active', 'Ana Reyes'], [$ana->status, $ana->name]);
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('a long enough password', $ana->password));
-        $this->assertSame('member', \App\Models\Grant::where('user_id', $ana->id)->first()?->role?->key);
+        $this->assertTrue(Hash::check('a long enough password', $ana->password));
+        $this->assertSame('member', Grant::where('user_id', $ana->id)->first()?->role?->key);
         $this->assertAuthenticatedAs($ana);
 
         // An owner-tier profile can't be handed out by sign-up.
-        \App\Models\AppRole::create(['app_id' => $this->xp->id, 'key' => 'owner', 'name' => 'Owner', 'tier' => 'owner']);
+        AppRole::create(['app_id' => $this->xp->id, 'key' => 'owner', 'name' => 'Owner', 'tier' => 'owner']);
         $boss = AccessProfile::create(['organization_id' => $this->cbg->id, 'key' => 'boss', 'name' => 'Boss']);
-        DB::table('access_profile_roles')->insert(['access_profile_id' => $boss->id, 'app_id' => $this->xp->id, 'app_role_id' => \App\Models\AppRole::where('key', 'owner')->value('id')]);
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        DB::table('access_profile_roles')->insert(['access_profile_id' => $boss->id, 'app_id' => $this->xp->id, 'app_role_id' => AppRole::where('key', 'owner')->value('id')]);
+        $this->expectException(ValidationException::class);
         SigninPolicies::validate(['registration' => 'open', 'open_profile' => 'boss'], $this->xp, null);
     }
 
@@ -211,9 +219,9 @@ class PlatformP4aTest extends ClauthTestCase
         $api()->deleteJson('/api/v1/apps/xpenses/policy')->assertNoContent();
         $api()->getJson('/api/v1/policy')->assertStatus(403);
 
-        $routes = array_keys(\App\Api\OpenApi::routes());
+        $routes = array_keys(OpenApi::routes());
         sort($routes);
-        $docs = array_keys(\App\Api\OpenApi::DOCS);
+        $docs = array_keys(OpenApi::DOCS);
         sort($docs);
         $this->assertSame($docs, $routes);
     }

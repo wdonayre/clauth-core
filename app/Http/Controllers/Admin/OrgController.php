@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Mail\OrgRequestMail;
+use App\Models\AccessRequest;
 use App\Models\AppDomain;
 use App\Models\Application;
 use App\Models\Grant;
@@ -11,13 +11,12 @@ use App\Models\OrganizationRequest;
 use App\Models\User;
 use App\Services\Access;
 use App\Services\Audit;
+use App\Services\Brand;
 use App\Services\Installations;
-use App\Services\Invites;
 use App\Services\OrgLifecycle;
 use App\Services\Suspensions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -41,7 +40,7 @@ class OrgController
                     'users' => fn ($q) => $q->wherePivotIn('role', ['owner', 'admin'])->orderBy('name')])
                 ->when($this->orgIds() !== null, fn ($q) => $q->whereIn('id', $this->orgIds()))->orderBy('name')->get(),
             'canEdit' => $me->isOwner(),
-            'requests' => $me->isOwner() ? OrganizationRequest::where('status', 'pending')->whereNotNull('email_verified_at')->latest()->get() : collect(),
+            'requests' => $me->isOwner() ? OrganizationRequest::waiting()->latest()->get() : collect(),
         ]);
     }
 
@@ -72,6 +71,9 @@ class OrgController
             'people' => $people, 'jobRoles' => $jobRoles, 'appCounts' => $appCounts, 'profiles' => $profiles, 'appsPer' => $appsPer,
             'q' => $q, 'role' => isset(Organization::ROLES[$role]) ? $role : null,
             'canRoles' => $this->canOwn($org), 'roles' => Organization::ROLES,
+            // People outside the organization asking for one of its apps (SPEC-signup.md); owners/admins decide.
+            'accessRequests' => in_array($request->user()->orgRole($org->id), ['owner', 'admin'], true) || $request->user()->isOwner()
+                ? AccessRequest::with(['user', 'app.roles'])->where('organization_id', $org->id)->where('status', 'pending')->latest()->get() : collect(),
         ]);
     }
 
@@ -134,7 +136,7 @@ class OrgController
     public function branding(Request $request, Organization $org)
     {
         $this->visibleOrg($org);
-        $data = $request->validate(\App\Services\Brand::SETTINGS);
+        $data = $request->validate(Brand::SETTINGS);
         $msg = self::saveBranding($org, $data);
 
         return $msg ? back()->withErrors(['branding_mode' => $msg])->withInput() : back()->with('status', "{$org->name} branding saved.");
@@ -143,10 +145,10 @@ class OrgController
     /** Shared by the console and the API; returns an error message, or null when saved. */
     public static function saveBranding(Organization $org, array $data): ?string
     {
-        if (isset($data['branding_mode']) && \App\Services\Brand::rank($data['branding_mode']) > \App\Services\Brand::rank($org->branding_allowed)) {
-            return 'Clauth allows '.$org->name.' up to “'.\App\Services\Brand::LEVELS[$org->branding_allowed ?? 'clauth'].'”. Ask Clauth to allow more.';
+        if (isset($data['branding_mode']) && Brand::rank($data['branding_mode']) > Brand::rank($org->branding_allowed)) {
+            return 'Clauth allows '.$org->name.' up to “'.Brand::LEVELS[$org->branding_allowed ?? 'clauth'].'”. Ask Clauth to allow more.';
         }
-        $keys = array_keys(\App\Services\Brand::SETTINGS);
+        $keys = array_keys(Brand::SETTINGS);
         $before = $org->only($keys);
         $org->update(array_intersect_key($data, array_flip($keys)));
         Audit::log('org.branding_updated', 'admin', $org, $before, $org->only($keys), orgId: $org->id);
@@ -218,23 +220,6 @@ class OrgController
     }
 
     /** Review one organization request (Clauth owners). */
-    public function showRequest(OrganizationRequest $orgRequest)
-    {
-        $host = fn (?string $u) => $u ? preg_replace('/^www\./', '', mb_strtolower((string) parse_url($u, PHP_URL_HOST))) : null;
-        $site = $host($orgRequest->website);
-        $mail = mb_strtolower(substr(strrchr($orgRequest->contact_email, '@') ?: '', 1));
-
-        return view('admin.orgs.request', [
-            'r' => $orgRequest,
-            'checks' => [
-                'email' => (bool) $orgRequest->email_verified_at,
-                'match' => $site ? ($mail === $site || str_ends_with($mail, '.'.$site)) : null,
-                'slug' => ! Organization::where('slug', $orgRequest->slug)->exists(),
-            ],
-            'org' => $orgRequest->organization_id ? Organization::find($orgRequest->organization_id) : null,
-        ]);
-    }
-
     /** Shared numbers for the organization header. */
     private function orgHead(Organization $org): array
     {
@@ -276,7 +261,7 @@ class OrgController
             'verified_at' => $verified ? ($org->verified_at ?? now()) : null, 'limits' => $limits ?: null]
             + (isset($data['branding_allowed']) ? ['branding_allowed' => $data['branding_allowed']] : []));
         // Lowering what's allowed lowers the organization's choice with it.
-        if (\App\Services\Brand::rank($org->branding_mode) > \App\Services\Brand::rank($org->branding_allowed)) {
+        if (Brand::rank($org->branding_mode) > Brand::rank($org->branding_allowed)) {
             $org->update(['branding_mode' => $org->branding_allowed]);
         }
         Audit::log('org.updated', 'admin', $org, $before, $org->only('name', 'status', 'is_platform', 'verified_at', 'limits', 'branding_allowed'), orgId: $org->id);
@@ -288,35 +273,6 @@ class OrgController
      * Approve an outside organization's request: the organization is created (unverified, low limits) and the contact
      * is invited as its owner, with 2-step verification required.
      */
-    public function approveRequest(OrganizationRequest $orgRequest)
-    {
-        abort_unless($orgRequest->status === 'pending' && $orgRequest->email_verified_at, 404);
-        if (Organization::where('slug', $orgRequest->slug)->exists()) {
-            return back()->withErrors(['request' => "The short name {$orgRequest->slug} is taken now. Reject with a note, or rename it."]);
-        }
-        $org = Organization::create(['name' => $orgRequest->org_name, 'slug' => $orgRequest->slug, 'is_platform' => false, 'website' => $orgRequest->website,
-            'terms_accepted_at' => now(), 'terms_version' => config('clauth.terms_version')]);
-        [$ownerProfile] = Access::starterProfiles($org, auth()->user());
-        [$invite, $token] = Invites::create(['name' => $orgRequest->contact_name, 'email' => $orgRequest->contact_email,
-            'organization_id' => $org->id, 'org_role' => 'owner', 'require_mfa' => true, 'grants' => [], 'profiles' => [$ownerProfile->id]], auth()->user());
-        rescue(fn () => Invites::send($invite, $token), report: true);
-        $orgRequest->update(['status' => 'approved', 'decided_by' => auth()->id(), 'decided_at' => now(), 'organization_id' => $org->id]);
-        Audit::log('org.request_approved', 'admin', $org, after: ['slug' => $org->slug, 'contact' => $orgRequest->contact_email], orgId: $org->id);
-
-        return back()->with('status', "{$org->name} created. {$orgRequest->contact_email} was invited as its owner.");
-    }
-
-    public function rejectRequest(Request $request, OrganizationRequest $orgRequest)
-    {
-        abort_unless($orgRequest->status === 'pending', 404);
-        $data = $request->validate(['reason' => 'nullable|string|max:500']);
-        $orgRequest->update(['status' => 'rejected', 'reject_reason' => $data['reason'] ?? null, 'decided_by' => auth()->id(), 'decided_at' => now()]);
-        rescue(fn () => Mail::to($orgRequest->contact_email)->send(new OrgRequestMail($orgRequest, 'rejected')), report: true);
-        Audit::log('org.request_rejected', 'admin', $orgRequest, after: ['org' => $orgRequest->org_name, 'contact' => $orgRequest->contact_email]);
-
-        return back()->with('status', "Request from {$orgRequest->org_name} rejected.");
-    }
-
     /** Clauth owners: suspend (with a reason shown to the organization's staff) or restore. */
     public function suspend(Request $request, Organization $org)
     {

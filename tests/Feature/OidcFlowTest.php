@@ -66,10 +66,13 @@ class OidcFlowTest extends ClauthTestCase
     public function test_user_without_grant_gets_access_denied_and_audit(): void
     {
         $user = $this->makeUser();
-        [$code, , , $q] = $this->authorizeCode($user);
-        $this->assertNull($code);
-        $this->assertSame('access_denied', $q['error']);
+        // Outside the app's organization: the "no access yet" page first; "Back to the app" ends in access_denied.
+        $this->authorizeCode($user)->assertOk()->assertSee('is invite-only', false);
         $this->assertTrue(AuditEvent::where('event', 'signin.denied')->where('subject_id', $user->id)->exists());
+        $back = $this->keep($this->post('/oauth/join', ['decision' => 'cancel']));
+        $r = $this->keep($this->get((string) $back->headers->get('Location')));
+        parse_str((string) parse_url((string) $r->headers->get('Location'), PHP_URL_QUERY), $q);
+        $this->assertSame('access_denied', $q['error']);
     }
 
     public function test_role_change_shows_in_next_refreshed_token(): void

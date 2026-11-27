@@ -268,3 +268,15 @@ body.auth-body{margin:0;background:var(--page-bg,#F7F8FA)}
   .auth footer,.auth .noprint,.auth .clauth-panel,.auth .split-side{display:none!important}
   .auth .card{box-shadow:none;border:0}
 }
+/* Choice cards: welcome after sign-up, no access to an app yet (SPEC-signup.md) */
+.auth .choices{display:flex;flex-direction:column;gap:10px}
+.auth .choice{display:flex;gap:14px;align-items:flex-start;padding:16px;border:1px solid var(--border);border-radius:var(--cl-radius-md);background:var(--card);color:var(--text);text-decoration:none;text-align:left}
+.auth a.choice:hover{border-color:var(--link);text-decoration:none}
+.auth a.choice:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.auth .choice .sico{flex:none;margin:0}
+.auth .choice .txt{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.auth .choice .txt>span{font-size:13px;color:var(--muted)}
+.auth .choice .tag{display:inline-block;margin-left:6px;font:500 11px var(--cl-font-mono);text-transform:uppercase;padding:1px 6px;border-radius:6px;background:var(--warn-bg);color:var(--warn);vertical-align:2px}
+.auth .inline-f{display:flex;gap:8px;margin-top:6px}
+.auth .inline-f .input{flex:1;min-width:0}
+.auth .inline-f .btn-auth{width:auto;flex:none;padding:0 16px}

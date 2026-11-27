@@ -22,11 +22,11 @@
 @if($requests->isNotEmpty())
   <section class="card reqbar" aria-labelledby="req-h">
     <h2 id="req-h" class="sr-only">Requests to join</h2>
-    <span class="badge warn">{{ $requests->count() }} {{ Str::plural('request', $requests->count()) }}</span>
+    <a class="badge warn" href="{{ route('admin.org-requests.index') }}">{{ $requests->count() }} {{ Str::plural('request', $requests->count()) }}</a>
     <div class="grow" style="display:flex;flex-direction:column;gap:6px">
       @foreach($requests as $r)
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-          <span class="grow"><b>{{ $r->org_name }}</b> asked to join Clauth {{ $r->created_at->diffForHumans() }}.</span>
+          <span class="grow"><b>{{ $r->org_name }}</b> asked to set up an organization {{ $r->created_at->diffForHumans() }}.</span>
           <a class="btn sm" href="{{ route('admin.org-requests.show', $r->id) }}">Review</a>
         </div>
       @endforeach

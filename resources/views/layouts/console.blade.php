@@ -69,6 +69,7 @@
         @if($people)<a class="{{ $nav('admin.users.*') }}" href="{{ route('admin.users.index') }}" {{ $cur('admin.users.*') }}>@include('partials.icon', ['i' => 'users'])People</a>@endif
         <a class="{{ $nav('admin.apps.*', 'admin.themes.*') }}" href="{{ route('admin.apps.index') }}" {{ $cur('admin.apps.*') }}>@include('partials.icon', ['i' => 'box'])Apps</a>
         @if($people)<a class="{{ $nav('admin.orgs.*', 'admin.profiles.*', 'admin.org-data.*', 'admin.api-clients.*', 'admin.agents.*', 'admin.connections.*', 'admin.messages.*') }}" href="{{ route('admin.orgs.index') }}" {{ $cur('admin.orgs.*') }}>@include('partials.icon', ['i' => 'org'])Organizations</a>@endif
+        @if($me->isOwner())@php($orgReqs = \App\Models\OrganizationRequest::waiting()->count())<a class="{{ $nav('admin.org-requests.*') }}" href="{{ route('admin.org-requests.index') }}" {{ $cur('admin.org-requests.*') }}>@include('partials.icon', ['i' => 'list'])Requests @if($orgReqs)<span class="n">{{ $orgReqs }}</span>@endif</a>@endif
         @if($people || $me->isOwner())
           <span class="nav-h">Security</span>
           @if($people)<a class="{{ $nav('admin.audit*') }}" href="{{ route('admin.audit') }}" {{ $cur('admin.audit*') }}>@include('partials.icon', ['i' => 'activity'])Activity</a>@endif

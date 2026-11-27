@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Auth\SocialController;
 use App\Models\Application;
 use App\Models\ClientSession;
+use App\Models\Connection;
 use App\Models\Consent;
 use App\Models\Grant;
+use App\Models\OrganizationRequest;
 use App\Services\Audit;
+use App\Services\Brand;
 use App\Services\Claims;
 use App\Services\Consents;
 use App\Services\Passwords;
 use App\Services\Sessions;
+use App\Services\Settings;
 use App\Services\TwoFactor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,17 +42,23 @@ class AccountController
         $appSessions = ClientSession::with('app')->where('user_id', $user->id)->orderByDesc('last_used_at')->get();
 
         return view('account.show', [
-            'portal' => (bool) $domain, 'brand' => $domain ? \App\Services\Brand::of($domain->organization, true) : \App\Services\Brand::clauth(),
+            'portal' => (bool) $domain, 'brand' => $domain ? Brand::of($domain->organization, true) : Brand::clauth(),
             'user' => $user, 'apps' => $apps, 'web' => $web, 'appSessions' => $appSessions,
             'currentSession' => $request->session()->getId(), 'mfaRequired' => Claims::policyRequiresMfa($user),
             'google' => SocialController::enabled('google') ? ['identity' => $user->socialIdentities()->where('provider', 'google')->first()] : null,
             // Other sign-in providers this person can link: platform ones and their organizations' (SPEC-platform §7).
-            'linkable' => \App\Models\Connection::whereIn('type', \App\Models\Connection::SIGN_IN_TYPES)->where('status', 'active')
+            'linkable' => Connection::whereIn('type', Connection::SIGN_IN_TYPES)->where('status', 'active')
                 ->where(fn ($q) => $q->whereNull('organization_id')->orWhereIn('organization_id', $user->organizations()->pluck('organizations.id')))
                 ->orderBy('name')->get()->map(fn ($c) => ['c' => $c, 'identity' => $user->socialIdentities()->where('provider', $c->key)->first()]),
             'codesLeft' => count($user->two_factor_recovery_codes ?? []),
             'newCodes' => $request->session()->get('new_codes'),
             // Apps outside your own organizations that you've allowed to receive your details (SPEC-organizations §6.1).
+            // Setting up an organization (SPEC-signup.md): the open request, or one decided in the last 30 days.
+            'orgRequest' => $domain ? null : OrganizationRequest::where('user_id', $user->id)
+                ->where(fn ($q) => $q->whereIn('status', OrganizationRequest::OPEN)->orWhere('decided_at', '>=', now()->subDays(30)))
+                ->whereNotIn('status', ['cancelled'])->latest('id')->first(),
+            'orgsOpen' => (bool) Settings::get('legal_reviewed'),
+            'ownsOrg' => $user->organizations()->wherePivot('role', 'owner')->exists(),
             'consents' => Consent::with('app.publisher')->where('user_id', $user->id)->whereNull('revoked_at')->latest('granted_at')->get()->filter(fn ($c) => $c->app),
         ]);
     }
